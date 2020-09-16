@@ -11,8 +11,9 @@
 
 #include "session.h"
 #include "utils/buf.h"
+#include "utils/errno.h"
 #include <sys/time.h>
 
-int quic_handle_packet(quic_session_t *const sess, const quic_buf_t buf, struct timeval recv_time);
+quic_err_t quic_handle_packet(quic_session_t *const sess, const quic_buf_t buf, struct timeval recv_time);
 
 #endif

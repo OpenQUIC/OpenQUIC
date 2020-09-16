@@ -19,7 +19,7 @@ typedef uint32_t quic_version_t;
 typedef uint32_t quic_packet_number_t;
 
 #define QUIC_HEADER_FIELDS          \
-    uint8_t first_bit;
+    uint8_t first_byte;
 
 #define QUIC_LONG_HEADER_FIELDS     \
     quic_version_t version;        \
@@ -34,7 +34,15 @@ struct quic_header_s {
 } __attribute__((__packed__));
 
 #define quic_header_is_long(header)         \
-    (((header)->first_bit & 0x80) != 0x00)
+    ((header)->first_byte & 0x80)
+
+#define quic_packet_type(header)            \
+    (((header)->first_byte & 0x30))
+
+#define quic_packet_initial_type    0x00
+#define quic_packet_0rtt_type       0x10
+#define quic_packet_handshake_type  0x20
+#define quic_packet_retry_type      0x30
 
 typedef struct quic_long_header_s quic_long_header_t;
 struct quic_long_header_s {
@@ -126,9 +134,9 @@ static inline quic_initial_header_t quic_initial_header(quic_header_t *const hea
     initial.payload_len = quic_varint_r(ptr);
     ptr += quic_varint_len(ptr);
 
-    initial.p_num = quic_packet_number_r(header->first_bit, ptr);
+    initial.p_num = quic_packet_number_r(header->first_byte, ptr);
 
-    initial.payload = ptr + (header->first_bit & 0x03) + 1;
+    initial.payload = ptr + (header->first_byte & 0x03) + 1;
 
     return initial;
 }
@@ -145,9 +153,9 @@ static inline quic_0rtt_header_t quic_0rtt_header(quic_header_t *const header) {
     zero_rtt.payload_len = quic_varint_r(ptr);
     ptr += quic_varint_len(ptr);
 
-    zero_rtt.p_num = quic_packet_number_r(header->first_bit, ptr);
+    zero_rtt.p_num = quic_packet_number_r(header->first_byte, ptr);
 
-    zero_rtt.payload = ptr + (header->first_bit & 0x03) + 1;
+    zero_rtt.payload = ptr + (header->first_byte & 0x03) + 1;
 
     return zero_rtt;
 }
@@ -164,9 +172,9 @@ static inline quic_handshake_header_t quic_handshake_header(quic_header_t *const
     handshake.payload_len = quic_varint_r(ptr);
     ptr += quic_varint_len(ptr);
 
-    handshake.p_num = quic_packet_number_r(header->first_bit, ptr);
+    handshake.p_num = quic_packet_number_r(header->first_byte, ptr);
 
-    handshake.payload = ptr + (header->first_bit & 0x03) + 1;
+    handshake.payload = ptr + (header->first_byte & 0x03) + 1;
 
     return handshake;
 }
@@ -191,8 +199,8 @@ static inline quic_payload_t quic_short_header(quic_header_t *const header, size
 
     quic_payload_t payload = {};
 
-    payload.p_num = quic_packet_number_r(header->first_bit, ptr);
-    payload.payload = ptr + (header->first_bit & 0x03) + 1;
+    payload.p_num = quic_packet_number_r(header->first_byte, ptr);
+    payload.payload = ptr + (header->first_byte & 0x03) + 1;
 
     return payload;
 }

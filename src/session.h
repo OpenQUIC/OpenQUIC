@@ -19,6 +19,7 @@ struct quic_session_s {
     bool recv_first;
     struct timeval last_recv_time;
     quic_buf_t handshake_dst;
+    size_t conn_len;
 };
 
 #endif
