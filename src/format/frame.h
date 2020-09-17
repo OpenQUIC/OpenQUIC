@@ -10,6 +10,8 @@
 #define __OPENQUIC_FRAME_H__
 
 #include "utils/arr.h"
+#include "utils/errno.h"
+#include "utils/buf.h"
 #include <stdint.h>
 
 #define quic_frame_padding_type               0x00
@@ -208,5 +210,7 @@ typedef struct quic_frame_handshake_done_s quic_frame_handshake_done_t;
 struct quic_frame_handshake_done_s {
     QUIC_FRAME_FIELDS;
 };
+
+typedef quic_err_t (*quic_frame_parser_t)(quic_frame_t **const frame, quic_buf_t *const buf);
 
 #endif
