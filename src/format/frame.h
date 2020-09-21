@@ -40,6 +40,7 @@
 
 #define QUIC_FRAME_FIELDS       \
     uint8_t first_byte;         \
+    uint8_t ref_count;          \
     quic_frame_t *next;         \
 
 typedef struct quic_frame_s quic_frame_t;
