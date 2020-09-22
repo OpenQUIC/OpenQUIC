@@ -33,7 +33,7 @@ static quic_err_t __handshake_done_parse(quic_frame_t **const frame, quic_buf_t 
 
 static quic_err_t __ping_format(quic_buf_t *const buf, quic_frame_t *const frame);
 static quic_err_t __ack_format(quic_buf_t *const buf, quic_frame_t *const frame);
-static quic_err_t __reset_straam_format(quic_buf_t *const buf, quic_frame_t *const frame);
+static quic_err_t __reset_stream_format(quic_buf_t *const buf, quic_frame_t *const frame);
 static quic_err_t __stop_sending_format(quic_buf_t *const buf, quic_frame_t *const frame);
 static quic_err_t __crypto_format(quic_buf_t *const buf, quic_frame_t *const frame);
 static quic_err_t __new_token_format(quic_buf_t *const buf, quic_frame_t *const frame);
@@ -112,6 +112,40 @@ const quic_frame_parser_t quic_frame_parser[256] = {
     __connection_close_parse,     // 0x1c
     __connection_close_parse,     // 0x1d
     __handshake_done_parse,       // 0x1e
+};
+
+const quic_frame_formatter_t quic_frame_formatter[256] = {
+    NULL,
+    __ping_format,                 // 0x01
+    __ack_format,                  // 0x02
+    __ack_format,                  // 0x03
+    __reset_stream_format,         // 0x04
+    __stop_sending_format,         // 0x05
+    __crypto_format,               // 0x06
+    __new_token_format,            // 0x07
+    __stream_format,               // 0x08
+    __stream_format,               // 0x09
+    __stream_format,               // 0x0a
+    __stream_format,               // 0x0b
+    __stream_format,               // 0x0c
+    __stream_format,               // 0x0d
+    __stream_format,               // 0x0e
+    __stream_format,               // 0x0f
+    __max_data_format,             // 0x10
+    __max_stream_data_format,      // 0x11
+    __max_streams_format,          // 0x12
+    __max_streams_format,          // 0x13
+    __data_blocked_format,         // 0x14
+    __data_blocked_format,         // 0x15
+    __stream_data_blocked_format,  // 0x16
+    __stream_data_blocked_format,  // 0x17
+    __new_connection_id_format,    // 0x18
+    __retire_connection_id_format, // 0x19
+    __path_challenge_format,       // 0x1a
+    __path_response_format,        // 0x1b
+    __connection_close_format,     // 0x1c
+    __connection_close_format,     // 0x1d
+    __handshake_done_format,       // 0x1e
 };
 
 #define __quic_put_byte(buf, byte)          \
@@ -473,7 +507,7 @@ static quic_err_t __ack_format(quic_buf_t *const buf, quic_frame_t *const frame)
     return quic_err_success;
 }
 
-static quic_err_t __reset_straam_format(quic_buf_t *const buf, quic_frame_t *const frame) {
+static quic_err_t __reset_stream_format(quic_buf_t *const buf, quic_frame_t *const frame) {
     quic_frame_reset_stream_t *const ref = (quic_frame_reset_stream_t *) frame;
     __quic_put_byte(buf, ref->first_byte);
 
@@ -634,3 +668,4 @@ static quic_err_t __handshake_done_format(quic_buf_t *const buf, quic_frame_t *c
 
     return quic_err_success;
 }
+

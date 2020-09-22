@@ -41,7 +41,7 @@
 #define QUIC_FRAME_FIELDS       \
     uint8_t first_byte;         \
     uint8_t ref_count;          \
-    quic_frame_t *next;         \
+    quic_frame_t *next;
 
 typedef struct quic_frame_s quic_frame_t;
 struct quic_frame_s {
@@ -213,5 +213,25 @@ struct quic_frame_handshake_done_s {
 };
 
 typedef quic_err_t (*quic_frame_parser_t)(quic_frame_t **const frame, quic_buf_t *const buf);
+typedef quic_err_t (*quic_frame_formatter_t)(quic_buf_t *const buf, quic_frame_t *const frame);
+
+extern const quic_frame_formatter_t quic_frame_formatter[256];
+extern const quic_frame_parser_t quic_frame_parser[256];
+
+static inline quic_err_t quic_frame_format(quic_buf_t *const buf, quic_frame_t *const frame) {
+    if (!quic_frame_formatter[frame->first_byte]) {
+        return quic_err_not_implemented;
+    }
+
+    return quic_frame_formatter[frame->first_byte](buf, frame);
+}
+
+static inline quic_err_t quic_frame_parse(quic_frame_t **const frame, quic_buf_t *const buf) {
+    if (!quic_frame_parser[*(uint8_t *) buf->pos]) {
+        return quic_err_not_implemented;
+    }
+
+    return quic_frame_parser[*(uint8_t *) buf->pos](frame, buf);
+}
 
 #endif
