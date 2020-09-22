@@ -8,9 +8,13 @@
 
 #include "parse_packet.h"
 #include "format/header.h"
+#include "format/frame.h"
 #include "utils/errno.h"
 
 static quic_err_t quic_process_packet(quic_session_t *const sess, const quic_payload_t *payload);
+static quic_err_t quic_process_packet_payload(quic_session_t *const sess, const quic_payload_t *payload);
+
+extern quic_session_handler_t quic_session_handler[256];
 
 quic_err_t quic_handle_packet(quic_session_t *const sess, const quic_buf_t buf, struct timeval recv_time) {
     union {
@@ -60,6 +64,39 @@ quic_err_t quic_handle_packet(quic_session_t *const sess, const quic_buf_t buf, 
 }
 
 static quic_err_t quic_process_packet(quic_session_t *const sess, const quic_payload_t *payload) {
+    quic_err_t err = quic_err_success;
+
+    if ((err = quic_process_packet_payload(sess, payload)) != quic_err_success) {
+        return err;
+    }
+
+    return quic_err_success;
+}
+
+static quic_err_t quic_process_packet_payload(quic_session_t *const sess, const quic_payload_t *payload) {
+    quic_err_t err = quic_err_success;
+
+    quic_buf_t buf;
+    buf.buf = payload->payload;
+    buf.capa = payload->payload_len;
+    quic_buf_setpl(&buf);
+
+    while (!quic_buf_empty(&buf)) {
+        quic_frame_t *frame = NULL;
+
+        if ((err = quic_frame_parse(frame, &buf)) != quic_err_success) {
+            return err;
+        }
+
+        if (!quic_session_handler[frame->first_byte]) {
+            free(frame);
+            continue;
+        }
+        if ((err = quic_session_handler[frame->first_byte](sess, frame)) != quic_err_success) {
+            free(frame);
+            return err;
+        }
+    }
 
     return quic_err_success;
 }

@@ -43,6 +43,7 @@ struct quic_header_s {
 #define quic_packet_0rtt_type       0x10
 #define quic_packet_handshake_type  0x20
 #define quic_packet_retry_type      0x30
+#define quic_packet_short_type      0x80
 
 typedef struct quic_long_header_s quic_long_header_t;
 struct quic_long_header_s {
@@ -102,6 +103,7 @@ struct quic_long_header_s {
     (quic_packet_number_r1(field & 0x03, payload) (quic_packet_number_r2(field & 0x03, payload) (quic_packet_number_r3(field & 0x03, payload) (quic_packet_number_r4(field & 0x03, payload)))))
 
 #define QUIC_PAYLOAD_FIELDS                                                                             \
+    uint8_t type;                                                                                       \
     quic_packet_number_t p_num;                                                                         \
     uint64_t payload_len;                                                                               \
     void *payload;
@@ -135,6 +137,7 @@ static inline quic_initial_header_t quic_initial_header(quic_header_t *const hea
     ptr += quic_varint_len(ptr);
 
     initial.p_num = quic_packet_number_r(header->first_byte, ptr);
+    initial.type = quic_packet_initial_type;
 
     initial.payload = ptr + (header->first_byte & 0x03) + 1;
 
@@ -154,6 +157,7 @@ static inline quic_0rtt_header_t quic_0rtt_header(quic_header_t *const header) {
     ptr += quic_varint_len(ptr);
 
     zero_rtt.p_num = quic_packet_number_r(header->first_byte, ptr);
+    zero_rtt.type = quic_packet_0rtt_type;
 
     zero_rtt.payload = ptr + (header->first_byte & 0x03) + 1;
 
@@ -173,6 +177,7 @@ static inline quic_handshake_header_t quic_handshake_header(quic_header_t *const
     ptr += quic_varint_len(ptr);
 
     handshake.p_num = quic_packet_number_r(header->first_byte, ptr);
+    handshake.type = quic_packet_handshake_type;
 
     handshake.payload = ptr + (header->first_byte & 0x03) + 1;
 
@@ -200,6 +205,7 @@ static inline quic_payload_t quic_short_header(quic_header_t *const header, size
     quic_payload_t payload = {};
 
     payload.p_num = quic_packet_number_r(header->first_byte, ptr);
+    payload.type = quic_packet_short_type;
     payload.payload = ptr + (header->first_byte & 0x03) + 1;
 
     return payload;
