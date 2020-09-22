@@ -22,6 +22,10 @@
 #define quic_frame_stop_sending_type          0x05
 #define quic_frame_crypto_type                0x06
 #define quic_frame_new_token_type             0x07
+#define quic_frame_stream_type                0x08
+#define quic_frame_stream_type_fin            0x09
+#define quic_frame_stream_type_len            0x0a
+#define quic_frame_stream_type_off            0x0c
 #define quic_frame_max_data_type              0x10
 #define quic_frame_max_stream_data_type       0x11
 #define quic_frame_max_bidi_streams_type      0x12
@@ -218,7 +222,10 @@ typedef quic_err_t (*quic_frame_formatter_t)(quic_buf_t *const buf, quic_frame_t
 extern const quic_frame_formatter_t quic_frame_formatter[256];
 extern const quic_frame_parser_t quic_frame_parser[256];
 
-static inline quic_err_t quic_frame_format(quic_buf_t *const buf, quic_frame_t *const frame) {
+#define quic_frame_format(buf, frame)                           \
+    quic_frame_format_inner((buf), (quic_frame_t *) (frame))
+
+static inline quic_err_t quic_frame_format_inner(quic_buf_t *const buf, quic_frame_t *const frame) {
     if (!quic_frame_formatter[frame->first_byte]) {
         return quic_err_not_implemented;
     }
@@ -226,7 +233,10 @@ static inline quic_err_t quic_frame_format(quic_buf_t *const buf, quic_frame_t *
     return quic_frame_formatter[frame->first_byte](buf, frame);
 }
 
-static inline quic_err_t quic_frame_parse(quic_frame_t **const frame, quic_buf_t *const buf) {
+#define quic_frame_parse(frame, buf)                            \
+    quic_frame_parse_inner((quic_frame_t **) &frame, (buf))
+
+static inline quic_err_t quic_frame_parse_inner(quic_frame_t **const frame, quic_buf_t *const buf) {
     if (!quic_frame_parser[*(uint8_t *) buf->pos]) {
         return quic_err_not_implemented;
     }
