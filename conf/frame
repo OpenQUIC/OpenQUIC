@@ -1,0 +1,69 @@
+#
+# Copyright (c) 2020 Gscienty <gaoxiaochuan@hotmail.com>
+#
+# Distributed under the MIT software license, see the accompanying
+# file LICENSE or https://www.opensource.org/licenses/mit-license.php .
+#
+
+parser 0x01 quic_ping_parse
+parser 0x02 quic_ack_parse
+parser 0x03 quic_ack_parse
+parser 0x04 quic_reset_stream_parse
+parser 0x05 quic_stop_sending_parse
+parser 0x06 quic_crypto_parse
+parser 0x07 quic_new_token_parse
+parser 0x08 quic_stream_parse
+parser 0x09 quic_stream_parse
+parser 0x0a quic_stream_parse
+parser 0x0b quic_stream_parse
+parser 0x0c quic_stream_parse
+parser 0x0d quic_stream_parse
+parser 0x0e quic_stream_parse
+parser 0x0f quic_stream_parse
+parser 0x10 quic_max_data_parse
+parser 0x11 quic_max_stream_data_parse
+parser 0x12 quic_max_streams_parse
+parser 0x13 quic_max_streams_parse
+parser 0x14 quic_data_blocked_parse
+parser 0x15 quic_data_blocked_parse
+parser 0x16 quic_stream_data_blocked_parse
+parser 0x17 quic_stream_data_blocked_parse
+parser 0x18 quic_new_connection_id_parse
+parser 0x19 quic_retire_connection_id_parse
+parser 0x1a quic_path_challenge_parse
+parser 0x1b quic_path_response_parse
+parser 0x1c quic_connection_close_parse
+parser 0x1d quic_connection_close_parse
+parser 0x1e quic_handshake_done_parse
+
+formatter 0x01 quic_ping_format
+formatter 0x02 quic_ack_format
+formatter 0x03 quic_ack_format
+formatter 0x04 quic_reset_stream_format
+formatter 0x05 quic_stop_sending_format
+formatter 0x06 quic_crypto_format
+formatter 0x07 quic_new_token_format
+formatter 0x08 quic_stream_format
+formatter 0x09 quic_stream_format
+formatter 0x0a quic_stream_format
+formatter 0x0b quic_stream_format
+formatter 0x0c quic_stream_format
+formatter 0x0d quic_stream_format
+formatter 0x0e quic_stream_format
+formatter 0x0f quic_stream_format
+formatter 0x10 quic_max_data_format
+formatter 0x11 quic_max_stream_data_format
+formatter 0x12 quic_max_streams_format
+formatter 0x13 quic_max_streams_format
+formatter 0x14 quic_data_blocked_format
+formatter 0x15 quic_data_blocked_format
+formatter 0x16 quic_stream_data_blocked_format
+formatter 0x17 quic_stream_data_blocked_format
+formatter 0x18 quic_new_connection_id_format
+formatter 0x19 quic_retire_connection_id_format
+formatter 0x1a quic_path_challenge_format
+formatter 0x1b quic_path_response_format
+formatter 0x1c quic_connection_close_format
+formatter 0x1d quic_connection_close_format
+formatter 0x1e quic_handshake_done_format
+
