@@ -24,7 +24,7 @@ void common_ack() {
         quic_arr(ranges, i, quic_ack_range_t)->len = 0x1238;
     }
 
-    quic_frame_format(&buf, (quic_frame_t *) ack);
+    quic_frame_format(&buf, ack);
 
     printf("%ld\n", quic_buf_size(&buf));
 
