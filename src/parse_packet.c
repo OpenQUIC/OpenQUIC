@@ -88,6 +88,13 @@ static quic_err_t quic_process_packet_payload(quic_session_t *const sess, const 
             return err;
         }
 
+        if (frame->first_byte == quic_frame_ack_type || frame->first_byte == quic_frame_ack_ecn_type) {
+            ((quic_frame_ack_t *) frame)->packet_type = payload->type;
+        }
+        else if (frame->first_byte == quic_frame_crypto_type) {
+            ((quic_frame_crypto_t *) frame)->packet_type = payload->type;
+        }
+
         if (!quic_session_handler[frame->first_byte]) {
             free(frame);
             continue;

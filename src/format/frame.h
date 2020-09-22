@@ -67,6 +67,8 @@ typedef struct quic_frame_ack_s quic_frame_ack_t;
 struct quic_frame_ack_s {
     QUIC_FRAME_FIELDS
 
+    uint8_t packet_type; /* only used for session handle ACK frame */
+
     uint64_t largest_ack;
     uint64_t delay;
     uint64_t first_range;
@@ -98,6 +100,8 @@ struct quic_frame_stop_sending_s {
 typedef struct quic_frame_crypto_s quic_frame_crypto_t;
 struct quic_frame_crypto_s {
     QUIC_FRAME_FIELDS
+
+    uint8_t packet_type; /* only used for session handle CRYPTO frame */
 
     uint64_t off;
     uint64_t len;
