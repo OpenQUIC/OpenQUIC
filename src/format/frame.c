@@ -38,6 +38,18 @@ static quic_err_t __stop_sending_format(quic_buf_t *const buf, quic_frame_t *con
 static quic_err_t __crypto_format(quic_buf_t *const buf, quic_frame_t *const frame);
 static quic_err_t __new_token_format(quic_buf_t *const buf, quic_frame_t *const frame);
 static quic_err_t __stream_format(quic_buf_t *const buf, quic_frame_t *const frame);
+static quic_err_t __max_data_format(quic_buf_t *const buf, quic_frame_t *const frame);
+static quic_err_t __max_stream_data_format(quic_buf_t *const buf, quic_frame_t *const frame);
+static quic_err_t __max_streams_format(quic_buf_t *const buf, quic_frame_t *const frame);
+static quic_err_t __data_blocked_format(quic_buf_t *const buf, quic_frame_t *const frame);
+static quic_err_t __stream_data_blocked_format(quic_buf_t *const buf, quic_frame_t *const frame);
+static quic_err_t __streams_blocked_format(quic_buf_t *const buf, quic_frame_t *const frame);
+static quic_err_t __new_connection_id_format(quic_buf_t *const buf, quic_frame_t *const frame);
+static quic_err_t __retire_connection_id_format(quic_buf_t *const buf, quic_frame_t *const frame);
+static quic_err_t __path_challenge_format(quic_buf_t *const buf, quic_frame_t *const frame);
+static quic_err_t __path_response_format(quic_buf_t *const buf, quic_frame_t *const frame);
+static quic_err_t __connection_close_format(quic_buf_t *const buf, quic_frame_t *const frame);
+static quic_err_t __handshake_done_format(quic_buf_t *const buf, quic_frame_t *const frame);
 
 #define __quic_frame_alloc(frame, _first_byte, size)        \
     if ((*(frame) = malloc((size))) == NULL) {              \
@@ -339,13 +351,13 @@ static quic_err_t __new_connection_id_parse(quic_frame_t **const frame, quic_buf
     if (ref.len < 1 || ref.len > 20) {
         return quic_err_bad_format;
     }
-    if (buf->pos + ref.len + 128 > buf->last) {
+    if (buf->pos + ref.len + 16> buf->last) {
         return quic_err_bad_format;
     }
     memcpy(ref.conn, buf->pos, ref.len);
     buf->pos += ref.len;
-    memcpy(ref.token, buf->pos, 128);
-    buf->pos += 128;
+    memcpy(ref.token, buf->pos, 16);
+    buf->pos += 16;
 
     __quic_frame_alloc(frame, ref.first_byte, sizeof(quic_frame_new_connection_id_t));
     *(quic_frame_new_connection_id_t *) *frame = ref;
@@ -513,6 +525,112 @@ static quic_err_t __stream_format(quic_buf_t *const buf, quic_frame_t *const fra
         __quic_put_varint(buf, ref->len);
     }
     __quic_put_data(buf, ref->len, ref->data);
+
+    return quic_err_success;
+}
+
+static quic_err_t __max_data_format(quic_buf_t *const buf, quic_frame_t *const frame) {
+    quic_frame_max_data_t *const ref = (quic_frame_max_data_t *) frame;
+    __quic_put_byte(buf, ref->first_byte);
+    __quic_put_varint(buf, ref->max_data);
+
+    return quic_err_success;
+}
+
+static quic_err_t __max_stream_data_format(quic_buf_t *const buf, quic_frame_t *const frame) {
+    quic_frame_max_stream_data_t *const ref = (quic_frame_max_stream_data_t *) frame;
+    __quic_put_byte(buf, ref->first_byte);
+    __quic_put_varint(buf, ref->sid);
+    __quic_put_varint(buf, ref->max_data);
+
+    return quic_err_success;
+}
+
+static quic_err_t __max_streams_format(quic_buf_t *const buf, quic_frame_t *const frame) {
+    quic_frame_max_streams_t *const ref = (quic_frame_max_streams_t *) frame;
+    __quic_put_byte(buf, ref->first_byte);
+    __quic_put_varint(buf, ref->max_streams);
+
+    return quic_err_success;
+}
+
+static quic_err_t __data_blocked_format(quic_buf_t *const buf, quic_frame_t *const frame) {
+    quic_frame_data_blocked_t *const ref = (quic_frame_data_blocked_t *) frame;
+    __quic_put_byte(buf, ref->first_byte);
+    __quic_put_varint(buf, ref->max_data);
+
+    return quic_err_success;
+}
+
+static quic_err_t __stream_data_blocked_format(quic_buf_t *const buf, quic_frame_t *const frame) {
+    quic_frame_stream_data_blocked_t *const ref = (quic_frame_stream_data_blocked_t *) frame;
+    __quic_put_byte(buf, ref->first_byte);
+    __quic_put_varint(buf, ref->sid);
+    __quic_put_varint(buf, ref->max_data);
+
+    return quic_err_success;
+}
+
+static quic_err_t __streams_blocked_format(quic_buf_t *const buf, quic_frame_t *const frame) {
+    quic_frame_streams_blocked_t *const ref = (quic_frame_streams_blocked_t *) frame;
+    __quic_put_byte(buf, ref->first_byte);
+    __quic_put_varint(buf, ref->max_streams);
+
+    return quic_err_success;
+}
+
+static quic_err_t __new_connection_id_format(quic_buf_t *const buf, quic_frame_t *const frame) {
+    quic_frame_new_connection_id_t *const ref = (quic_frame_new_connection_id_t *) frame;
+    __quic_put_byte(buf, ref->first_byte);
+    __quic_put_varint(buf, ref->seq);
+    __quic_put_varint(buf, ref->retire);
+    __quic_put_byte(buf, ref->len);
+    __quic_put_data(buf, ref->len, ref->conn);
+    __quic_put_data(buf, 16, ref->token);
+
+    return quic_err_success;
+}
+
+static quic_err_t __retire_connection_id_format(quic_buf_t *const buf, quic_frame_t *const frame) {
+    quic_frame_retire_connection_id_t *const ref = (quic_frame_retire_connection_id_t *) frame;
+    __quic_put_byte(buf, ref->first_byte);
+    __quic_put_varint(buf, ref->seq);
+
+    return quic_err_success;
+}
+
+static quic_err_t __path_challenge_format(quic_buf_t *const buf, quic_frame_t *const frame) {
+    quic_frame_path_challenge_t *const ref = (quic_frame_path_challenge_t *) frame;
+    __quic_put_byte(buf, ref->first_byte);
+    __quic_put_data(buf, 8, ref->data);
+
+    return quic_err_success;
+}
+
+static quic_err_t __path_response_format(quic_buf_t *const buf, quic_frame_t *const frame) {
+    quic_frame_path_response_t *const ref = (quic_frame_path_response_t *) frame;
+    __quic_put_byte(buf, ref->first_byte);
+    __quic_put_data(buf, 8, ref->data);
+
+    return quic_err_success;
+}
+
+static quic_err_t __connection_close_format(quic_buf_t *const buf, quic_frame_t *const frame) {
+    quic_frame_connection_close_t *const ref = (quic_frame_connection_close_t *) frame;
+    __quic_put_byte(buf, ref->first_byte);
+    __quic_put_varint(buf, ref->err);
+    if (ref->first_byte == 0x1c) {
+        __quic_put_varint(buf, ref->type);
+    }
+    __quic_put_varint(buf, ref->len);
+    __quic_put_data(buf, ref->len, ref->data);
+
+    return quic_err_success;
+}
+
+static quic_err_t __handshake_done_format(quic_buf_t *const buf, quic_frame_t *const frame) {
+    quic_frame_handshake_done_t *const ref = (quic_frame_handshake_done_t *) frame;
+    __quic_put_byte(buf, ref->first_byte);
 
     return quic_err_success;
 }
