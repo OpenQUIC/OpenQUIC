@@ -14,6 +14,7 @@ typedef int quic_err_t;
 #define quic_err_success         0
 #define quic_err_not_implemented -501
 #define quic_err_bad_format      -400
-#define quic_err_internal_error  500
+#define quic_err_internal_error  -500
+#define quic_err_conflict        -400
 
 #endif
