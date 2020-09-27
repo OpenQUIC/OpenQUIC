@@ -77,7 +77,7 @@ quic_err_t quic_rbt_remove_inner(quic_rbt_t **const root, quic_rbt_t **const nod
     return quic_err_success;
 }
 
-quic_rbt_t *quic_rbt_find(quic_rbt_t *const root, const void *const key, quic_rbt_key_comparer_t comparer) {
+quic_rbt_t *quic_rbt_find_inner(quic_rbt_t *const root, const void *const key, quic_rbt_key_comparer_t comparer) {
     quic_rbt_t *ret = root;
     while (ret != quic_rbt_nil) {
         switch (comparer(key, ret)) {

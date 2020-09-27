@@ -7,12 +7,13 @@
  */
 
 #include "sorter.h"
+#include <string.h>
 #include <malloc.h>
 
-static quic_err_t quic_sorter_put_cluster(quic_sorter_t *const sorter, uint64_t off, uint64_t len, void *const data);
+static quic_err_t quic_sorter_put_cluster(quic_sorter_t *const sorter, uint64_t off, uint64_t len, void *data);
 
 quic_err_t quic_sorter_init(quic_sorter_t *const sorter) {
-    quic_link_init(&sorter->clusters);
+    quic_rbt_tree_init(sorter->clusters);
     quic_link_init(&sorter->gaps);
 
     quic_sorter_gap_t *gap = malloc(sizeof(quic_sorter_gap_t));
@@ -24,10 +25,13 @@ quic_err_t quic_sorter_init(quic_sorter_t *const sorter) {
     gap->len = QUIC_SORTER_MAX_SIZE;
     quic_link_insert_after(&sorter->gaps, gap);
 
+    sorter->avail_size = 0;
+    sorter->readed_size = 0;
+
     return quic_err_success;
 }
 
-quic_err_t quic_sorter_put(quic_sorter_t *const sorter, const uint64_t off, const uint64_t len, void *const data) {
+quic_err_t quic_sorter_put(quic_sorter_t *const sorter, uint64_t off, uint64_t len, void *data) {
     quic_sorter_gap_t *start_gap = NULL;
     quic_sorter_gap_t *end_gap = NULL;
     uint64_t end = off + len - 1;
@@ -70,29 +74,59 @@ quic_err_t quic_sorter_put(quic_sorter_t *const sorter, const uint64_t off, cons
         }
 
         if (end < quic_sorter_gap_end(end_gap)) {
+            end_gap->len = quic_sorter_gap_end(end_gap) - end;
             quic_sorter_gap_start(end_gap) = end + 1;
         }
+
     }
     else if (end == quic_sorter_gap_end(end_gap)) {
         start_gap->len = start - 1 - quic_sorter_gap_start(start_gap) + 1;
     }
-    else {
-        if (start_gap == end_gap) {
-            quic_sorter_gap_t *gap = malloc(sizeof(quic_sorter_gap_t));
-            if (gap == NULL) {
-                return quic_err_internal_error;
-            }
-            quic_sorter_gap_start(gap) = end + 1;
-            gap->len = quic_sorter_gap_end(start_gap) - quic_sorter_gap_start(gap) + 1;
-            quic_link_insert_after(start_gap, gap);
+    else if (start_gap == end_gap) {
+        quic_sorter_gap_t *gap = malloc(sizeof(quic_sorter_gap_t));
+        if (gap == NULL) {
+            return quic_err_internal_error;
+        }
+        quic_sorter_gap_start(gap) = end + 1;
+        gap->len = quic_sorter_gap_end(start_gap) - quic_sorter_gap_start(gap) + 1;
+        quic_link_insert_after(start_gap, gap);
 
-            start_gap->len = start - 1 - quic_sorter_gap_start(start_gap) + 1;
-        }
-        else {
-            start_gap->len = start - 1 - quic_sorter_gap_start(start_gap) + 1;
-            quic_sorter_gap_start(end_gap) = end + 1;
-        }
+        start_gap->len = start - 1 - quic_sorter_gap_start(start_gap) + 1;
+    }
+    else {
+        start_gap->len = start - 1 - quic_sorter_gap_start(start_gap) + 1;
+        quic_sorter_gap_start(end_gap) = end + 1;
     }
 
+    sorter->avail_size = ((quic_sorter_gap_t *) quic_link_next(&sorter->gaps))->off;
+
     return quic_sorter_put_cluster(sorter, start, (end - start + 1), data + (start - off));
+}
+
+static quic_err_t quic_sorter_put_cluster(quic_sorter_t *const sorter, uint64_t off, uint64_t len, void *data) {
+    while (len != 0) {
+        uint64_t cluster_key = off / QUIC_SORTER_CLUSTER_SIZE;
+        uint64_t cluster_off = off % QUIC_SORTER_CLUSTER_SIZE;
+        uint64_t cluster_len = QUIC_SORTER_CLUSTER_SIZE - cluster_off;
+        if (len < cluster_len) {
+            cluster_len = len;
+        }
+
+        quic_sorter_cluster_t *cluster = quic_sorter_cluster_find(sorter->clusters, &cluster_key);
+        if (quic_rbt_is_nil(cluster)) {
+            if ((cluster = malloc(sizeof(quic_sorter_cluster_t) + QUIC_SORTER_CLUSTER_SIZE)) == NULL) {
+                return quic_err_internal_error;
+            }
+            quic_rbt_init(cluster);
+            quic_sorter_cluster_insert(&sorter->clusters, cluster);
+        }
+
+        memcpy(cluster->data + cluster_off, data, cluster_len);
+
+        off += cluster_len;
+        len -= cluster_len;
+        data += cluster_len;
+    }
+
+    return quic_err_success;
 }
