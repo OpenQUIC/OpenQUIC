@@ -7,6 +7,7 @@
  */
 
 #include "utils/rbt.h"
+#include <stdio.h>
 
 const quic_rbt_t rbt_nil = {
     .rb_p = quic_rbt_nil,
@@ -28,7 +29,7 @@ static inline void __rbt_del_case6(quic_rbt_t **const root, quic_rbt_t *const no
 static inline quic_rbt_t *__sibling(const quic_rbt_t *const node);
 static quic_rbt_t *__rbt_min(quic_rbt_t *node);
 
-quic_err_t quic_rbt_insert(quic_rbt_t **const root, quic_rbt_t *const node, quic_rbt_comparer_t comparer) {
+quic_err_t quic_rbt_insert_inner(quic_rbt_t **const root, quic_rbt_t *const node, quic_rbt_comparer_t comparer) {
     quic_rbt_t *rb_p = quic_rbt_nil;
     quic_rbt_t **in = root;
 
@@ -91,6 +92,32 @@ quic_rbt_t *quic_rbt_find(quic_rbt_t *const root, const void *const key, quic_rb
     }
 
     return quic_rbt_nil;
+}
+
+typedef struct quic_rbt_uint64_key_s quic_rbt_uint64_key_t;
+struct quic_rbt_uint64_key_s {
+    QUIC_RBT_UINT64_FIELDS
+};
+
+int quic_rbt_uint64_key_comparer(const void *const key, const quic_rbt_t *const node) {
+    uint64_t key_ref = *(uint64_t *) key;
+    quic_rbt_uint64_key_t *node_ref = (quic_rbt_uint64_key_t *) node;
+
+    if (key_ref == node_ref->key) {
+        return QUIC_RBT_EQ;
+    }
+    else if (key_ref < node_ref->key) {
+        return QUIC_RBT_LS;
+    }
+    else {
+        return QUIC_RBT_GT;
+    }
+}
+
+int quic_rbt_uint64_comparer(const quic_rbt_t *const lf, const quic_rbt_t *const rt) {
+    quic_rbt_uint64_key_t *lf_ref = (quic_rbt_uint64_key_t *) lf;
+
+    return quic_rbt_uint64_key_comparer(&lf_ref->key, rt);
 }
 
 static inline void __rbt_lr(quic_rbt_t **const root, quic_rbt_t *const node) {
