@@ -28,6 +28,7 @@ static inline void __rbt_del_case5(quic_rbt_t **const root, quic_rbt_t *const no
 static inline void __rbt_del_case6(quic_rbt_t **const root, quic_rbt_t *const node);
 static inline quic_rbt_t *__sibling(const quic_rbt_t *const node);
 static quic_rbt_t *__rbt_min(quic_rbt_t *node);
+static inline void __rbt_replace(quic_rbt_t **const root, quic_rbt_t *const lf, quic_rbt_t *const rt);
 
 quic_err_t quic_rbt_insert_inner(quic_rbt_t **const root, quic_rbt_t *const node, quic_rbt_comparer_t comparer) {
     quic_rbt_t *rb_p = quic_rbt_nil;
@@ -53,22 +54,22 @@ quic_err_t quic_rbt_insert_inner(quic_rbt_t **const root, quic_rbt_t *const node
     return quic_err_success;
 }
 
-quic_err_t quic_rbt_remove(quic_rbt_t **const root, quic_rbt_t **const node) {
+quic_err_t quic_rbt_remove_inner(quic_rbt_t **const root, quic_rbt_t **const node) {
     quic_rbt_t *ref = *node;
-    if (ref->rb_l != quic_rbt_nil && ref->rb_r != quic_rbt_nil) {
+    if (!quic_rbt_is_nil(ref->rb_l) && !quic_rbt_is_nil(ref->rb_r)) {
         quic_rbt_t *next = __rbt_min(ref->rb_r);
         quic_rbt_t tmp;
         __rbt_assign(root, &tmp, next);
         __rbt_assign(root, next, ref);
         __rbt_assign(root, ref, &tmp);
     }
-    quic_rbt_t *child = ref->rb_l == quic_rbt_nil ? ref->rb_r : ref->rb_l;
+    quic_rbt_t *child = quic_rbt_is_nil(ref->rb_l) ? ref->rb_r : ref->rb_l;
     if (ref->rb_color == QUIC_RBT_BLACK) {
         ref->rb_color = child->rb_color;
         __rbt_del_case1(root, ref);
     }
-
-    if (ref->rb_p == quic_rbt_nil && child != quic_rbt_nil) {
+    __rbt_replace(root, ref, child);
+    if (quic_rbt_is_nil(ref->rb_p) && !quic_rbt_is_nil(child)) {
         child->rb_color = QUIC_RBT_BLACK;
     }
     *node = ref;
@@ -128,7 +129,9 @@ static inline void __rbt_lr(quic_rbt_t **const root, quic_rbt_t *const node) {
     if (child->rb_l != quic_rbt_nil) {
         child->rb_l->rb_p = node;
     }
-    child->rb_p = node->rb_p;
+    if (!quic_rbt_is_nil(child)) {
+        child->rb_p = node->rb_p;
+    }
     if (node->rb_p == quic_rbt_nil) {
         *root = child;
     }
@@ -138,7 +141,9 @@ static inline void __rbt_lr(quic_rbt_t **const root, quic_rbt_t *const node) {
     else {
         node->rb_p->rb_r = child;
     }
-    child->rb_l = node;
+    if (!quic_rbt_is_nil(child)) {
+        child->rb_l = node;
+    }
     node->rb_p = child;
 }
 
@@ -150,7 +155,9 @@ static inline void __rbt_rr(quic_rbt_t **const root, quic_rbt_t *const node) {
     if (child->rb_r != quic_rbt_nil) {
         child->rb_r->rb_p = node;
     }
-    child->rb_p = node->rb_p;
+    if (!quic_rbt_is_nil(child)) {
+        child->rb_p = node->rb_p;
+    }
     if (node->rb_p == quic_rbt_nil) {
         *root = child;
     }
@@ -160,7 +167,9 @@ static inline void __rbt_rr(quic_rbt_t **const root, quic_rbt_t *const node) {
     else {
         node->rb_p->rb_r = child;
     }
-    child->rb_r = node;
+    if (!quic_rbt_is_nil(child)) {
+        child->rb_r = node;
+    }
     node->rb_p = child;
 }
 
@@ -214,7 +223,7 @@ static inline void __rbt_assign(quic_rbt_t **const root, quic_rbt_t *const targe
     target->rb_r = ref->rb_r;
     target->rb_p = ref->rb_p;
 
-    if (ref->rb_p == quic_rbt_nil) {
+    if (quic_rbt_is_nil(ref->rb_p)) {
         *root = target;
     }
     else if (ref->rb_p->rb_l == ref) {
@@ -224,22 +233,23 @@ static inline void __rbt_assign(quic_rbt_t **const root, quic_rbt_t *const targe
         ref->rb_p->rb_r = target;
     }
 
-    if (ref->rb_l != quic_rbt_nil) {
+    if (!quic_rbt_is_nil(ref->rb_l)) {
         ref->rb_l->rb_p = target;
     }
-    if (ref->rb_r != quic_rbt_nil) {
+    if (!quic_rbt_is_nil(ref->rb_r)) {
         ref->rb_r->rb_p = target;
     }
 }
 
 static inline void __rbt_del_case1(quic_rbt_t **const root, quic_rbt_t *const node) {
-    if (node->rb_p != quic_rbt_nil) {
+    if (!quic_rbt_is_nil(node->rb_p)) {
         __rbt_del_case2(root, node);
     }
 }
 
 static inline void __rbt_del_case2(quic_rbt_t **const root, quic_rbt_t *const node) {
     quic_rbt_t *sibling = __sibling(node);
+
     if (sibling->rb_color == QUIC_RBT_RED) {
         node->rb_p->rb_color = QUIC_RBT_RED;
         sibling->rb_color = QUIC_RBT_BLACK;
@@ -255,12 +265,13 @@ static inline void __rbt_del_case2(quic_rbt_t **const root, quic_rbt_t *const no
 
 static inline void __rbt_del_case3(quic_rbt_t **const root, quic_rbt_t *const node) {
     quic_rbt_t *sibling = __sibling(node);
+
     if (node->rb_p->rb_color == QUIC_RBT_BLACK &&
         sibling->rb_color == QUIC_RBT_BLACK &&
         sibling->rb_l->rb_color == QUIC_RBT_BLACK &&
-        sibling->rb_r->rb_color == QUIC_RBT_BLACK &&
-        sibling->rb_color == QUIC_RBT_RED) {
-        __rbt_del_case1(root, node);
+        sibling->rb_r->rb_color == QUIC_RBT_BLACK) {
+        sibling->rb_color = QUIC_RBT_RED;
+        __rbt_del_case1(root, node->rb_p);
     }
     else {
         __rbt_del_case4(root, node);
@@ -269,10 +280,12 @@ static inline void __rbt_del_case3(quic_rbt_t **const root, quic_rbt_t *const no
 
 static inline void __rbt_del_case4(quic_rbt_t **const root, quic_rbt_t *const node) {
     quic_rbt_t *sibling = __sibling(node);
+
     if (node->rb_p->rb_color == QUIC_RBT_RED &&
         sibling->rb_color == QUIC_RBT_BLACK &&
         sibling->rb_l->rb_color == QUIC_RBT_BLACK &&
         sibling->rb_r->rb_color == QUIC_RBT_BLACK) {
+        sibling->rb_color = QUIC_RBT_RED;
         node->rb_p->rb_color = QUIC_RBT_BLACK;
     }
     else {
@@ -282,6 +295,7 @@ static inline void __rbt_del_case4(quic_rbt_t **const root, quic_rbt_t *const no
 
 static inline void __rbt_del_case5(quic_rbt_t **const root, quic_rbt_t *const node) {
     quic_rbt_t *sibling = __sibling(node);
+
     if (node->rb_p->rb_l == node &&
         sibling->rb_color == QUIC_RBT_BLACK &&
         sibling->rb_l->rb_color == QUIC_RBT_RED &&
@@ -303,8 +317,9 @@ static inline void __rbt_del_case5(quic_rbt_t **const root, quic_rbt_t *const no
 
 static inline void __rbt_del_case6(quic_rbt_t **const root, quic_rbt_t *const node) {
     quic_rbt_t *sibling = __sibling(node);
-    sibling->rb_color = QUIC_RBT_BLACK;
-    node->rb_p->rb_color = node->rb_p->rb_color;
+
+    sibling->rb_color = node->rb_p->rb_color;
+    node->rb_p->rb_color = QUIC_RBT_BLACK;
     if (node == node->rb_p->rb_l) {
         sibling->rb_r->rb_color = QUIC_RBT_BLACK;
         __rbt_lr(root, node->rb_p);
@@ -325,13 +340,26 @@ static inline quic_rbt_t *__sibling(const quic_rbt_t *const node) {
 }
 
 static quic_rbt_t *__rbt_min(quic_rbt_t *node) {
-    if (node == quic_rbt_nil) {
+    if (quic_rbt_is_nil(node)) {
         return quic_rbt_nil;
     }
-
-    while (node->rb_l != quic_rbt_nil) {
+    while (!quic_rbt_is_nil(node->rb_l)) {
         node = node->rb_l;
     }
-
     return node;
+}
+
+static inline void __rbt_replace(quic_rbt_t **const root, quic_rbt_t *const lf, quic_rbt_t *const rt) {
+    if (lf == *root) {
+        *root = rt;
+    }
+    else if (lf == lf->rb_p->rb_l) {
+        lf->rb_p->rb_l = rt;
+    }
+    else {
+        lf->rb_p->rb_r = rt;
+    }
+    if (!quic_rbt_is_nil(rt)) {
+        rt->rb_p = lf->rb_p;
+    }
 }
