@@ -14,7 +14,7 @@
 #include "utils/rbt.h"
 #include <stdint.h>
 
-#define QUIC_SORTER_CLUSTER_SIZE 4096
+#define QUIC_SORTER_CLUSTER_SIZE 4
 
 #define QUIC_SORTER_MAX_SIZE ((1UL << 63) - 1)
 
@@ -53,7 +53,8 @@ struct quic_sorter_s {
 };
 
 quic_err_t quic_sorter_init(quic_sorter_t *const sorter);
-quic_err_t quic_sorter_put(quic_sorter_t *const sorter, uint64_t off, uint64_t len, void *data);
+quic_err_t quic_sorter_write(quic_sorter_t *const sorter, uint64_t off, uint64_t len, void *data);
+uint64_t quic_sorter_read(quic_sorter_t *const sorter, uint64_t len, void *data);
 
 #define quic_sorter_readable(sorter)                \
     ((sorter)->avail_size - (sorter)->readed_size)
