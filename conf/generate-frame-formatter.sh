@@ -7,7 +7,7 @@ BEGIN {
 }
 {
     if ($1 == "formatter") {
-        print "extern quic_err_t " $3 "(quic_buf_t *const, quic_frame_t *const frame);";
+        print "extern quic_err_t " $3 "(quic_buf_t *const, const quic_frame_t *const frame);";
         formatter[strtonum($2)] = $3;
     }
 }

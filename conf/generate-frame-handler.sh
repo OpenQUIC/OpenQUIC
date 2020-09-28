@@ -8,7 +8,7 @@ BEGIN {
 }
 {
     if ($1 == "handler") {
-        print "extern quic_err_t " $3 "(quic_session_t *const, quic_frame_t *const frame);";
+        print "extern quic_err_t " $3 "(quic_session_t *const, const quic_frame_t *const frame);";
         handler[strtonum($2)] = $3;
     }
 }

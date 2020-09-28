@@ -221,10 +221,12 @@ struct quic_frame_handshake_done_s {
 };
 
 typedef quic_err_t (*quic_frame_parser_t)(quic_frame_t **const frame, quic_buf_t *const buf);
-typedef quic_err_t (*quic_frame_formatter_t)(quic_buf_t *const buf, quic_frame_t *const frame);
+typedef quic_err_t (*quic_frame_formatter_t)(quic_buf_t *const buf, const quic_frame_t *const frame);
+typedef uint64_t (*quic_frame_sizer_t)(const quic_frame_t *const frame);
 
 extern const quic_frame_formatter_t quic_frame_formatter[256];
 extern const quic_frame_parser_t quic_frame_parser[256];
+extern const quic_frame_sizer_t quic_frame_sizer[256];
 
 #define quic_frame_format(buf, frame)                           \
     quic_frame_format_inner((buf), (quic_frame_t *) (frame))
@@ -246,6 +248,14 @@ static inline quic_err_t quic_frame_parse_inner(quic_frame_t **const frame, quic
     }
 
     return quic_frame_parser[*(uint8_t *) buf->pos](frame, buf);
+}
+
+static inline uint64_t quic_frame_size_inner(const quic_frame_t *const frame) {
+    if (!quic_frame_sizer[frame->first_byte]) {
+        return 0;
+    }
+
+    return quic_frame_sizer[frame->first_byte](frame);
 }
 
 #endif

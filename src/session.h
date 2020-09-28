@@ -24,6 +24,6 @@ struct quic_session_s {
     size_t conn_len;
 };
 
-typedef quic_err_t (*quic_session_handler_t) (quic_session_t *const, quic_frame_t *const);
+typedef quic_err_t (*quic_session_handler_t) (quic_session_t *const, const quic_frame_t *const);
 
 #endif

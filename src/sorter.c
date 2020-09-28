@@ -134,7 +134,6 @@ static quic_err_t quic_sorter_write_cluster(quic_sorter_t *const sorter, uint64_
             cluster->key = cluster_key;
             quic_sorter_cluster_insert(&sorter->clusters, cluster);
         }
-
         memcpy(cluster->data + cluster_off, data, cluster_len);
 
         off += cluster_len;
