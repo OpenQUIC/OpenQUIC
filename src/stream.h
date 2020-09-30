@@ -19,7 +19,7 @@ typedef struct quic_send_stream_s quic_send_stream_t;
 struct quic_send_stream_s {
     uint64_t sid;
 
-    pthread_mutex_t reader_mtx;
+    pthread_mutex_t mtx;
     const void *reader_buf;
     uint64_t reader_len;
 
@@ -32,5 +32,16 @@ struct quic_send_stream_s {
 
 quic_err_t quic_send_stream_init(quic_send_stream_t *const str, const uint64_t sid);
 uint64_t quic_send_stream_write(quic_send_stream_t *const str, uint64_t len, const void *data);
+static inline void quic_send_stream_close(quic_send_stream_t *const str) {
+    if (str->closed) {
+        return;
+    }
+
+    pthread_mutex_lock(&str->mtx);
+    str->closed = true;
+    pthread_mutex_unlock(&str->mtx);
+
+    liteco_channel_notify(&str->writed_notifier);
+}
 
 #endif
