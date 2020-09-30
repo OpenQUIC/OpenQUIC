@@ -10,6 +10,7 @@
 #define __OPENQUIC_STREAM_H__
 
 #include "utils/errno.h"
+#include "utils/rbt.h"
 #include "liteco.h"
 #include <stdint.h>
 #include <pthread.h>
@@ -23,10 +24,10 @@ struct quic_send_stream_s {
     uint64_t reader_len;
 
     liteco_channel_t writed_notifier;
-
     liteco_channel_t *process_notifier;
-
     uint64_t deadline;
+
+    bool closed;
 };
 
 quic_err_t quic_send_stream_init(quic_send_stream_t *const str, const uint64_t sid);

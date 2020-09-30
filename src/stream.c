@@ -31,6 +31,7 @@ quic_err_t quic_send_stream_init(quic_send_stream_t *const str, const uint64_t s
     pthread_mutex_init(&str->reader_mtx, NULL);
     str->reader_buf = NULL;
     str->reader_len = 0;
+    str->closed = false;
     liteco_channel_init(&str->writed_notifier);
 
     return quic_err_success;
@@ -41,6 +42,10 @@ uint64_t quic_send_stream_write(quic_send_stream_t *const str, uint64_t len, con
     liteco_coroutine_t co;
     quic_send_stream_write_args_t args = { .str = str, .len = len, .data = data, .writed_len = 0 };
     __stream_runtime_init();
+
+    if (str->closed) {
+        return 0;
+    }
 
     liteco_create(&co, co_s, sizeof(co_s), quic_send_stream_write_co, &args, NULL);
     liteco_runtime_join(&__stream_runtime, &co);
@@ -68,6 +73,9 @@ static int quic_send_stream_write_co(void *const args) {
     str->reader_len = len;
 
     for ( ;; ) {
+        if (str->closed) {
+            break;
+        }
         if (str->deadline != 0 && str->deadline < quic_now()) {
             break;
         }
@@ -75,17 +83,22 @@ static int quic_send_stream_write_co(void *const args) {
             break;
         }
 
+        pthread_mutex_unlock(&str->reader_mtx);
         if (!notified) {
             liteco_channel_send(str->process_notifier, &str->sid);
             notified = true;
         }
 
-        // TODO
+        liteco_recv(NULL, NULL, &__stream_runtime, str->deadline, &str->writed_notifier);
+        pthread_mutex_lock(&str->reader_mtx);
+
+        write_args->writed_len = len - str->reader_len;
     }
 
     write_args->str->reader_buf = NULL;
     write_args->str->reader_len = 0;
     pthread_mutex_unlock(&write_args->str->reader_mtx);
+
     return 0;
 }
 
