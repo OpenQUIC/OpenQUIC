@@ -29,4 +29,13 @@ struct quic_flowctrl_s {
     QUIC_FLOWCTRL_FIELDS
 };
 
+#define quic_flowctrl_init(flowctrl) ((flowctrl)->init((flowctrl)))
+#define quic_flowctrl_is_newly_blocked(swnd, flowctrl) ((flowctrl)->is_newly_blocked((swnd), (flowctrl)))
+#define quic_flowctrl_update_swnd(flowctrl, swnd) ((flowctrl)->update_swnd((flowctrl), (swnd)))
+#define quic_flowctrl_get_swnd(flowctrl) ((flowctrl)->get_swnd((flowctrl)))
+#define quic_flowctrl_sent_bytes(flowctrl, bytes) ((flowctrl)->sent_bytes((flowctrl), (bytes)))
+#define quic_flowctrl_update_rwnd(flowctrl, rwnd, fin) ((flowctrl)->update_rwnd((flowctrl), (rwnd), (fin)))
+#define quic_flowctrl_abandon(flowctrl) ((flowctrl)->abandon((flowctrl)))
+#define quic_flowctrl_recv_bytes(flowctrl, bytes) ((flowctrl)->recv_bytes((flowctrl), (bytes)))
+
 #endif
