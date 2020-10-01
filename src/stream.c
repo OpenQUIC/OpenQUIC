@@ -11,8 +11,8 @@
 #include "utils/varint.h"
 #include <stdbool.h>
 
-__thread static liteco_runtime_t __stream_runtime;
-__thread static bool __stream_runtime_inited = false;
+static __thread liteco_runtime_t __stream_runtime;
+static __thread bool __stream_runtime_inited = false;
 
 typedef struct quic_send_stream_write_args_s quic_send_stream_write_args_t;
 struct quic_send_stream_write_args_s {
