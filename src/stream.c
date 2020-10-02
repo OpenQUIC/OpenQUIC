@@ -23,7 +23,19 @@ struct quic_send_stream_write_args_s {
 
     uint64_t writed_len;
 };
+
+typedef struct quic_recv_stream_read_args_s quic_recv_stream_read_args_t;
+struct quic_recv_stream_read_args_s {
+    quic_recv_stream_t *str;
+
+    uint64_t len;
+    void *data;
+
+    uint64_t readed_len;
+};
+
 static int quic_send_stream_write_co(void *const args);
+static int quic_recv_stream_read_co(void *const args);
 static inline void __stream_runtime_init();
 
 static inline uint64_t quic_stream_frame_capacity(const uint64_t max_bytes,
@@ -157,3 +169,67 @@ static inline void __stream_runtime_init() {
     }
 }
 
+uint64_t quic_recv_stream_read(quic_recv_stream_t *const str, const uint64_t len, void *const data) {
+    uint8_t co_s[4096];
+    liteco_coroutine_t co;
+    quic_recv_stream_read_args_t args = { .str = str, .len = len, .data = data, .readed_len = 0 };
+    __stream_runtime_init();
+
+    if (str->closed) {
+        return 0;
+    }
+
+    liteco_create(&co, co_s, sizeof(co_s), quic_recv_stream_read_co, &args, NULL);
+    liteco_runtime_join(&__stream_runtime, &co);
+
+    while (co.status != LITECO_TERMINATE) {
+        if (liteco_runtime_execute(&__stream_runtime, &co) != LITECO_SUCCESS) {
+            break;
+        }
+    }
+
+    return args.readed_len;
+}
+
+static int quic_recv_stream_read_co(void *const args) {
+    quic_recv_stream_read_args_t *const read_args = args;
+
+    quic_recv_stream_t *const str = read_args->str;
+    void *data = read_args->data;
+    uint64_t len = read_args->len;
+    uint64_t readed_len = 0;
+
+    pthread_mutex_lock(&str->mtx);
+    for ( ;; ) {
+        if (str->closed) {
+            break;
+        }
+        if (len == 0) {
+            break;
+        }
+        if (str->deadline != 0 && str->deadline < quic_now()) {
+            break;
+        }
+
+        pthread_mutex_unlock(&str->mtx);
+        liteco_recv(NULL, NULL, &__stream_runtime, str->deadline, &str->handled_notifier);
+        pthread_mutex_lock(&str->mtx);
+
+        uint64_t once_readed_len = quic_sorter_read(&str->sorter, len, data);
+        if (once_readed_len == 0) {
+            break;
+        }
+
+        readed_len += once_readed_len;
+        len -= once_readed_len;
+        data += once_readed_len;
+    }
+    pthread_mutex_unlock(&str->mtx);
+
+    read_args->readed_len = readed_len;
+    if (str->fin_flag && str->final_off <= readed_len) {
+        liteco_channel_send(str->process_sid, &str->sid);
+    }
+
+    return 0;
+}

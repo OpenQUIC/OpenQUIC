@@ -15,6 +15,10 @@ void *thread(void *const args) {
     printf("HELLO %ld\n", sizeof(line));
     quic_send_stream_write(&str, sizeof(line), line);
 
+    sleep(10);
+
+    quic_send_stream_write(&str, sizeof(line), line);
+
     return NULL;
 }
 
@@ -32,6 +36,10 @@ int quic_generate_co(void *const args) {
     printf("World\n");
 
     quic_frame_stream_t *frame = quic_send_stream_generate(&str, 1024, true);
+    printf("%ld %s\n", frame->len, frame->data);
+    liteco_recv(NULL, NULL, &rt, 0, &channel);
+
+    frame = quic_send_stream_generate(&str, 1024, true);
     printf("%ld %s\n", frame->len, frame->data);
     return 0;
 }
