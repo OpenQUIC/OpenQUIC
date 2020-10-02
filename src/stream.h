@@ -19,21 +19,21 @@
 #include <stdint.h>
 #include <pthread.h>
 
-#define QUIC_SEND_STREAM_FIELDS             \
-    uint64_t sid;                           \
-                                            \
-    pthread_mutex_t mtx;                    \
-    const void *reader_buf;                 \
-    uint64_t reader_len;                    \
-    uint64_t off;                           \
-                                            \
-    liteco_channel_t writed_notifier;       \
-    liteco_channel_t *process_sid;          \
-    uint64_t deadline;                      \
-                                            \
-    bool closed;                            \
-                                            \
-    quic_flowctrl_t *flowctrl;              \
+#define QUIC_SEND_STREAM_FIELDS       \
+    uint64_t sid;                     \
+                                      \
+    pthread_mutex_t mtx;              \
+    const void *reader_buf;           \
+    uint64_t reader_len;              \
+    uint64_t off;                     \
+                                      \
+    liteco_channel_t writed_notifier; \
+    liteco_channel_t *process_sid;    \
+    uint64_t deadline;                \
+                                      \
+    bool closed;                      \
+                                      \
+    quic_flowctrl_t *flowctrl;        \
 
 typedef struct quic_send_stream_s quic_send_stream_t;
 struct quic_send_stream_s {
@@ -96,6 +96,25 @@ static inline quic_err_t quic_send_stream_close(quic_send_stream_t *const str) {
 uint64_t quic_send_stream_write(quic_send_stream_t *const str, uint64_t len, const void *data);
 
 quic_frame_stream_t *quic_send_stream_generate(quic_send_stream_t *const str, uint64_t bytes, const bool fill);
+
+#define QUIC_RECV_STREAM_FIELDS        \
+    uint64_t sid;                      \
+                                       \
+    pthread_mutex_t mtx;               \
+    quic_sorter_t sorter;              \
+                                       \
+    liteco_channel_t handled_notifier; \
+    liteco_channel_t *process_sid;     \
+                                       \
+    uint64_t read_off;                 \
+    uint64_t final_off;                \
+    bool fin_flag;                     \
+                                       \
+    uint64_t deadline;                 \
+                                       \
+    bool closed;                       \
+                                       \
+    quic_flowctrl_t *flowctrl;         \
 
 typedef struct quic_recv_stream_s quic_recv_stream_t;
 struct quic_recv_stream_s {

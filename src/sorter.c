@@ -11,7 +11,7 @@
 #include <malloc.h>
 
 static quic_err_t quic_sorter_write_cluster(quic_sorter_t *const sorter, uint64_t off, uint64_t len, void *data);
-static quic_err_t quic_sorter_read_cluster(quic_sorter_t *const sorter, uint64_t len, void *data);
+static uint64_t quic_sorter_read_cluster(quic_sorter_t *const sorter, uint64_t len, void *data);
 
 quic_err_t quic_sorter_init(quic_sorter_t *const sorter) {
     quic_rbt_tree_init(sorter->clusters);
@@ -108,12 +108,10 @@ uint64_t quic_sorter_read(quic_sorter_t *const sorter, uint64_t len, void *data)
     if (quic_sorter_readable(sorter) < len) {
         len = quic_sorter_readable(sorter);
     }
-    if (quic_sorter_read_cluster(sorter, len, data) != quic_err_success) {
-        return 0;
-    }
+    uint64_t readed = quic_sorter_read_cluster(sorter, len, data);
 
-    sorter->readed_size += len;
-    return len;
+    sorter->readed_size += readed;
+    return readed;
 }
 
 static quic_err_t quic_sorter_write_cluster(quic_sorter_t *const sorter, uint64_t off, uint64_t len, void *data) {
@@ -144,8 +142,9 @@ static quic_err_t quic_sorter_write_cluster(quic_sorter_t *const sorter, uint64_
     return quic_err_success;
 }
 
-static quic_err_t quic_sorter_read_cluster(quic_sorter_t *const sorter, uint64_t len, void *data) {
-    uint64_t off = sorter->readed_size == 0 ? 0 : sorter->readed_size - 1;
+static uint64_t quic_sorter_read_cluster(quic_sorter_t *const sorter, uint64_t len, void *data) {
+    uint64_t off = sorter->readed_size;
+    uint64_t readed = 0;
 
     while (len != 0) {
         uint64_t cluster_key = off / QUIC_SORTER_CLUSTER_SIZE;
@@ -156,14 +155,14 @@ static quic_err_t quic_sorter_read_cluster(quic_sorter_t *const sorter, uint64_t
         }
         quic_sorter_cluster_t *cluster = quic_sorter_cluster_find(sorter->clusters, &cluster_key);
         if (quic_rbt_is_nil(cluster)) {
-            return quic_err_internal_error;
+            return readed;
         }
-
         memcpy(data, cluster->data + cluster_off, cluster_len);
 
         off += cluster_len;
         len -= cluster_len;
         data += cluster_len;
+        readed += cluster_len;
 
         if (cluster_key != off / QUIC_SORTER_CLUSTER_SIZE) {
             quic_rbt_remove(&sorter->clusters, &cluster);
@@ -171,5 +170,5 @@ static quic_err_t quic_sorter_read_cluster(quic_sorter_t *const sorter, uint64_t
         }
     }
 
-    return quic_err_success;
+    return readed;
 }

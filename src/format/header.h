@@ -18,14 +18,14 @@
 typedef uint32_t quic_version_t;
 typedef uint32_t quic_packet_number_t;
 
-#define QUIC_HEADER_FIELDS          \
+#define QUIC_HEADER_FIELDS       \
     uint8_t first_byte;
 
-#define QUIC_LONG_HEADER_FIELDS     \
-    quic_version_t version;        \
-    uint8_t conn_area[512];         \
+#define QUIC_LONG_HEADER_FIELDS  \
+    quic_version_t version;      \
+    uint8_t conn_area[512];      \
 
-#define QUIC_SHORT_HEADER_FIELDS    \
+#define QUIC_SHORT_HEADER_FIELDS \
     uint8_t conn_area[255];
 
 typedef struct quic_header_s quic_header_t;
@@ -33,10 +33,10 @@ struct quic_header_s {
     QUIC_HEADER_FIELDS
 } __attribute__((__packed__));
 
-#define quic_header_is_long(header)         \
+#define quic_header_is_long(header) \
     ((header)->first_byte & 0x80)
 
-#define quic_packet_type(header)            \
+#define quic_packet_type(header)    \
     (((header)->first_byte & 0x30))
 
 #define quic_packet_initial_type    0x00
@@ -51,61 +51,61 @@ struct quic_long_header_s {
     QUIC_LONG_HEADER_FIELDS
 } __attribute__((__packed__));
 
-#define quic_long_header_dst_conn_len_off(header)                                                       \
+#define quic_long_header_dst_conn_len_off(header)  \
     (((uint8_t *) (((void *) (header)) + 1 + 4)))
 
-#define quic_long_header_dst_conn_len(header)                                                           \
+#define quic_long_header_dst_conn_len(header)      \
     (*quic_long_header_dst_conn_len_off(header))
 
-#define quic_long_header_dst_conn_off(header)                                                           \
+#define quic_long_header_dst_conn_off(header)      \
     ((void *) (quic_long_header_dst_conn_len_off(header) + 1))
 
-#define quic_long_header_src_conn_len_off(header)                                                       \
+#define quic_long_header_src_conn_len_off(header)  \
     ((uint8_t *) (quic_long_header_dst_conn_off(header) + quic_long_header_dst_conn_len(header)))
 
-#define quic_long_header_src_conn_len(header)                                                           \
+#define quic_long_header_src_conn_len(header)      \
     (*quic_long_header_src_conn_len_off(header))
 
-#define quic_long_header_src_conn_off(header)                                                           \
+#define quic_long_header_src_conn_off(header)      \
     ((void *) (quic_long_header_src_conn_len_off(header) + 1))
 
-#define quic_long_header_payload(header)                                                                \
+#define quic_long_header_payload(header)           \
     (quic_long_header_src_conn_off(header) + quic_long_header_src_conn_len(header))
 
-#define quic_long_header_len(header)                                                                    \
+#define quic_long_header_len(header)               \
     ((size_t) ((void *) quic_long_header_payload(header) - ((void *) (header))))
 
-#define quic_long_header_dst_conn(header) {                                                             \
-    .ref = true,                                                                                        \
-    .capa = quic_long_header_dst_conn_len(header),                                                      \
-    .buf = quic_long_header_dst_conn_off(header),                                                       \
+#define quic_long_header_dst_conn(header) {        \
+    .ref = true,                                   \
+    .capa = quic_long_header_dst_conn_len(header), \
+    .buf = quic_long_header_dst_conn_off(header),  \
 }
 
-#define quic_long_header_src_conn(header) {                                                             \
-    .ref = true,                                                                                        \
-    .capa = quic_long_header_src_conn_len(header),                                                      \
-    .buf = quic_long_header_src_conn_off(header),                                                       \
+#define quic_long_header_src_conn(header) {        \
+    .ref = true,                                   \
+    .capa = quic_long_header_src_conn_len(header), \
+    .buf = quic_long_header_src_conn_off(header),  \
 }
 
-#define quic_packet_number_r1(field, payload)                                                           \
+#define quic_packet_number_r1(field, payload)      \
     (field) == 0 ? (*(uint8_t *) (payload)) :
 
-#define quic_packet_number_r2(field, payload)                                                           \
+#define quic_packet_number_r2(field, payload)      \
     (field) == 1 ? bswap_16(*(uint16_t *) (payload)) :
 
-#define quic_packet_number_r3(field, payload)                                                           \
+#define quic_packet_number_r3(field, payload)      \
     (field) == 2 ? (bswap_32(*(uint32_t *) (payload)) >> 8) :
 
-#define quic_packet_number_r4(field, payload)                                                           \
+#define quic_packet_number_r4(field, payload)      \
     (field) == 3 ? bswap_32(*(uint32_t *) (payload)) : 0
 
-#define quic_packet_number_r(field, payload)                                                            \
+#define quic_packet_number_r(field, payload)       \
     (quic_packet_number_r1(field & 0x03, payload) (quic_packet_number_r2(field & 0x03, payload) (quic_packet_number_r3(field & 0x03, payload) (quic_packet_number_r4(field & 0x03, payload)))))
 
-#define QUIC_PAYLOAD_FIELDS                                                                             \
-    uint8_t type;                                                                                       \
-    quic_packet_number_t p_num;                                                                         \
-    uint64_t payload_len;                                                                               \
+#define QUIC_PAYLOAD_FIELDS     \
+    uint8_t type;               \
+    quic_packet_number_t p_num; \
+    uint64_t payload_len;       \
     void *payload;
 
 typedef struct quic_payload_s quic_payload_t;
@@ -190,13 +190,13 @@ struct quic_short_header_s {
     QUIC_SHORT_HEADER_FIELDS
 } __attribute__((__packed__));
 
-#define quic_short_header_dst_conn_off(header)                                                          \
+#define quic_short_header_dst_conn_off(header) \
     (((void *) (header)) + 1)
 
-#define quic_short_header_payload(header, len)                                                          \
+#define quic_short_header_payload(header, len) \
     (quic_short_header_dst_conn_off(header) + len)
 
-#define quic_short_header_len(header, len)                                                              \
+#define quic_short_header_len(header, len)     \
     ((size_t) (quic_short_header_payload(header, len) - (header)))
 
 static inline quic_payload_t quic_short_header(quic_header_t *const header, size_t len) {

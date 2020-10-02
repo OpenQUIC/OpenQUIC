@@ -207,6 +207,10 @@ static int quic_recv_stream_read_co(void *const args) {
         if (len == 0) {
             break;
         }
+        if (str->fin_flag && str->final_off <= readed_len) {
+            liteco_channel_send(str->process_sid, &str->sid);
+            break;
+        }
         if (str->deadline != 0 && str->deadline < quic_now()) {
             break;
         }
@@ -225,11 +229,7 @@ static int quic_recv_stream_read_co(void *const args) {
         data += once_readed_len;
     }
     pthread_mutex_unlock(&str->mtx);
-
     read_args->readed_len = readed_len;
-    if (str->fin_flag && str->final_off <= readed_len) {
-        liteco_channel_send(str->process_sid, &str->sid);
-    }
 
     return 0;
 }
