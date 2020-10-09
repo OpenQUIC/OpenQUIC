@@ -11,7 +11,7 @@
 
 #include "sorter.h"
 #include "format/frame.h"
-#include "flowctrl/flowctrl_base.h"
+#include "recovery/flowctrl.h"
 #include "utils/errno.h"
 #include "utils/rbt.h"
 #include "utils/link.h"

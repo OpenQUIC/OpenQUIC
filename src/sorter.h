@@ -14,9 +14,13 @@
 #include "utils/rbt.h"
 #include <stdint.h>
 
-#define QUIC_SORTER_CLUSTER_SIZE 4
+#ifndef QUIC_SORTER_CLUSTER_SIZE
+#define QUIC_SORTER_CLUSTER_SIZE 4096
+#endif
 
+#ifndef QUIC_SORTER_MAX_SIZE
 #define QUIC_SORTER_MAX_SIZE ((1UL << 63) - 1)
+#endif
 
 typedef struct quic_sorter_cluster_s quic_sorter_cluster_t;
 struct quic_sorter_cluster_s {

@@ -6,8 +6,8 @@
  *
  */
 
-#ifndef __OPENQUIC_FLOWCTRL_BASE_H__
-#define __OPENQUIC_FLOWCTRL_BASE_H__
+#ifndef __OPENQUIC_FLOWCTRL_H__
+#define __OPENQUIC_FLOWCTRL_H__
 
 #include "utils/errno.h"
 #include <stdint.h>
