@@ -11,53 +11,53 @@
 #include "utils/buf.h"
 #include "utils/varint.h"
 
-#define quic_frame_alloc(frame, _first_byte, size)     \
-    if ((*(frame) = malloc((size))) == NULL) {              \
-        return quic_err_internal_error;                     \
-    }                                                       \
-    (**(frame)).first_byte = (_first_byte);                 \
-    (**(frame)).ref_count = 1;                              \
+#define quic_frame_alloc(frame, _first_byte, size) \
+    if ((*(frame) = malloc((size))) == NULL) {     \
+        return quic_err_internal_error;            \
+    }                                              \
+    (**(frame)).first_byte = (_first_byte);        \
+    (**(frame)).ref_count = 1;                     \
     (**(frame)).next = NULL
 
-#define quic_first_byte(buf)                                   \
+#define quic_first_byte(buf) \
     *((uint8_t *) ((buf)->pos++))
 
-#define quic_varint(target, buf)                               \
-    if ((buf)->pos + quic_varint_len((buf)->pos) > (buf)->last) {   \
-        return quic_err_bad_format;                                 \
-    }                                                               \
-    (target) = quic_varint_r((buf)->pos);                           \
+#define quic_varint(target, buf)                                  \
+    if ((buf)->pos + quic_varint_len((buf)->pos) > (buf)->last) { \
+        return quic_err_bad_format;                               \
+    }                                                             \
+    (target) = quic_varint_r((buf)->pos);                         \
     (buf)->pos += quic_varint_len((buf)->pos)
     
-#define quic_extend_data(frame, len, buf)                      \
-    if ((buf)->pos + (len) > (buf)->last) {                         \
-        return quic_err_bad_format;                                 \
-    }                                                               \
-    memcpy((frame).data, (buf)->pos, (len));                        \
+#define quic_extend_data(frame, len, buf)    \
+    if ((buf)->pos + (len) > (buf)->last) {  \
+        return quic_err_bad_format;          \
+    }                                        \
+    memcpy((frame).data, (buf)->pos, (len)); \
     (buf)->pos += (len)
 
 #define quic_frame_init { \
-    .ref_count = 1,         \
+    .ref_count = 1,       \
 }
 
 
-#define quic_put_byte(buf, byte)       \
-    if ((buf)->pos + 1 > (buf)->last) {     \
-        return quic_err_bad_format;         \
-    }                                       \
-    *((uint8_t *) ((buf)->pos++)) = (byte)  \
+#define quic_put_byte(buf, byte)           \
+    if ((buf)->pos + 1 > (buf)->last) {    \
+        return quic_err_bad_format;        \
+    }                                      \
+    *((uint8_t *) ((buf)->pos++)) = (byte) \
 
-#define quic_put_varint(buf, varint)                               \
-    if ((buf)->pos + quic_varint_format_len(varint) > (buf)->last) {    \
-        return quic_err_bad_format;                                     \
-    }                                                                   \
+#define quic_put_varint(buf, varint)                                 \
+    if ((buf)->pos + quic_varint_format_len(varint) > (buf)->last) { \
+        return quic_err_bad_format;                                  \
+    }                                                                \
     quic_varint_format_r(buf, varint)
 
-#define quic_put_data(buf, len, data)                              \
-    if ((buf)->pos + len > (buf)->last) {                               \
-        return quic_err_bad_format;                                     \
-    }                                                                   \
-    memcpy((buf)->pos, (data), (len));                                  \
+#define quic_put_data(buf, len, data)     \
+    if ((buf)->pos + len > (buf)->last) { \
+        return quic_err_bad_format;       \
+    }                                     \
+    memcpy((buf)->pos, (data), (len));    \
     (buf)->pos += (len)
 
 quic_err_t quic_ping_parse(quic_frame_t **const frame, quic_buf_t *const buf) {
@@ -169,10 +169,14 @@ quic_err_t quic_stream_parse(quic_frame_t **const frame, quic_buf_t *const buf) 
     ref.first_byte = quic_first_byte(buf);
     quic_varint(ref.sid, buf);
 
-    if (ref.first_byte & 0x04) {
+    if ((ref.first_byte & quic_frame_stream_type_off) == quic_frame_stream_type_off) {
         quic_varint(ref.off, buf);
     }
-    if (ref.first_byte & 0x02) {
+    else {
+        ref.off = 0;
+    }
+
+    if ((ref.first_byte & quic_frame_stream_type_len) == quic_frame_stream_type_len) {
         quic_varint(ref.len, buf);
     }
     else {
@@ -448,10 +452,10 @@ quic_err_t quic_stream_format(quic_buf_t *const buf, const quic_frame_t *const f
     quic_put_byte(buf, ref->first_byte);
 
     quic_put_varint(buf, ref->sid);
-    if (ref->first_byte & 0x04) {
+    if ((ref->first_byte & quic_frame_stream_type_off) == quic_frame_stream_type_off) {
         quic_put_varint(buf, ref->off);
     }
-    if (ref->first_byte & 0x02) {
+    if ((ref->first_byte & quic_frame_stream_type_len) == quic_frame_stream_type_len) {
         quic_put_varint(buf, ref->len);
     }
     quic_put_data(buf, ref->len, ref->data);
@@ -644,8 +648,8 @@ uint64_t quic_stream_size(const quic_frame_t *const frame) {
     const quic_frame_stream_t *const ref = (quic_frame_stream_t *) frame;
     return 1
         + quic_varint_format_len(ref->sid)
-        + (ref->first_byte & 0x04 ? quic_varint_format_len(ref->off) : 0)
-        + (ref->first_byte & 0x02 ? quic_varint_format_len(ref->len) : 0)
+        + ((ref->first_byte & quic_frame_stream_type_off) == quic_frame_stream_type_off ? quic_varint_format_len(ref->off) : 0)
+        + ((ref->first_byte & quic_frame_stream_type_len) == quic_frame_stream_type_len ? quic_varint_format_len(ref->len) : 0)
         + ref->len;
 }
 
