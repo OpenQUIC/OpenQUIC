@@ -66,4 +66,17 @@ extern const quic_rbt_t rbt_nil;
 int quic_rbt_uint64_key_comparer(const void *const key, const quic_rbt_t *const node);
 int quic_rbt_uint64_comparer(const quic_rbt_t *const lf, const quic_rbt_t *const rt);
 
+typedef struct quic_rbt_string_key_field_s quic_rbt_string_key_field_t;
+struct quic_rbt_string_key_field_s {
+    uint32_t len;
+    uint8_t *data;
+};
+
+#define QUIC_RBT_STRING_FIELDS \
+    QUIC_RBT_FIELDS            \
+    quic_rbt_string_key_field_t key;
+
+int quic_rbt_string_key_comparer(const void *const key, const quic_rbt_t *const node);
+int quic_rbt_string_comparer(const quic_rbt_t *const lf, const quic_rbt_t *const rt);
+
 #endif

@@ -7,7 +7,7 @@
  */
 
 #include "utils/rbt.h"
-#include <stdio.h>
+#include <string.h>
 
 const quic_rbt_t rbt_nil = {
     .rb_p = quic_rbt_nil,
@@ -119,6 +119,41 @@ int quic_rbt_uint64_comparer(const quic_rbt_t *const lf, const quic_rbt_t *const
     quic_rbt_uint64_key_t *lf_ref = (quic_rbt_uint64_key_t *) lf;
 
     return quic_rbt_uint64_key_comparer(&lf_ref->key, rt);
+}
+
+typedef struct quic_rbt_string_key_s quic_rbt_string_key_t;
+struct quic_rbt_string_key_s {
+    QUIC_RBT_STRING_FIELDS
+};
+
+int quic_rbt_string_key_comparer(const void *const key, const quic_rbt_t *const node) {
+    quic_rbt_string_key_field_t key_ref = *(quic_rbt_string_key_field_t *) key;
+    quic_rbt_string_key_t *node_ref = (quic_rbt_string_key_t *) node;
+
+    if (key_ref.len == node_ref->key.len) {
+        int cmpret = memcmp(key_ref.data, node_ref->key.data, key_ref.len);
+        if (cmpret == 0) {
+            return QUIC_RBT_EQ;
+        }
+        else if (cmpret < 0) {
+            return QUIC_RBT_LS;
+        }
+        else {
+            return QUIC_RBT_GT;
+        }
+    }
+    else if (key_ref.len < node_ref->key.len) {
+        return QUIC_RBT_LS;
+    }
+    else {
+        return QUIC_RBT_GT;
+    }
+}
+
+int quic_rbt_string_comparer(const quic_rbt_t *const lf, const quic_rbt_t *const rt) {
+    quic_rbt_string_key_t *const lf_ref = (quic_rbt_string_key_t *) lf;
+
+    return quic_rbt_string_key_comparer(&lf_ref->key, rt);
 }
 
 static inline void __rbt_lr(quic_rbt_t **const root, quic_rbt_t *const node) {
