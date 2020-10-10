@@ -127,11 +127,11 @@ struct quic_rbt_string_key_s {
 };
 
 int quic_rbt_string_key_comparer(const void *const key, const quic_rbt_t *const node) {
-    quic_rbt_string_key_field_t key_ref = *(quic_rbt_string_key_field_t *) key;
+    quic_buf_t key_ref = *(quic_buf_t *) key;
     quic_rbt_string_key_t *node_ref = (quic_rbt_string_key_t *) node;
 
-    if (key_ref.len == node_ref->key.len) {
-        int cmpret = memcmp(key_ref.data, node_ref->key.data, key_ref.len);
+    if (quic_buf_size(&key_ref) == quic_buf_size(&node_ref->key)) {
+        int cmpret = memcmp(key_ref.pos, node_ref->key.pos, quic_buf_size(&key_ref));
         if (cmpret == 0) {
             return QUIC_RBT_EQ;
         }
@@ -142,7 +142,7 @@ int quic_rbt_string_key_comparer(const void *const key, const quic_rbt_t *const 
             return QUIC_RBT_GT;
         }
     }
-    else if (key_ref.len < node_ref->key.len) {
+    else if (quic_buf_size(&key_ref) < quic_buf_size(&node_ref->key)) {
         return QUIC_RBT_LS;
     }
     else {
