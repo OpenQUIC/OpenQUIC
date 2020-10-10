@@ -44,14 +44,16 @@ int quic_generate_co(void *const args) {
     return 0;
 }
 
+quic_flowctrl_module_t quic_flowctrl_module = {
+    .get_swnd = quic_flowctrl_get_swnd_impl
+};
+
 int main() {
     pthread_t pthread;
 
-    quic_flowctrl_t flowctrl = { };
-    flowctrl.get_swnd = quic_flowctrl_get_swnd_impl;
     liteco_channel_init(&channel);
 
-    quic_send_stream_init(&str, 1, &flowctrl, &channel);
+    quic_send_stream_init(&str, 1, NULL, &channel);
     pthread_create(&pthread, NULL, thread, NULL);
 
 

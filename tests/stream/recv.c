@@ -56,17 +56,18 @@ int quic_handle_co(void *const args) {
     return 0;
 }
 
+quic_flowctrl_module_t quic_flowctrl_module = {
+    .abandon = abandon,
+    .update_rwnd = update_rwnd
+};
+
 int main() {
     pthread_t pthread;
-
-    quic_flowctrl_t flowctrl = { };
-    flowctrl.abandon = abandon;
-    flowctrl.update_rwnd = update_rwnd;
 
     liteco_channel_init(&channel);
     liteco_runtime_init(&rt);
 
-    quic_recv_stream_init(&str, 1, &flowctrl, &channel);
+    quic_recv_stream_init(&str, 1, NULL, &channel);
 
     pthread_create(&pthread, NULL, thread, NULL);
 
