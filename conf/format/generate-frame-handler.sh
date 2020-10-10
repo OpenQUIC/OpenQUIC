@@ -1,5 +1,7 @@
 #!/bin/sh
 
+. conf/make-gen-dir.sh
+
 awk '
 BEGIN {
     print "#include \"format/frame.h\""
@@ -16,4 +18,4 @@ END {
     print "const quic_session_handler_t quic_session_handler_t[256] = {";
     for (val in handler) print "    " handler[val] ",";
     print "};"
-}' $@ > src/_generated_frame_handler.c
+}' $@ > gen/frame_handler.c

@@ -1,5 +1,7 @@
 #!/bin/sh
 
+. conf/make-gen-dir.sh
+
 awk '
 BEGIN {
     print "#include \"format/frame.h\""
@@ -15,4 +17,4 @@ END {
     print "const quic_frame_sizer_t quic_frame_sizer[256] = {";
     for (val in sizer) print "    " sizer[val] ",";
     print "};"
-}' $@ > src/_generated_frame_sizer.c
+}' $@ > gen/frame_sizer.c

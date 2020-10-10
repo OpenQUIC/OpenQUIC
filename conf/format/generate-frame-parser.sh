@@ -1,5 +1,7 @@
 #!/bin/sh
 
+. conf/make-gen-dir.sh
+
 awk '
 BEGIN {
     print "#include \"format/frame.h\""
@@ -15,4 +17,4 @@ END {
     print "const quic_frame_parser_t quic_frame_parser[256] = {";
     for (val in parser) print "    " parser[val] ",";
     print "};"
-}' $@ > src/_generated_frame_parser.c
+}' $@ > gen/frame_parser.c

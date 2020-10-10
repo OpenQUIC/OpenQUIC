@@ -1,5 +1,7 @@
 #!/bin/sh
 
+. conf/make-gen-dir.sh
+
 awk '
 BEGIN {
     print "#include \"format/frame.h\""
@@ -15,4 +17,4 @@ END {
     print "const quic_frame_formatter_t quic_frame_formatter[256] = {";
     for (val in formatter) print "    " formatter[val] ",";
     print "};"
-}' $@ > src/_generated_frame_formatter.c
+}' $@ > gen/frame_formatter.c
