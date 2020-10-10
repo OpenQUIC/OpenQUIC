@@ -108,7 +108,7 @@ static int quic_send_stream_write_co(void *const args) {
 
 quic_frame_stream_t *quic_send_stream_generate(quic_send_stream_t *const str, uint64_t bytes, const bool fill) {
     pthread_mutex_lock(&str->mtx);
-    uint64_t payload_size = quic_flowctrl_get_swnd(str->flowctrl);
+    uint64_t payload_size = quic_flowctrl_module.get_swnd(str->flowctrl);
     if (str->reader_len < payload_size) {
         payload_size = str->reader_len;
     }

@@ -118,23 +118,7 @@ quic_frame_stream_t *quic_send_stream_generate(quic_send_stream_t *const str, ui
 
 typedef struct quic_recv_stream_s quic_recv_stream_t;
 struct quic_recv_stream_s {
-    uint64_t sid;
-
-    pthread_mutex_t mtx;
-    quic_sorter_t sorter;
-
-    liteco_channel_t handled_notifier;
-    liteco_channel_t *process_sid;
-
-    uint64_t read_off;
-    uint64_t final_off;
-    bool fin_flag;
-
-    uint64_t deadline;
-
-    bool closed;
-
-    quic_flowctrl_t *flowctrl;
+    QUIC_RECV_STREAM_FIELDS
 };
 
 static inline quic_err_t quic_recv_stream_init(str, sid, flowctrl, process_sid)
@@ -164,7 +148,7 @@ static inline quic_err_t quic_recv_stream_handle_frame(quic_recv_stream_t *const
     bool fin = (frame->first_byte & quic_frame_stream_type_fin) == quic_frame_stream_type_fin;
     bool newly_fin = false;
 
-    quic_flowctrl_update_rwnd(str->flowctrl, t_off, fin);
+    quic_flowctrl_module.update_rwnd(str->flowctrl, t_off, fin);
 
     if (fin) {
         newly_fin = str->final_off == QUIC_SORTER_MAX_SIZE;
@@ -175,7 +159,7 @@ static inline quic_err_t quic_recv_stream_handle_frame(quic_recv_stream_t *const
     if (str->closed) {
         pthread_mutex_unlock(&str->mtx);
         if (newly_fin) {
-            quic_flowctrl_abandon(str->flowctrl);
+            quic_flowctrl_module.abandon(str->flowctrl);
             liteco_channel_send(str->process_sid, &str->sid);
         }
         return quic_err_success;
