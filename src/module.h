@@ -9,18 +9,19 @@
 #ifndef __OPENQUIC_MODULE_H__
 #define __OPENQUIC_MODULE_H__
 
+#include "utils/errno.h"
 #include "liteco.h"
 #include <stdint.h>
 
-#define QUIC_MODULE_FIELDS      \
-    const char *name;           \
-    const uint32_t module_size; \
-    liteco_channel_t notifier;  \
-    uint32_t off;               \
+typedef struct quic_session_s quic_session_t;
 
 typedef struct quic_module_s quic_module_t;
 struct quic_module_s {
-    QUIC_MODULE_FIELDS
+    const uint32_t module_size;
+    quic_err_t (*init) (void *const module, quic_session_t *const sess);
+    quic_err_t (*destory) (void *const module);
+
+    uint32_t off;
 };
 
 extern quic_module_t *quic_modules[];

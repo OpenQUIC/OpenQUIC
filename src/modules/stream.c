@@ -6,9 +6,10 @@
  *
  */
 
-#include "stream.h"
+#include "modules/stream.h"
 #include "utils/time.h"
 #include "utils/varint.h"
+#include "module.h"
 #include <stdbool.h>
 
 static __thread liteco_runtime_t __stream_runtime;
@@ -89,7 +90,7 @@ static int quic_send_stream_write_co(void *const args) {
 
         pthread_mutex_unlock(&str->mtx);
         if (!notified) {
-            liteco_channel_send(str->process_sid, &str->sid);
+            liteco_channel_send(str->speaker, &str->sid);
             notified = true;
         }
 
@@ -108,7 +109,7 @@ static int quic_send_stream_write_co(void *const args) {
 
 quic_frame_stream_t *quic_send_stream_generate(quic_send_stream_t *const str, uint64_t bytes, const bool fill) {
     pthread_mutex_lock(&str->mtx);
-    uint64_t payload_size = quic_flowctrl_module.get_swnd(str->flowctrl);
+    uint64_t payload_size = quic_send_stream_flowctrl_module(str)->get_swnd(quic_send_stream_flowctrl(str));
     if (str->reader_len < payload_size) {
         payload_size = str->reader_len;
     }
@@ -208,7 +209,7 @@ static int quic_recv_stream_read_co(void *const args) {
             break;
         }
         if (str->fin_flag && str->final_off <= readed_len) {
-            liteco_channel_send(str->process_sid, &str->sid);
+            liteco_channel_send(str->speaker, &str->sid);
             break;
         }
         if (str->deadline != 0 && str->deadline < quic_now()) {
@@ -233,3 +234,7 @@ static int quic_recv_stream_read_co(void *const args) {
 
     return 0;
 }
+
+quic_module_t quic_stream_module = {
+
+};
