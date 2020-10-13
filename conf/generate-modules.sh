@@ -21,7 +21,7 @@ BEGIN {
     }
 }
 END {
-    print "const quic_module_t *quic_modules[] = {";
+    print "quic_module_t *quic_modules[] = {";
     for (module in modules) print "    &" modules[module] ",";
     print "    NULL";
     print "};";
