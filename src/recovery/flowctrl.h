@@ -9,24 +9,37 @@
 #ifndef __OPENQUIC_FLOWCTRL_H__
 #define __OPENQUIC_FLOWCTRL_H__
 
+#include "recovery/rtt.h"
 #include "utils/errno.h"
+#include "module.h"
 #include <stdint.h>
 #include <stdbool.h>
 
-typedef struct quic_flowctrl_s quic_flowctrl_t;
+typedef struct quic_session_s quic_session_t;
 
-typedef struct quic_flowctrl_module_s quic_flowctrl_module_t;
-struct quic_flowctrl_module_s {
-    quic_err_t (*init) (quic_flowctrl_t *const flowctrl);
-    bool (*is_newly_blocked) (uint64_t *const swnd, quic_flowctrl_t *const flowctrl);
-    void (*update_swnd) (quic_flowctrl_t *const flowctrl, const uint64_t swnd);
-    uint64_t (*get_swnd) (quic_flowctrl_t *const flowctrl);
-    void (*sent_bytes) (quic_flowctrl_t *const flowctrl, const uint64_t bytes);
-    void (*update_rwnd) (quic_flowctrl_t *const flowctrl, const uint64_t rwnd, const bool fin);
-    bool (*abandon) (quic_flowctrl_t *const flowctrl);
-    void (*recv_bytes) (quic_flowctrl_t *const flowctrl, const uint64_t bytes);
+typedef void quic_conn_flowctrl_t;
+typedef void quic_stream_flowctrl_t;
+
+#define QUIC_STREAM_FLOWCTRL_MODULE_FIELDS                                                              \
+    uint32_t size;                                                                                      \
+                                                                                                        \
+    int (*init) (quic_stream_flowctrl_t *const flowctrl, quic_stream_flowctrl_module_t *const module);  \
+    void (*update_rwnd) (quic_stream_flowctrl_t *const flowctrl, const uint64_t t_off, const bool fin); \
+    bool (*abandon) (quic_stream_flowctrl_t *const flowctrl);                                           \
+    uint64_t (*get_swnd) (quic_stream_flowctrl_t *const flowctrl);                                      \
+
+typedef struct quic_stream_flowctrl_module_s quic_stream_flowctrl_module_t;
+struct quic_stream_flowctrl_module_s {
+    QUIC_STREAM_FLOWCTRL_MODULE_FIELDS
 };
 
-extern quic_flowctrl_module_t quic_flowctrl_module;
+extern quic_module_t quic_connection_flowctrl_module;
+extern quic_module_t quic_stream_flowctrl_module;
+
+#define quic_session_stream_flowctrl(sess)  \
+    quic_session_module(quic_stream_flowctrl_module_t, sess, &quic_stream_flowctrl_module)
+
+#define quic_stream_flowctrl_init(module, flowctrl) \
+    ((module)->init && ((module)->init((flowctrl), (module))))
 
 #endif

@@ -69,4 +69,6 @@ struct quic_congctrl_module_s {
     uint64_t (*next_send_time) (quic_congctrl_t *const congctrl, const uint64_t in_flight);
 };
 
+extern quic_congctrl_module_t quic_congctrl_module;
+
 #endif
