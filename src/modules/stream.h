@@ -179,7 +179,6 @@ static inline quic_stream_t *quic_stream_create(sid, sess, sent_speaker, recv_sp
     str->flowctrl_module = flowctrl_module;
     quic_stream_flowctrl_init(str->flowctrl_module, quic_stream_flowctrl(str));
 
-    printf("HERE\n");
     quic_send_stream_init(&str->send, sid, sent_speaker);
     quic_recv_stream_init(&str->recv, sid, recv_speaker);
 
