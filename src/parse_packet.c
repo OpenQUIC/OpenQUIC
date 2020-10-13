@@ -16,7 +16,7 @@ static quic_err_t quic_process_packet_payload(quic_session_t *const sess, const 
 
 extern quic_session_handler_t quic_session_handler[256];
 
-quic_err_t quic_handle_packet(quic_session_t *const sess, const quic_buf_t buf, struct timeval recv_time) {
+quic_err_t quic_handle_packet(quic_session_t *const sess, const quic_buf_t buf, const uint64_t recv_time) {
     union {
         quic_initial_header_t initial;
         quic_handshake_header_t handshake;
@@ -29,8 +29,9 @@ quic_err_t quic_handle_packet(quic_session_t *const sess, const quic_buf_t buf, 
         quic_buf_t src = quic_long_header_src_conn(header);
         quic_buf_setpl(&src);
 
-        if (quic_buf_cmp(&src, &sess->handshake_dst) != 0) {
-            quic_buf_copy(&sess->handshake_dst, &src);
+        if (quic_buf_cmp(&src, &sess->dst) != 0) {
+            free(sess->dst.buf);
+            quic_buf_copy(&sess->dst, &src);
         }
     }
 
