@@ -57,12 +57,6 @@ int quic_handle_co(void *const args) {
     return 0;
 }
 
-quic_stream_flowctrl_module_t quic_flowctrl_module = {
-    .abandon = abandon,
-    .update_rwnd = update_rwnd
-};
-
-
 quic_module_t quic_connection_flowctrl_module = {
     .module_size = 0,
     .init        = NULL,
@@ -90,7 +84,6 @@ int main() {
     quic_buf_t src = { .buf = "1", .capa = 1 };
     quic_buf_t dst = { .buf = "1", .capa = 1 };
     quic_session_t *session = quic_session_create(src, dst);
-
 
     quic_stream_t *stream = quic_stream_create(1, session, &channel, &channel);
     str = &stream->recv;
