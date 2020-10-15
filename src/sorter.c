@@ -32,6 +32,23 @@ quic_err_t quic_sorter_init(quic_sorter_t *const sorter) {
     return quic_err_success;
 }
 
+quic_err_t quic_sorter_destory(quic_sorter_t *const sorter) {
+
+    while (quic_link_empty(&sorter->gaps)) {
+        quic_sorter_gap_t *gap = (quic_sorter_gap_t *) quic_link_next(&sorter->gaps);
+        quic_link_remove(gap);
+        free(gap);
+    }
+
+    while (!quic_rbt_is_nil(sorter->clusters)) {
+        quic_sorter_cluster_t *cluster = sorter->clusters;
+        quic_rbt_remove(&sorter->clusters, &cluster);
+        free(cluster);
+    }
+
+    return quic_err_success;
+}
+
 quic_err_t quic_sorter_write(quic_sorter_t *const sorter, uint64_t off, uint64_t len, void *data) {
     quic_sorter_gap_t *start_gap = NULL;
     quic_sorter_gap_t *end_gap = NULL;
