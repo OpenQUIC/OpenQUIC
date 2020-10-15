@@ -20,13 +20,15 @@ typedef struct quic_session_s quic_session_t;
 typedef void quic_conn_flowctrl_t;
 typedef void quic_stream_flowctrl_t;
 
-#define QUIC_STREAM_FLOWCTRL_MODULE_FIELDS                                                              \
-    uint32_t size;                                                                                      \
-                                                                                                        \
-    int (*init) (quic_stream_flowctrl_t *const flowctrl, quic_stream_flowctrl_module_t *const module);  \
-    void (*update_rwnd) (quic_stream_flowctrl_t *const flowctrl, const uint64_t t_off, const bool fin); \
-    bool (*abandon) (quic_stream_flowctrl_t *const flowctrl);                                           \
-    uint64_t (*get_swnd) (quic_stream_flowctrl_t *const flowctrl);                                      \
+#define QUIC_STREAM_FLOWCTRL_MODULE_FIELDS                                                                    \
+    uint32_t size;                                                                                            \
+                                                                                                              \
+    quic_err_t (*init) (quic_stream_flowctrl_t *const flowctrl, quic_stream_flowctrl_module_t *const module); \
+    void (*update_rwnd) (quic_stream_flowctrl_t *const flowctrl, const uint64_t t_off, const bool fin);       \
+    bool (*abandon) (quic_stream_flowctrl_t *const flowctrl);                                                 \
+    uint64_t (*get_swnd) (quic_stream_flowctrl_t *const flowctrl);                                            \
+    quic_err_t (*destory) (quic_stream_flowctrl_t *const flowctrl);                                           \
+    
 
 typedef struct quic_stream_flowctrl_module_s quic_stream_flowctrl_module_t;
 struct quic_stream_flowctrl_module_s {
