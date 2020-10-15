@@ -68,6 +68,7 @@ static int quic_send_stream_write_co(void *const args) {
     quic_send_stream_write_args_t *const write_args = args;
 
     quic_send_stream_t *const str = write_args->str;
+    quic_stream_t *const p_str = quic_container_of_send_stream(str);
     const void *const data = write_args->data;
     uint64_t len = write_args->len;
     bool notified = false;
@@ -90,7 +91,7 @@ static int quic_send_stream_write_co(void *const args) {
 
         pthread_mutex_unlock(&str->mtx);
         if (!notified) {
-            liteco_channel_send(str->speaker, &str->sid);
+            liteco_channel_send(str->speaker, &p_str->key);
             notified = true;
         }
 
@@ -108,12 +109,15 @@ static int quic_send_stream_write_co(void *const args) {
 }
 
 quic_frame_stream_t *quic_send_stream_generate(quic_send_stream_t *const str, uint64_t bytes, const bool fill) {
+    quic_stream_t *const p_str = quic_container_of_send_stream(str);
+    quic_stream_flowctrl_module_t *const flowctrl_module = p_str->flowctrl_module;
+
     pthread_mutex_lock(&str->mtx);
-    uint64_t payload_size = quic_send_stream_flowctrl_module(str)->get_swnd(quic_send_stream_flowctrl(str));
+    uint64_t payload_size = flowctrl_module->get_swnd(quic_stream_extend_flowctrl(p_str));
     if (str->reader_len < payload_size) {
         payload_size = str->reader_len;
     }
-    uint64_t payload_capa = quic_stream_frame_capacity(bytes, str->sid, str->off, fill, payload_size);
+    uint64_t payload_capa = quic_stream_frame_capacity(bytes, p_str->key, str->off, fill, payload_size);
     if (payload_capa < payload_size) {
         payload_size = payload_capa;
     }
@@ -130,7 +134,7 @@ quic_frame_stream_t *quic_send_stream_generate(quic_send_stream_t *const str, ui
     if (!fill) {
         frame->first_byte |= quic_frame_stream_type_len;
     }
-    frame->sid = str->sid;
+    frame->sid = p_str->key;
     frame->off = str->off;
     frame->len = payload_size;
 
@@ -196,6 +200,7 @@ static int quic_recv_stream_read_co(void *const args) {
     quic_recv_stream_read_args_t *const read_args = args;
 
     quic_recv_stream_t *const str = read_args->str;
+    quic_stream_t *const p_str = quic_container_of_send_stream(str);
     void *data = read_args->data;
     uint64_t len = read_args->len;
     uint64_t readed_len = 0;
@@ -209,7 +214,7 @@ static int quic_recv_stream_read_co(void *const args) {
             break;
         }
         if (str->fin_flag && str->final_off <= readed_len) {
-            liteco_channel_send(str->speaker, &str->sid);
+            liteco_channel_send(str->speaker, &p_str->key);
             break;
         }
         if (str->deadline != 0 && str->deadline < quic_now()) {
@@ -236,5 +241,7 @@ static int quic_recv_stream_read_co(void *const args) {
 }
 
 quic_module_t quic_stream_module = {
-
+    .module_size = 0,
+    .init = NULL,
+    .destory = NULL,
 };
