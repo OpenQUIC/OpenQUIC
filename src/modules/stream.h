@@ -261,7 +261,6 @@ static inline quic_err_t quic_send_stream_close(quic_send_stream_t *const str) {
     pthread_mutex_t mtx;    \
     quic_rbt_t *streams;    \
     uint32_t streams_count; \
-    uint64_t next_sid;      \
 
 #define quic_streams_basic_init(strs) {     \
     pthread_mutex_init(&(strs)->mtx, NULL); \
@@ -273,15 +272,12 @@ typedef struct quic_inbidi_streams_s quic_inbidi_streams_t;
 struct quic_inbidi_streams_s {
     QUIC_STREAMS_FIELDS
 
-    uint64_t next_open_sid;
     liteco_channel_t accept_speaker;
 };
 
 static inline quic_err_t quic_inbidi_streams_init(quic_inbidi_streams_t *const strs) {
     quic_streams_basic_init(strs);
 
-    strs->next_open_sid = 1;
-    strs->next_sid = 1;
     liteco_channel_init(&strs->accept_speaker);
 
     return quic_err_success;
@@ -291,15 +287,12 @@ typedef struct quic_inuni_streams_s quic_inuni_streams_t;
 struct quic_inuni_streams_s {
     QUIC_STREAMS_FIELDS
 
-    uint64_t next_open_sid;
     liteco_channel_t accept_speaker;
 };
 
 static inline quic_err_t quic_inuni_streams_init(quic_inuni_streams_t *const strs) {
     quic_streams_basic_init(strs);
 
-    strs->next_open_sid = 1;
-    strs->next_sid = 1;
     liteco_channel_init(&strs->accept_speaker);
 
     return quic_err_success;
@@ -308,6 +301,8 @@ static inline quic_err_t quic_inuni_streams_init(quic_inuni_streams_t *const str
 typedef struct quic_outbidi_streams_s quic_outbidi_streams_t;
 struct quic_outbidi_streams_s {
     QUIC_STREAMS_FIELDS
+
+    uint64_t next_sid;
 };
 
 static inline quic_err_t quic_outbidi_streams_init(quic_outbidi_streams_t *const strs) {
@@ -320,6 +315,8 @@ static inline quic_err_t quic_outbidi_streams_init(quic_outbidi_streams_t *const
 typedef struct quic_outuni_streams_s quic_outuni_streams_t;
 struct quic_outuni_streams_s {
     QUIC_STREAMS_FIELDS
+
+    uint64_t next_sid;
 };
 
 static inline quic_err_t quic_outuni_streams_init(quic_outuni_streams_t *const strs) {
@@ -395,7 +392,7 @@ struct quic_stream_module_s {
 
 static inline quic_stream_t *quic_stream_outuni_open(quic_outuni_streams_t *const strs) {
     quic_stream_t *stream = NULL;
-    quic_streams_open(strs, quic_stream_outbidi_module, stream);
+    quic_streams_open(strs, quic_stream_outuni_module, stream);
     return stream;
 }
 
@@ -410,6 +407,49 @@ static inline quic_stream_t *quic_stream_outbidi_open(quic_outbidi_streams_t *co
 
 #define quic_stream_outbidi_delete(strs, sid) \
     quic_streams_delete((strs), quic_stream_outbidi_module, (sid))
+
+#define quic_streams_open_and_notify_accept(strs, container_of_module, sid, stream) {                             \
+    bool newly = false;                                                                                           \
+    quic_stream_module_t *const module = container_of_module(strs);                                               \
+    quic_session_t *const sess = quic_module_of_session(module, &quic_stream_module);                             \
+    pthread_mutex_lock(&strs->mtx);                                                                               \
+    stream = quic_streams_find(strs->streams, sid);                                                               \
+    if (!quic_rbt_is_nil(stream)) {                                                                               \
+        quic_rbt_remove(&strs->streams, &stream);                                                                 \
+        if (module->destory) {                                                                                    \
+            module->destory(stream);                                                                              \
+        }                                                                                                         \
+        quic_stream_destory(stream, sess);                                                                        \
+    }                                                                                                             \
+    else {                                                                                                        \
+        newly = true;                                                                                             \
+    }                                                                                                             \
+    (stream) = quic_stream_create(sid, sess, module->extends_size, &module->sent_speaker, &module->recv_speaker); \
+    if (module->init) {                                                                                           \
+        module->init(stream);                                                                                     \
+    }                                                                                                             \
+    quic_streams_insert(&strs->streams, stream);                                                                  \
+    pthread_mutex_unlock(&strs->mtx);                                                                             \
+    if (newly) {                                                                                                  \
+        liteco_channel_send(&strs->accept_speaker, &stream->key);                                                 \
+    }                                                                                                             \
+}
+
+static inline quic_stream_t *quic_stream_inuni_open(quic_inuni_streams_t *const strs, const uint64_t sid) {
+    quic_stream_t *stream = NULL;
+    quic_streams_open_and_notify_accept(strs, quic_stream_inuni_module, sid, stream);
+    return stream;
+}
+
+quic_stream_t *quic_stream_inuni_accept(quic_inuni_streams_t *const strs);
+
+static inline quic_stream_t *quic_stream_inbidi_open(quic_inbidi_streams_t *const strs, const uint64_t sid) {
+    quic_stream_t *stream = NULL;
+    quic_streams_open_and_notify_accept(strs, quic_stream_inbidi_module, sid, stream);
+    return stream;
+}
+
+quic_stream_t *quic_stream_inbidi_accept(quic_inbidi_streams_t *const strs);
 
 
 #endif

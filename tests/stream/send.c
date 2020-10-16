@@ -77,7 +77,7 @@ int main() {
     quic_buf_t dst = { .buf = "1", .capa = 1 };
     quic_session_t *session = quic_session_create(src, dst);
 
-    quic_stream_t *stream = quic_stream_create(1, session, &channel, &channel);
+    quic_stream_t *stream = quic_stream_create(1, session, 0, &channel, &channel);
     str = &stream->send;
 
     pthread_t pthread;

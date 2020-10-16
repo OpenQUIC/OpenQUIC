@@ -240,8 +240,113 @@ static int quic_recv_stream_read_co(void *const args) {
     return 0;
 }
 
+static __thread liteco_runtime_t __accept_runtime;
+static __thread bool __streams_runtime_inited = false;
+static inline void __streams_runtime_init();
+
+static int quic_stream_inuni_streams_accept_co(void *const args);
+static int quic_stream_inbidi_streams_accept_co(void *const args);
+
+static inline void __streams_runtime_init() {
+    if (!__streams_runtime_inited) {
+        liteco_runtime_init(&__accept_runtime);
+        __streams_runtime_inited = true;
+    }
+}
+
+typedef struct quic_inuni_streams_accept_s quic_inuni_streams_accept_t;
+struct quic_inuni_streams_accept_s {
+    quic_inuni_streams_t *strs;
+    quic_stream_t *str;
+};
+
+typedef struct quic_inbidi_streams_accept_s quic_inbidi_streams_accept_t;
+struct quic_inbidi_streams_accept_s {
+    quic_inbidi_streams_t *strs;
+    quic_stream_t *str;
+};
+
+quic_stream_t *quic_stream_inuni_accept(quic_inuni_streams_t *const strs) {
+    uint8_t co_s[4096];
+    liteco_coroutine_t co;
+    quic_inuni_streams_accept_t args = { .strs = strs, .str = NULL };
+    __streams_runtime_init();
+
+    liteco_create(&co, co_s, sizeof(co_s), quic_stream_inuni_streams_accept_co, &args, NULL);
+    liteco_runtime_join(&__accept_runtime, &co);
+
+    while (co.status != LITECO_TERMINATE) {
+        if (liteco_runtime_execute(&__accept_runtime, &co) != LITECO_SUCCESS) {
+            break;
+        }
+    }
+
+    return args.str;
+}
+
+static int quic_stream_inuni_streams_accept_co(void *const args) {
+    quic_inuni_streams_accept_t *const accept_args = args;
+    quic_inuni_streams_t *const strs = accept_args->strs;
+    const uint64_t *key = NULL;
+
+    liteco_recv((const void **) &key, NULL, &__accept_runtime, 0, &strs->accept_speaker);
+    accept_args->str = quic_streams_find(strs->streams, *key);
+
+    return 0;
+}
+
+quic_stream_t *quic_stream_inbidi_accept(quic_inbidi_streams_t *const strs) {
+    uint8_t co_s[4096];
+    liteco_coroutine_t co;
+    quic_inbidi_streams_accept_t args = { .strs = strs, .str = NULL };
+    __streams_runtime_init();
+
+    liteco_create(&co, co_s, sizeof(co_s), quic_stream_inbidi_streams_accept_co, &args, NULL);
+    liteco_runtime_join(&__accept_runtime, &co);
+
+    while (co.status != LITECO_TERMINATE) {
+        if (liteco_runtime_execute(&__accept_runtime, &co) != LITECO_SUCCESS) {
+            break;
+        }
+    }
+
+    return args.str;
+}
+
+static int quic_stream_inbidi_streams_accept_co(void *const args) {
+    quic_inuni_streams_accept_t *const accept_args = args;
+    quic_inuni_streams_t *const strs = accept_args->strs;
+    const uint64_t *key = NULL;
+
+    liteco_recv((const void **) &key, NULL, &__accept_runtime, 0, &strs->accept_speaker);
+    accept_args->str = quic_streams_find(strs->streams, *key);
+
+    return 0;
+}
+
+static quic_err_t quic_stream_module_init(void *const module, quic_session_t *const sess) {
+    (void) sess;
+
+    quic_stream_module_t *const stream_module = module;
+
+    quic_inuni_streams_init(&stream_module->inuni);
+    quic_inbidi_streams_init(&stream_module->inbidi);
+    quic_outuni_streams_init(&stream_module->outuni);
+    quic_outbidi_streams_init(&stream_module->outbidi);
+
+    liteco_channel_init(&stream_module->sent_speaker);
+    liteco_channel_init(&stream_module->recv_speaker);
+
+    stream_module->extends_size = 0;
+
+    stream_module->init = NULL;
+    stream_module->destory = NULL;
+
+    return quic_err_success;
+}
+
 quic_module_t quic_stream_module = {
-    .module_size = 0,
-    .init = NULL,
+    .module_size = sizeof(quic_stream_module_t),
+    .init = quic_stream_module_init,
     .destory = NULL,
 };

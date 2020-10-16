@@ -83,9 +83,9 @@ quic_module_t quic_stream_flowctrl_module = {
 int main() {
     quic_buf_t src = { .buf = "1", .capa = 1 };
     quic_buf_t dst = { .buf = "1", .capa = 1 };
-    quic_session_t *session = quic_session_create(src, dst);
 
-    quic_stream_t *stream = quic_stream_create(1, session, &channel, &channel);
+    quic_session_t *session = quic_session_create(src, dst);
+    quic_stream_t *stream = quic_stream_outbidi_open(&quic_session_module(quic_stream_module_t, session, &quic_stream_module)->outbidi);
     str = &stream->recv;
 
     pthread_t pthread;
