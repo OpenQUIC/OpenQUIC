@@ -96,7 +96,7 @@ int main() {
     pthread_create(&pthread, NULL, thread, NULL);
 
     uint8_t line[255];
-    uint64_t len = quic_recv_stream_read(str, sizeof(line), line);
+    uint64_t len = quic_recv_stream_read(str, line, sizeof(line));
 
     printf("%ld %s\n", len, line);
 

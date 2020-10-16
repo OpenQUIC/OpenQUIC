@@ -24,6 +24,12 @@
 #define quic_stream_id_transfer(bidi, is_client, key) \
     ((bidi) ? 0 : 2) + ((is_client) ? 0 : 1) + (((key) - 1) << 2)
 
+#define quic_stream_id_is_bidi(id) \
+    (((id) % 4) < 2)
+
+#define quic_stream_id_is_cli(id) \
+    (((id) % 2) == 0)
+
 extern quic_module_t quic_stream_module;
 
 #define QUIC_SEND_STREAM_FIELDS       \
@@ -86,7 +92,7 @@ static inline quic_err_t quic_send_stream_set_deadline(quic_send_stream_t *const
     return quic_err_success;
 }
 
-uint64_t quic_send_stream_write(quic_send_stream_t *const str, uint64_t len, const void *data);
+uint64_t quic_send_stream_write(quic_send_stream_t *const str, const void *data, uint64_t len);
 
 quic_frame_stream_t *quic_send_stream_generate(quic_send_stream_t *const str, uint64_t bytes, const bool fill);
 
@@ -137,7 +143,7 @@ static inline quic_err_t quic_recv_stream_destory(quic_recv_stream_t *const str)
     return quic_err_success;
 }
 
-uint64_t quic_recv_stream_read(quic_recv_stream_t *const str, const uint64_t len, void *const data);
+uint64_t quic_recv_stream_read(quic_recv_stream_t *const str, void *const data, const uint64_t len);
 
 typedef struct quic_stream_s quic_stream_t;
 struct quic_stream_s {
@@ -167,6 +173,9 @@ struct quic_stream_s {
 
 #define quic_stream_extend_flowctrl(str) \
     ((void *) ((str)->extends))
+
+__quic_extends uint64_t quic_stream_write(quic_stream_t *const str, const void *const data, const uint64_t len);
+__quic_extends uint64_t quic_stream_read(quic_stream_t *const str, void *const data, const uint64_t len);
 
 static inline quic_stream_t *quic_stream_create(sid, sess, extends_size, sent_speaker, recv_speaker)
     const uint64_t sid;
@@ -207,7 +216,7 @@ static inline quic_err_t quic_stream_destory(quic_stream_t *const str, quic_sess
     return quic_err_success;
 }
 
-static inline quic_err_t quic_recv_stream_handle_frame(quic_recv_stream_t *const str, quic_frame_stream_t *const frame) {
+static inline quic_err_t quic_recv_stream_handle_frame(quic_recv_stream_t *const str, const quic_frame_stream_t *const frame) {
     quic_err_t err = quic_err_success;
     pthread_mutex_lock(&str->mtx);
     uint64_t t_off = frame->off + frame->len;
@@ -451,5 +460,20 @@ static inline quic_stream_t *quic_stream_inbidi_open(quic_inbidi_streams_t *cons
 
 quic_stream_t *quic_stream_inbidi_accept(quic_inbidi_streams_t *const strs);
 
+__quic_extends quic_stream_t *quic_session_open_stream(quic_session_t *const session, const bool bidi);
+__quic_extends quic_stream_t *quic_session_accept_stream(quic_session_t *const session, const bool bidi);
+
+static inline quic_stream_t *quic_stream_module_recv_relation_stream(quic_stream_module_t *const module, const uint64_t sid) {
+    quic_session_t *const sess = quic_module_of_session(module, &quic_stream_module);
+
+    if (quic_stream_id_is_bidi(sid)) {
+        return (quic_stream_id_is_cli(sid) == sess->is_cli)
+            ? quic_streams_find(&module->outbidi.streams, sid) : quic_stream_inbidi_open(&module->inbidi, sid);
+    }
+    else {
+        return (quic_stream_id_is_cli(sid) == sess->is_cli)
+            ? NULL : quic_stream_inuni_open(&module->inuni, sid);
+    }
+}
 
 #endif

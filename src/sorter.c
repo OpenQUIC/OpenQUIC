@@ -10,7 +10,7 @@
 #include <string.h>
 #include <malloc.h>
 
-static quic_err_t quic_sorter_write_cluster(quic_sorter_t *const sorter, uint64_t off, uint64_t len, void *data);
+static quic_err_t quic_sorter_write_cluster(quic_sorter_t *const sorter, uint64_t off, uint64_t len, const void *data);
 static uint64_t quic_sorter_read_cluster(quic_sorter_t *const sorter, uint64_t len, void *data);
 
 quic_err_t quic_sorter_init(quic_sorter_t *const sorter) {
@@ -49,7 +49,7 @@ quic_err_t quic_sorter_destory(quic_sorter_t *const sorter) {
     return quic_err_success;
 }
 
-quic_err_t quic_sorter_write(quic_sorter_t *const sorter, uint64_t off, uint64_t len, void *data) {
+quic_err_t quic_sorter_write(quic_sorter_t *const sorter, uint64_t off, uint64_t len, const void *data) {
     quic_sorter_gap_t *start_gap = NULL;
     quic_sorter_gap_t *end_gap = NULL;
     uint64_t end = off + len - 1;
@@ -131,7 +131,7 @@ uint64_t quic_sorter_read(quic_sorter_t *const sorter, uint64_t len, void *data)
     return readed;
 }
 
-static quic_err_t quic_sorter_write_cluster(quic_sorter_t *const sorter, uint64_t off, uint64_t len, void *data) {
+static quic_err_t quic_sorter_write_cluster(quic_sorter_t *const sorter, uint64_t off, uint64_t len, const void *data) {
     while (len != 0) {
         uint64_t cluster_key = off / QUIC_SORTER_CLUSTER_SIZE;
         uint64_t cluster_off = off % QUIC_SORTER_CLUSTER_SIZE;

@@ -15,11 +15,11 @@ void *thread(void *const args) {
     char line[] = "Hello World\n";
 
     printf("HELLO %ld\n", sizeof(line));
-    quic_send_stream_write(str, sizeof(line), line);
+    quic_send_stream_write(str, line, sizeof(line));
 
     sleep(10);
 
-    quic_send_stream_write(str, sizeof(line), line);
+    quic_send_stream_write(str, line, sizeof(line));
 
     return NULL;
 }

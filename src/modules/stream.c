@@ -6,6 +6,7 @@
  *
  */
 
+#include "format/frame.h"
 #include "modules/stream.h"
 #include "utils/time.h"
 #include "utils/varint.h"
@@ -42,7 +43,7 @@ static inline void __stream_runtime_init();
 static inline uint64_t quic_stream_frame_capacity(const uint64_t max_bytes,
                                                   const uint64_t sid, const uint64_t off, const bool fill, const uint64_t payload_size);
 
-uint64_t quic_send_stream_write(quic_send_stream_t *const str, uint64_t len, const void *data) {
+uint64_t quic_send_stream_write(quic_send_stream_t *const str, const void *data, const uint64_t len) {
     uint8_t co_s[4096];
     liteco_coroutine_t co;
     quic_send_stream_write_args_t args = { .str = str, .len = len, .data = data, .writed_len = 0 };
@@ -174,7 +175,7 @@ static inline void __stream_runtime_init() {
     }
 }
 
-uint64_t quic_recv_stream_read(quic_recv_stream_t *const str, const uint64_t len, void *const data) {
+uint64_t quic_recv_stream_read(quic_recv_stream_t *const str, void *const data, const uint64_t len) {
     uint8_t co_s[4096];
     liteco_coroutine_t co;
     quic_recv_stream_read_args_t args = { .str = str, .len = len, .data = data, .readed_len = 0 };
@@ -345,8 +346,41 @@ static quic_err_t quic_stream_module_init(void *const module, quic_session_t *co
     return quic_err_success;
 }
 
+uint64_t quic_stream_write(quic_stream_t *const str, const void *const data, const uint64_t len) {
+    return quic_send_stream_write(&str->send, data, len);
+}
+
+uint64_t quic_stream_read(quic_stream_t *const str, void *const data, const uint64_t len) {
+    return quic_recv_stream_read(&str->recv, data, len);
+}
+
+quic_stream_t *quic_session_open_stream(quic_session_t *const session, const bool bidi) {
+    quic_stream_module_t *module = quic_session_module(quic_stream_module_t, session, &quic_stream_module);
+
+    return bidi ? quic_stream_outbidi_open(&module->outbidi) : quic_stream_outuni_open(&module->outuni);
+}
+
+quic_stream_t *quic_session_accept_stream(quic_session_t *const session, const bool bidi) {
+    quic_stream_module_t *module = quic_session_module(quic_stream_module_t, session, &quic_stream_module);
+
+    return bidi ? quic_stream_inbidi_accept(&module->inbidi) : quic_stream_inuni_accept(&module->inuni);
+}
+
 quic_module_t quic_stream_module = {
     .module_size = sizeof(quic_stream_module_t),
     .init = quic_stream_module_init,
     .destory = NULL,
 };
+
+quic_err_t quic_session_handle_stream_frame(quic_session_t *const session, const quic_frame_t *const frame) {
+    quic_stream_module_t *module = quic_session_module(quic_stream_module_t, session, &quic_stream_module);
+    const quic_frame_stream_t *const stream_frame = (const quic_frame_stream_t *) frame;
+
+    quic_stream_t *stream = quic_stream_module_recv_relation_stream(module, stream_frame->sid);
+    if (stream == NULL) {
+        return quic_err_success;
+    }
+    quic_recv_stream_handle_frame(&stream->recv, stream_frame);
+
+    return quic_err_success;
+}
