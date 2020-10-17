@@ -9,13 +9,13 @@
 #ifndef __OPENQUIC_LINK_H__
 #define __OPENQUIC_LINK_H__
 
-#define OPENQUIC_LINK_FIELDS    \
+#define QUIC_LINK_FIELDS    \
     quic_link_t *next;          \
     quic_link_t *prev;
 
 typedef struct quic_link_s quic_link_t;
 struct quic_link_s {
-    OPENQUIC_LINK_FIELDS
+    QUIC_LINK_FIELDS
 };
 
 #define quic_link_init(link) {              \
@@ -29,16 +29,23 @@ struct quic_link_s {
 #define quic_link_next(node)                \
     ((typeof(node)) (node)->next)
 
-#define quic_link_insert_after(link, node) {        \
-    (node)->next = (link)->next;                    \
-    (node)->prev = (quic_link_t *) (link);          \
-    (link)->next->prev = (quic_link_t *) (node);    \
-    (link)->next = (quic_link_t *) (node);          \
+#define quic_link_insert_after(link, node) {     \
+    (node)->next = (link)->next;                 \
+    (node)->prev = (quic_link_t *) (link);       \
+    (link)->next->prev = (quic_link_t *) (node); \
+    (link)->next = (quic_link_t *) (node);       \
 }
 
-#define quic_link_foreach(node, link)                                               \
-    for ((node) = (typeof(node)) (link)->next;                                      \
-         (quic_link_t *) (node) != (quic_link_t *) (link);                          \
+#define quic_link_insert_before(link, node) {    \
+    (node)->prev = (link)->prev;                 \
+    (node)->next = (quic_link_t *) (link);       \
+    (link)->prev->next = (quic_link_t *) (node); \
+    (link)->prev = (quic_link_t *) (node);       \
+}
+
+#define quic_link_foreach(node, link)                      \
+    for ((node) = (typeof(node)) (link)->next;             \
+         (quic_link_t *) (node) != (quic_link_t *) (link); \
          (node) = (typeof(node)) (node)->next)
 
 #define quic_link_remove(node) {        \

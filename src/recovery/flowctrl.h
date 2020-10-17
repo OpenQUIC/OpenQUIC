@@ -27,6 +27,7 @@ typedef void quic_stream_flowctrl_t;
     void (*update_rwnd) (quic_stream_flowctrl_t *const flowctrl, const uint64_t t_off, const bool fin);       \
     bool (*abandon) (quic_stream_flowctrl_t *const flowctrl);                                                 \
     uint64_t (*get_swnd) (quic_stream_flowctrl_t *const flowctrl);                                            \
+    void (*sent) (quic_stream_flowctrl_t *const flowctrl, const uint64_t bytes);                              \
     quic_err_t (*destory) (quic_stream_flowctrl_t *const flowctrl);                                           \
     
 

@@ -36,7 +36,7 @@ struct quic_sorter_cluster_s {
 
 typedef struct quic_sorter_gap_s quic_sorter_gap_t;
 struct quic_sorter_gap_s {
-    OPENQUIC_LINK_FIELDS
+    QUIC_LINK_FIELDS
 
     uint64_t off;
     uint64_t len;

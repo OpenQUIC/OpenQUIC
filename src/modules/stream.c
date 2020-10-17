@@ -8,6 +8,7 @@
 
 #include "format/frame.h"
 #include "modules/stream.h"
+#include "modules/framer.h"
 #include "utils/time.h"
 #include "utils/varint.h"
 #include "module.h"
@@ -69,10 +70,11 @@ static int quic_send_stream_write_co(void *const args) {
     quic_send_stream_write_args_t *const write_args = args;
 
     quic_send_stream_t *const str = write_args->str;
-    quic_stream_t *const p_str = quic_container_of_send_stream(str);
     const void *const data = write_args->data;
     uint64_t len = write_args->len;
     bool notified = false;
+    quic_stream_t *const p_str = quic_container_of_send_stream(str);
+    quic_framer_module_t *framer_module = quic_session_module(quic_framer_module_t, p_str->session, quic_framer_module);
 
     pthread_mutex_lock(&str->mtx);
 
@@ -92,7 +94,7 @@ static int quic_send_stream_write_co(void *const args) {
 
         pthread_mutex_unlock(&str->mtx);
         if (!notified) {
-            liteco_channel_send(str->speaker, &p_str->key);
+            quic_framer_add_active(framer_module, p_str->key);
             notified = true;
         }
 
@@ -109,9 +111,10 @@ static int quic_send_stream_write_co(void *const args) {
     return 0;
 }
 
-quic_frame_stream_t *quic_send_stream_generate(quic_send_stream_t *const str, uint64_t bytes, const bool fill) {
+quic_frame_stream_t *quic_send_stream_generate(quic_send_stream_t *const str, bool *const empty, uint64_t bytes, const bool fill) {
     quic_stream_t *const p_str = quic_container_of_send_stream(str);
     quic_stream_flowctrl_module_t *const flowctrl_module = p_str->flowctrl_module;
+    *empty = false;
 
     pthread_mutex_lock(&str->mtx);
     uint64_t payload_size = flowctrl_module->get_swnd(quic_stream_extend_flowctrl(p_str));
@@ -128,6 +131,8 @@ quic_frame_stream_t *quic_send_stream_generate(quic_send_stream_t *const str, ui
         pthread_mutex_unlock(&str->mtx);
         return NULL;
     }
+    quic_link_init(frame);
+
     frame->first_byte = quic_frame_stream_type;
     if (str->off != 0) {
         frame->first_byte |= quic_frame_stream_type_off;
@@ -139,16 +144,32 @@ quic_frame_stream_t *quic_send_stream_generate(quic_send_stream_t *const str, ui
     frame->off = str->off;
     frame->len = payload_size;
 
-    memcpy(frame->data, str->reader_buf, payload_size);
-    str->reader_buf += payload_size;
-    str->reader_len -= payload_size;
-
     if (str->reader_len == 0) {
-        frame->first_byte |= quic_frame_stream_type_fin;
-
-        liteco_channel_notify(&str->writed_notifier);
+        *empty = true;
+        if (str->closed && !str->sent_fin) {
+            frame->first_byte |= quic_frame_stream_type_fin;
+            str->sent_fin = true;
+        }
     }
+    else {
+        memcpy(frame->data, str->reader_buf, payload_size);
+        str->reader_buf += payload_size;
+        str->reader_len -= payload_size;
 
+        flowctrl_module->sent(quic_stream_extend_flowctrl(p_str), payload_size);
+
+        if (str->reader_len == 0) {
+            *empty = true;
+            pthread_mutex_unlock(&str->mtx);
+            liteco_channel_notify(&str->writed_notifier);
+            pthread_mutex_lock(&str->mtx);
+        }
+        if (str->closed && str->reader_len != 0 && !str->sent_fin) {
+            *empty = true;
+            frame->first_byte |= quic_frame_stream_type_fin;
+            str->sent_fin = true;
+        }
+    }
     pthread_mutex_unlock(&str->mtx);
 
     return frame;
@@ -202,7 +223,8 @@ static int quic_recv_stream_read_co(void *const args) {
     quic_recv_stream_read_args_t *const read_args = args;
 
     quic_recv_stream_t *const str = read_args->str;
-    quic_stream_t *const p_str = quic_container_of_send_stream(str);
+    quic_stream_t *const p_str = quic_container_of_recv_stream(str);
+    quic_stream_module_t *module = quic_session_module(quic_stream_module_t, p_str->session, quic_stream_module);
     void *data = read_args->data;
     uint64_t len = read_args->len;
     uint64_t readed_len = 0;
@@ -215,8 +237,8 @@ static int quic_recv_stream_read_co(void *const args) {
         if (len == 0) {
             break;
         }
-        if (str->fin_flag && str->final_off <= readed_len) {
-            liteco_channel_send(str->speaker, &p_str->key);
+        if (str->fin_flag && str->final_off <= str->sorter.readed_size) {
+            liteco_channel_send(&module->completed_speaker, &p_str->key);
 
             quic_module_activate(p_str->session, quic_stream_module);
             break;
@@ -336,8 +358,7 @@ static quic_err_t quic_stream_module_init(void *const module) {
     quic_outuni_streams_init(&stream_module->outuni);
     quic_outbidi_streams_init(&stream_module->outbidi);
 
-    liteco_channel_init(&stream_module->sent_speaker);
-    liteco_channel_init(&stream_module->recv_speaker);
+    liteco_channel_init(&stream_module->completed_speaker);
 
     stream_module->extends_size = 0;
 
@@ -396,15 +417,12 @@ quic_err_t quic_session_stream_module_process(void *const module) {
     const liteco_channel_t *recv_channel = NULL;
 
     liteco_recv((const void **) &sid, &recv_channel, __CURR_CO__->runtime, 0,
-                &stream_module->recv_speaker, &stream_module->sent_speaker, &__CLOSED_CHAN__);
+                &stream_module->completed_speaker, &__CLOSED_CHAN__);
 
     if (recv_channel == &__CLOSED_CHAN__) {
         return quic_err_success;
     }
-    else if (recv_channel == &stream_module->sent_speaker) {
-
-    }
-    else if (recv_channel == &stream_module->recv_speaker) {
+    else if (recv_channel == &stream_module->completed_speaker) {
         quic_streams_release_spec(stream_module, *sid);
     }
 

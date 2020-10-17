@@ -41,10 +41,8 @@ void *thread(void *const args) {
     frame2->sid = 1;
     memcpy(frame2->data, (uint8_t *) line + 5, sizeof(line) - 5);
 
-    sleep(3);
     quic_recv_stream_handle_frame(str, frame1);
 
-    sleep(3);
     quic_recv_stream_handle_frame(str, frame2);
 
 
@@ -63,9 +61,7 @@ quic_module_t quic_connection_flowctrl_module = {
     .destory     = NULL
 };
 
-quic_err_t quic_stream_flowctrl_module_init(void *const module, quic_session_t *const sess) {
-    (void) sess;
-
+quic_err_t quic_stream_flowctrl_module_init(void *const module) {
     quic_stream_flowctrl_module_t *const ref = module;
     ref->init = NULL;
     ref->abandon = abandon;
@@ -85,7 +81,7 @@ int main() {
     quic_buf_t dst = { .buf = "1", .capa = 1 };
 
     quic_session_t *session = quic_session_create(src, dst);
-    quic_stream_t *stream = quic_stream_outbidi_open(&quic_session_module(quic_stream_module_t, session, &quic_stream_module)->outbidi);
+    quic_stream_t *stream = quic_stream_outbidi_open(&quic_session_module(quic_stream_module_t, session, quic_stream_module)->outbidi);
     str = &stream->recv;
 
     pthread_t pthread;

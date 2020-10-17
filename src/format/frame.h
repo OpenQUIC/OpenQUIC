@@ -10,6 +10,7 @@
 #define __OPENQUIC_FRAME_H__
 
 #include "utils/arr.h"
+#include "utils/link.h"
 #include "utils/errno.h"
 #include "utils/buf.h"
 #include <stdint.h>
@@ -42,10 +43,10 @@
 #define quic_frame_app_connection_close_type  0x1d
 #define quic_frame_handshake_done_type        0x1e
 
-#define QUIC_FRAME_FIELDS       \
-    uint8_t first_byte;         \
-    uint8_t ref_count;          \
-    quic_frame_t *next;
+#define QUIC_FRAME_FIELDS \
+    QUIC_LINK_FIELDS      \
+    uint8_t first_byte;   \
+    uint8_t ref_count;    \
 
 typedef struct quic_frame_s quic_frame_t;
 struct quic_frame_s {

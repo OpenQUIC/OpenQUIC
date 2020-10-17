@@ -22,10 +22,12 @@ quic_session_t *quic_session_create(const quic_buf_t src, const quic_buf_t dst) 
     quic_buf_copy(&session->key, &src);
     quic_buf_copy(&session->dst, &dst);
 
+    liteco_channel_init(&session->module_event_pipeline);
+
     int i;
     for (i = 0; quic_modules[i]; i++) {
         if (quic_modules[i]->init) {
-            quic_modules[i]->init(quic_session_module(void, session, quic_modules[i]));
+            quic_modules[i]->init(quic_session_module(void, session, *quic_modules[i]));
         }
     }
 

@@ -37,11 +37,12 @@ int quic_generate_co(void *const args) {
     liteco_recv(NULL, NULL, &rt, 0, &channel);
     printf("World\n");
 
-    quic_frame_stream_t *frame = quic_send_stream_generate(str, 1024, true);
+    bool empty = false;
+    quic_frame_stream_t *frame = quic_send_stream_generate(str, &empty, 1024, true);
     printf("%ld %s\n", frame->len, frame->data);
     liteco_recv(NULL, NULL, &rt, 0, &channel);
 
-    frame = quic_send_stream_generate(str, 1024, true);
+    frame = quic_send_stream_generate(str, &empty, 1024, true);
     printf("%ld %s\n", frame->len, frame->data);
     return 0;
 }
@@ -56,9 +57,7 @@ quic_module_t quic_connection_flowctrl_module = {
     .destory     = NULL
 };
 
-quic_err_t quic_stream_flowctrl_module_init(void *const module, quic_session_t *const sess) {
-    (void) sess;
-
+quic_err_t quic_stream_flowctrl_module_init(void *const module) {
     quic_stream_flowctrl_module_t *const ref = module;
     ref->init = NULL;
     ref->get_swnd = get_swnd;
@@ -77,7 +76,7 @@ int main() {
     quic_buf_t dst = { .buf = "1", .capa = 1 };
     quic_session_t *session = quic_session_create(src, dst);
 
-    quic_stream_t *stream = quic_stream_create(1, session, 0, &channel, &channel);
+    quic_stream_t *stream = quic_stream_create(1, session, 0);
     str = &stream->send;
 
     pthread_t pthread;
@@ -85,7 +84,6 @@ int main() {
     liteco_channel_init(&channel);
 
     pthread_create(&pthread, NULL, thread, NULL);
-
 
     liteco_runtime_init(&rt);
     liteco_coroutine_t co;
