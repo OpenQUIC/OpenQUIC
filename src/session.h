@@ -28,14 +28,18 @@ struct quic_session_s {
     bool recv_first;
     uint64_t last_recv_time;
 
+    liteco_channel_t module_event_pipeline;
     uint8_t modules[0];
 };
 
 #define quic_session_module(type, session, module) \
-    ((type *) ((session)->modules + (module)->off))
+    ((type *) ((session)->modules + (module).off))
 
 #define quic_module_of_session(instance, module) \
-    ((quic_session_t *) ((((void *) (instance)) - (module)->off) - offsetof(quic_session_t, modules)))
+    ((quic_session_t *) ((((void *) (instance)) - (module).off) - offsetof(quic_session_t, modules)))
+
+#define quic_module_activate(session, module_def) \
+    (liteco_channel_send(&(session)->module_event_pipeline, &(module_def)))
 
 quic_session_t *quic_session_create(const quic_buf_t src, const quic_buf_t dst);
 

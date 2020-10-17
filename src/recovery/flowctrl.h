@@ -39,7 +39,7 @@ extern quic_module_t quic_connection_flowctrl_module;
 extern quic_module_t quic_stream_flowctrl_module;
 
 #define quic_session_stream_flowctrl(sess)  \
-    quic_session_module(quic_stream_flowctrl_module_t, sess, &quic_stream_flowctrl_module)
+    quic_session_module(quic_stream_flowctrl_module_t, sess, quic_stream_flowctrl_module)
 
 #define quic_stream_flowctrl_init(module, flowctrl) \
     ((module)->init && ((module)->init((flowctrl), (module))))

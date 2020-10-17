@@ -25,7 +25,7 @@ quic_session_t *quic_session_create(const quic_buf_t src, const quic_buf_t dst) 
     int i;
     for (i = 0; quic_modules[i]; i++) {
         if (quic_modules[i]->init) {
-            quic_modules[i]->init(quic_session_module(void, session, quic_modules[i]), session);
+            quic_modules[i]->init(quic_session_module(void, session, quic_modules[i]));
         }
     }
 

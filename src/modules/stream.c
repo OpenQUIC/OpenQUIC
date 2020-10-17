@@ -197,6 +197,7 @@ uint64_t quic_recv_stream_read(quic_recv_stream_t *const str, void *const data, 
     return args.readed_len;
 }
 
+
 static int quic_recv_stream_read_co(void *const args) {
     quic_recv_stream_read_args_t *const read_args = args;
 
@@ -216,6 +217,8 @@ static int quic_recv_stream_read_co(void *const args) {
         }
         if (str->fin_flag && str->final_off <= readed_len) {
             liteco_channel_send(str->speaker, &p_str->key);
+
+            quic_module_activate(p_str->session, quic_stream_module);
             break;
         }
         if (str->deadline != 0 && str->deadline < quic_now()) {
@@ -325,9 +328,7 @@ static int quic_stream_inbidi_streams_accept_co(void *const args) {
     return 0;
 }
 
-static quic_err_t quic_stream_module_init(void *const module, quic_session_t *const sess) {
-    (void) sess;
-
+static quic_err_t quic_stream_module_init(void *const module) {
     quic_stream_module_t *const stream_module = module;
 
     quic_inuni_streams_init(&stream_module->inuni);
@@ -355,25 +356,70 @@ uint64_t quic_stream_read(quic_stream_t *const str, void *const data, const uint
 }
 
 quic_stream_t *quic_session_open_stream(quic_session_t *const session, const bool bidi) {
-    quic_stream_module_t *module = quic_session_module(quic_stream_module_t, session, &quic_stream_module);
+    quic_stream_module_t *module = quic_session_module(quic_stream_module_t, session, quic_stream_module);
 
     return bidi ? quic_stream_outbidi_open(&module->outbidi) : quic_stream_outuni_open(&module->outuni);
 }
 
 quic_stream_t *quic_session_accept_stream(quic_session_t *const session, const bool bidi) {
-    quic_stream_module_t *module = quic_session_module(quic_stream_module_t, session, &quic_stream_module);
+    quic_stream_module_t *module = quic_session_module(quic_stream_module_t, session, quic_stream_module);
 
     return bidi ? quic_stream_inbidi_accept(&module->inbidi) : quic_stream_inuni_accept(&module->inuni);
+}
+
+static inline quic_err_t quic_streams_release_spec(quic_stream_module_t *const module, const uint64_t sid) {
+    quic_session_t *const session = quic_module_of_session(module, quic_stream_module);
+
+    if (quic_stream_id_is_bidi(sid)) {
+        if (quic_stream_id_same_principal(sid, session)) {
+            quic_stream_outbidi_delete(&module->outbidi, sid);
+        }
+        else {
+            quic_stream_inbidi_delete(&module->inbidi, sid);
+        }
+    }
+    else {
+        if (quic_stream_id_same_principal(sid, session)) {
+            quic_stream_outuni_delete(&module->outuni, sid);
+        }
+        else {
+            quic_stream_inuni_delete(&module->inuni, sid);
+        }
+    }
+
+    return quic_err_success;
+}
+
+quic_err_t quic_session_stream_module_process(void *const module) {
+    quic_stream_module_t *const stream_module = module;
+    const uint64_t *sid = NULL;
+    const liteco_channel_t *recv_channel = NULL;
+
+    liteco_recv((const void **) &sid, &recv_channel, __CURR_CO__->runtime, 0,
+                &stream_module->recv_speaker, &stream_module->sent_speaker, &__CLOSED_CHAN__);
+
+    if (recv_channel == &__CLOSED_CHAN__) {
+        return quic_err_success;
+    }
+    else if (recv_channel == &stream_module->sent_speaker) {
+
+    }
+    else if (recv_channel == &stream_module->recv_speaker) {
+        quic_streams_release_spec(stream_module, *sid);
+    }
+
+    return quic_err_success;
 }
 
 quic_module_t quic_stream_module = {
     .module_size = sizeof(quic_stream_module_t),
     .init = quic_stream_module_init,
+    .process = quic_session_stream_module_process,
     .destory = NULL,
 };
 
 quic_err_t quic_session_handle_stream_frame(quic_session_t *const session, const quic_frame_t *const frame) {
-    quic_stream_module_t *module = quic_session_module(quic_stream_module_t, session, &quic_stream_module);
+    quic_stream_module_t *module = quic_session_module(quic_stream_module_t, session, quic_stream_module);
     const quic_frame_stream_t *const stream_frame = (const quic_frame_stream_t *) frame;
 
     quic_stream_t *stream = quic_stream_module_recv_relation_stream(module, stream_frame->sid);
