@@ -15,13 +15,10 @@
 
 typedef struct quic_packet_number_generator_module_s quic_packet_number_generator_module_t;
 struct quic_packet_number_generator_module_s {
-    uint64_t average;
     uint64_t next;
-    uint64_t skip;
-
-    uint32_t count;
-    quic_link_t queue;
 };
+
+uint64_t quic_packet_number_generate(quic_packet_number_generator_module_t *const module);
 
 extern quic_module_t quic_initial_packet_number_generator_module;
 extern quic_module_t quic_handshake_packet_number_generator_module;
