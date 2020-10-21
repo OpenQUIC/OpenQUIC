@@ -10,6 +10,7 @@
 #define __OPENQUIC_FRAMER_H__
 
 #include "module.h"
+#include "format/frame.h"
 #include "utils/rbt.h"
 #include "utils/link.h"
 #include <pthread.h>
@@ -38,6 +39,8 @@ struct quic_framer_module_s {
     quic_framer_set_sid_t *active_set;
     quic_link_t active_queue;
 
+    quic_link_t ctrls;
+
     pthread_mutex_t mtx;
 };
 
@@ -65,7 +68,17 @@ static inline quic_err_t quic_framer_add_active(quic_framer_module_t *const modu
     return quic_err_success;
 }
 
+static inline quic_err_t quic_framer_ctrl(quic_framer_module_t *const module, quic_frame_t *const frame) {
+    pthread_mutex_lock(&module->mtx);
+    quic_link_insert_before(&module->ctrls, frame);
+    pthread_mutex_unlock(&module->mtx);
+    return quic_err_success;
+}
+
+
 uint64_t quic_framer_append_stream_frame(quic_link_t *const frames, const uint64_t capa, const bool fill, quic_framer_module_t *const module);
+
+uint64_t quic_framer_append_ctrl_frame(quic_link_t *const frames, const uint64_t capa, quic_framer_module_t *const module);
 
 extern quic_module_t quic_framer_module;
 

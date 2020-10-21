@@ -61,11 +61,31 @@ finished:
     return len;
 }
 
+uint64_t quic_framer_append_ctrl_frame(quic_link_t *const frames, const uint64_t capa, quic_framer_module_t *const module) {
+    uint64_t len = 0;
+    quic_frame_t *frame = NULL;
+    pthread_mutex_lock(&module->mtx);
+    quic_link_foreach(frame, &module->ctrls) {
+        len = quic_frame_size(frame);
+        if (len > capa) {
+            len = 0;
+            continue;
+        }
+        quic_link_remove(frame);
+        quic_link_insert_before(frames, frame);
+        break;
+    }
+    pthread_mutex_unlock(&module->mtx);
+
+    return len;
+}
+
 quic_err_t quic_framer_module_init(void *const module) {
     quic_framer_module_t *const framer_module = module;
 
     quic_link_init(&framer_module->active_queue);
     quic_rbt_tree_init(framer_module->active_set);
+    quic_link_init(&framer_module->ctrls);
     pthread_mutex_init(&framer_module->mtx, NULL);
 
     return quic_err_success;
