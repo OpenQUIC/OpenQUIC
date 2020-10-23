@@ -17,6 +17,7 @@
 #include "module.h"
 #include <stdbool.h>
 #include <sys/time.h>
+#include <pthread.h>
 
 typedef struct quic_session_s quic_session_t;
 struct quic_session_s {
@@ -27,6 +28,8 @@ struct quic_session_s {
     bool is_cli;
     bool recv_first;
     uint64_t last_recv_time;
+
+    pthread_t background_thread;
 
     liteco_channel_t module_event_pipeline;
     uint8_t modules[0];
@@ -41,7 +44,7 @@ struct quic_session_s {
 #define quic_module_activate(session, module_def) \
     (liteco_channel_send(&(session)->module_event_pipeline, &(module_def)))
 
-quic_session_t *quic_session_create(const quic_buf_t src, const quic_buf_t dst);
+quic_session_t *quic_session_create(const quic_buf_t src, const quic_buf_t dst, const bool is_cli);
 
 typedef quic_err_t (*quic_session_handler_t) (quic_session_t *const, const quic_frame_t *const);
 
