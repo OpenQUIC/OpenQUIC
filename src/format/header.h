@@ -87,20 +87,39 @@ struct quic_long_header_s {
     .buf = quic_long_header_src_conn_off(header),  \
 }
 
-#define quic_packet_number_r1(field, payload)      \
+#define quic_packet_number_r1(field, payload) \
     (field) == 0 ? (*(uint8_t *) (payload)) :
 
-#define quic_packet_number_r2(field, payload)      \
+#define quic_packet_number_r2(field, payload) \
     (field) == 1 ? bswap_16(*(uint16_t *) (payload)) :
 
-#define quic_packet_number_r3(field, payload)      \
+#define quic_packet_number_r3(field, payload) \
     (field) == 2 ? (bswap_32(*(uint32_t *) (payload)) >> 8) :
 
-#define quic_packet_number_r4(field, payload)      \
+#define quic_packet_number_r4(field, payload) \
     (field) == 3 ? bswap_32(*(uint32_t *) (payload)) : 0
 
-#define quic_packet_number_r(field, payload)       \
+#define quic_packet_number_r(field, payload) \
     (quic_packet_number_r1(field & 0x03, payload) (quic_packet_number_r2(field & 0x03, payload) (quic_packet_number_r3(field & 0x03, payload) (quic_packet_number_r4(field & 0x03, payload)))))
+
+#define quic_packet_number_format_len(num) \
+    ((num) < 0x100 ? 1 : ((num) < 0x10000 ? 2 : (num) < 1000000 ? 3 : 4))
+
+#define quic_packet_number_format(off, num, len) {               \
+    if ((len) == 1) {                                            \
+        *(uint8_t *) (off) = (num);                              \
+    }                                                            \
+    else if ((len) == 2) {                                       \
+        *(uint16_t *) (off) = bswap_16((uint16_t) (num));        \
+    }                                                            \
+    else if ((len) == 3) {                                       \
+        *(uint16_t *) (off) = bswap_16((uint16_t) ((num) >> 8)); \
+        *(uint8_t *) ((off) + 2) = (uint8_t) (num);              \
+    }                                                            \
+    else if ((len) == 4) {                                       \
+        *(uint32_t *) (off) = bswap_32((uint32_t) (num));        \
+    }                                                            \
+}
 
 #define QUIC_PAYLOAD_FIELDS     \
     uint8_t type;               \
