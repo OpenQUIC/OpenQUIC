@@ -13,6 +13,7 @@
 #include "format/frame.h"
 #include "utils/rbt.h"
 #include "utils/link.h"
+#include "session.h"
 #include <pthread.h>
 #include <malloc.h>
 
@@ -44,9 +45,27 @@ struct quic_framer_module_s {
     pthread_mutex_t mtx;
 };
 
-static inline quic_err_t quic_framer_add_active(quic_framer_module_t *const module, const uint64_t sid) {
+
+static inline quic_err_t quic_framer_ctrl(quic_framer_module_t *const module, quic_frame_t *const frame) {
     pthread_mutex_lock(&module->mtx);
-    if (quic_rbt_is_nil(quic_framer_set_sid_find(module->active_set, sid))) {
+    quic_link_insert_before(&module->ctrls, frame);
+    pthread_mutex_unlock(&module->mtx);
+    return quic_err_success;
+}
+
+
+uint64_t quic_framer_append_stream_frame(quic_link_t *const frames, const uint64_t capa, const bool fill, quic_framer_module_t *const module);
+
+uint64_t quic_framer_append_ctrl_frame(quic_link_t *const frames, const uint64_t capa, quic_framer_module_t *const module);
+
+extern quic_module_t quic_framer_module;
+extern quic_module_t quic_sender_module;
+
+static inline quic_err_t quic_framer_add_active(quic_framer_module_t *const module, const uint64_t sid) {
+    quic_session_t *const session = quic_module_of_session(module, quic_framer_module);
+
+    pthread_mutex_lock(&module->mtx);
+    if (quic_rbt_is_nil(quic_framer_set_sid_find(module->active_set, &sid))) {
         quic_framer_set_sid_t *set_node = malloc(sizeof(quic_framer_set_sid_t));
         if (set_node == NULL) {
             pthread_mutex_unlock(&module->mtx);
@@ -65,21 +84,9 @@ static inline quic_err_t quic_framer_add_active(quic_framer_module_t *const modu
         quic_link_insert_before(&module->active_queue, que_node);
     }
     pthread_mutex_unlock(&module->mtx);
+
+    quic_module_activate(session, quic_sender_module);
     return quic_err_success;
 }
-
-static inline quic_err_t quic_framer_ctrl(quic_framer_module_t *const module, quic_frame_t *const frame) {
-    pthread_mutex_lock(&module->mtx);
-    quic_link_insert_before(&module->ctrls, frame);
-    pthread_mutex_unlock(&module->mtx);
-    return quic_err_success;
-}
-
-
-uint64_t quic_framer_append_stream_frame(quic_link_t *const frames, const uint64_t capa, const bool fill, quic_framer_module_t *const module);
-
-uint64_t quic_framer_append_ctrl_frame(quic_link_t *const frames, const uint64_t capa, quic_framer_module_t *const module);
-
-extern quic_module_t quic_framer_module;
 
 #endif

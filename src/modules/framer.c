@@ -9,6 +9,8 @@
 #include "modules/framer.h"
 #include "modules/stream.h"
 
+static quic_err_t quic_framer_module_init(void *const module);
+
 uint64_t quic_framer_append_stream_frame(quic_link_t *const frames, const uint64_t capa, const bool fill, quic_framer_module_t *const module) {
     quic_session_t *const session = quic_module_of_session(module, quic_framer_module);
     quic_stream_module_t *const stream_module = quic_session_module(quic_stream_module_t, session, quic_stream_module);
@@ -49,7 +51,7 @@ remove:
     {
         quic_link_remove(que_sid);
 
-        quic_framer_set_sid_t *rm_set_node = quic_framer_set_sid_find(module->active_set, que_sid->sid);
+        quic_framer_set_sid_t *rm_set_node = quic_framer_set_sid_find(module->active_set, &que_sid->sid);
         quic_rbt_remove(&module->active_set, &rm_set_node);
 
         free(que_sid);
@@ -80,7 +82,7 @@ uint64_t quic_framer_append_ctrl_frame(quic_link_t *const frames, const uint64_t
     return len;
 }
 
-quic_err_t quic_framer_module_init(void *const module) {
+static quic_err_t quic_framer_module_init(void *const module) {
     quic_framer_module_t *const framer_module = module;
 
     quic_link_init(&framer_module->active_queue);
