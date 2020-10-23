@@ -310,32 +310,32 @@ struct quic_stream_module_s {
 #define quic_stream_outbidi_module(str) \
     ((quic_stream_module_t *) (((void *) (str)) - offsetof(quic_stream_module_t, outbidi)))
 
-#define quic_streams_open(strs, container_of_module, stream) {                                                        \
-    quic_stream_module_t *const _module = container_of_module(strs);                                                  \
-    quic_session_t *const _sess = quic_module_of_session(_module, quic_stream_module);                                \
-    pthread_mutex_lock(&strs->mtx);                                                                                   \
-    const uint64_t sid = quic_stream_id_transfer(false, _sess->is_cli, strs->next_sid);                               \
-    strs->next_sid++;                                                                                                 \
-    stream = quic_streams_find(strs->streams, sid);                                                                   \
-    if (!quic_rbt_is_nil(stream)) {                                                                                   \
-        quic_rbt_remove(&strs->streams, &stream);                                                                     \
-        if (_module->destory) {                                                                                       \
-            _module->destory(stream);                                                                                 \
-        }                                                                                                             \
-        quic_stream_destory(stream, _sess);                                                                           \
-    }                                                                                                                 \
-    (stream) = quic_stream_create(sid, _sess, _module->extends_size); \
-    if (_module->init) {                                                                                              \
-        _module->init(stream);                                                                                        \
-    }                                                                                                                 \
-    quic_streams_insert(&strs->streams, stream);                                                                      \
-    pthread_mutex_unlock(&strs->mtx);                                                                                 \
+#define quic_streams_open(strs, container_of_module, stream, bidi) {                     \
+    quic_stream_module_t *const _module = container_of_module(strs);                     \
+    quic_session_t *const _sess = quic_module_of_session(_module, quic_stream_module);   \
+    pthread_mutex_lock(&strs->mtx);                                                      \
+    const uint64_t sid = quic_stream_id_transfer((bidi), _sess->is_cli, strs->next_sid); \
+    strs->next_sid++;                                                                    \
+    stream = quic_streams_find(strs->streams, &sid);                                     \
+    if (!quic_rbt_is_nil(stream)) {                                                      \
+        quic_rbt_remove(&strs->streams, &stream);                                        \
+        if (_module->destory) {                                                          \
+            _module->destory(stream);                                                    \
+        }                                                                                \
+        quic_stream_destory(stream, _sess);                                              \
+    }                                                                                    \
+    (stream) = quic_stream_create(sid, _sess, _module->extends_size);                    \
+    if (_module->init) {                                                                 \
+        _module->init(stream);                                                           \
+    }                                                                                    \
+    quic_streams_insert(&strs->streams, stream);                                         \
+    pthread_mutex_unlock(&strs->mtx);                                                    \
 }
 
 #define quic_streams_delete(strs, container_of_module, sid) {                             \
     quic_stream_module_t *const _module = container_of_module(strs);                      \
     pthread_mutex_lock(&(strs)->mtx);                                                     \
-    quic_stream_t *stream = quic_streams_find((strs)->streams, sid);                      \
+    quic_stream_t *stream = quic_streams_find((strs)->streams, (sid));                    \
     if (!quic_rbt_is_nil(stream)) {                                                       \
         quic_rbt_remove(&(strs)->streams, &stream);                                       \
         if (_module->destory) {                                                           \
@@ -348,13 +348,13 @@ struct quic_stream_module_s {
 
 static inline quic_stream_t *quic_stream_outuni_open(quic_outuni_streams_t *const strs) {
     quic_stream_t *stream = NULL;
-    quic_streams_open(strs, quic_stream_outuni_module, stream);
+    quic_streams_open(strs, quic_stream_outuni_module, stream, false);
     return stream;
 }
 
 static inline quic_stream_t *quic_stream_outbidi_open(quic_outbidi_streams_t *const strs) {
     quic_stream_t *stream = NULL;
-    quic_streams_open(strs, quic_stream_outbidi_module, stream);
+    quic_streams_open(strs, quic_stream_outbidi_module, stream, true);
     return stream;
 }
 
@@ -375,7 +375,7 @@ static inline quic_stream_t *quic_stream_outbidi_open(quic_outbidi_streams_t *co
     quic_stream_module_t *const _module = container_of_module(strs);                  \
     quic_session_t *const sess = quic_module_of_session(_module, quic_stream_module); \
     pthread_mutex_lock(&strs->mtx);                                                   \
-    stream = quic_streams_find(strs->streams, sid);                                   \
+    stream = quic_streams_find(strs->streams, (sid));                                 \
     if (!quic_rbt_is_nil(stream)) {                                                   \
         quic_rbt_remove(&strs->streams, &stream);                                     \
         if (_module->destory) {                                                       \
@@ -386,7 +386,7 @@ static inline quic_stream_t *quic_stream_outbidi_open(quic_outbidi_streams_t *co
     else {                                                                            \
         newly = true;                                                                 \
     }                                                                                 \
-    (stream) = quic_stream_create(sid, sess, _module->extends_size);                  \
+    (stream) = quic_stream_create(*sid, sess, _module->extends_size);                 \
     if (_module->init) {                                                              \
         _module->init(stream);                                                        \
     }                                                                                 \
@@ -399,7 +399,7 @@ static inline quic_stream_t *quic_stream_outbidi_open(quic_outbidi_streams_t *co
 
 static inline quic_stream_t *quic_stream_inuni_open(quic_inuni_streams_t *const strs, const uint64_t sid) {
     quic_stream_t *stream = NULL;
-    quic_streams_open_and_notify_accept(strs, quic_stream_inuni_module, sid, stream);
+    quic_streams_open_and_notify_accept(strs, quic_stream_inuni_module, &sid, stream);
     return stream;
 }
 
@@ -407,7 +407,7 @@ quic_stream_t *quic_stream_inuni_accept(quic_inuni_streams_t *const strs);
 
 static inline quic_stream_t *quic_stream_inbidi_open(quic_inbidi_streams_t *const strs, const uint64_t sid) {
     quic_stream_t *stream = NULL;
-    quic_streams_open_and_notify_accept(strs, quic_stream_inbidi_module, sid, stream);
+    quic_streams_open_and_notify_accept(strs, quic_stream_inbidi_module, &sid, stream);
     return stream;
 }
 
@@ -421,7 +421,7 @@ static inline quic_stream_t *quic_stream_module_recv_relation_stream(quic_stream
 
     if (quic_stream_id_is_bidi(sid)) {
         return quic_stream_id_same_principal(sid, session)
-            ? quic_streams_find(&module->outbidi.streams, sid) : quic_stream_inbidi_open(&module->inbidi, sid);
+            ? quic_streams_find(module->outbidi.streams, &sid) : quic_stream_inbidi_open(&module->inbidi, sid);
     }
     else {
         return quic_stream_id_same_principal(sid, session)
@@ -434,11 +434,11 @@ static inline quic_stream_t *quic_stream_module_send_relation_stream(quic_stream
 
     if (quic_stream_id_is_bidi(sid)) {
         return quic_stream_id_same_principal(sid, session)
-            ? quic_streams_find(&module->outbidi.streams, sid) : quic_stream_inbidi_open(&module->inbidi, sid);
+            ? quic_streams_find(module->outbidi.streams, &sid) : quic_stream_inbidi_open(&module->inbidi, sid);
     }
     else {
         return quic_stream_id_same_principal(sid, session)
-            ? quic_streams_find(&module->outuni.streams, sid) : NULL;
+            ? quic_streams_find(module->outuni.streams, &sid) : NULL;
     }
 }
 

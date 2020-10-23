@@ -393,25 +393,25 @@ static inline quic_err_t quic_streams_release_spec(quic_stream_module_t *const m
 
     if (quic_stream_id_is_bidi(sid)) {
         if (quic_stream_id_same_principal(sid, session)) {
-            quic_stream_outbidi_delete(&module->outbidi, sid);
+            quic_stream_outbidi_delete(&module->outbidi, &sid);
         }
         else {
-            quic_stream_inbidi_delete(&module->inbidi, sid);
+            quic_stream_inbidi_delete(&module->inbidi, &sid);
         }
     }
     else {
         if (quic_stream_id_same_principal(sid, session)) {
-            quic_stream_outuni_delete(&module->outuni, sid);
+            quic_stream_outuni_delete(&module->outuni, &sid);
         }
         else {
-            quic_stream_inuni_delete(&module->inuni, sid);
+            quic_stream_inuni_delete(&module->inuni, &sid);
         }
     }
 
     return quic_err_success;
 }
 
-quic_err_t quic_session_stream_module_process(void *const module) {
+static quic_err_t quic_session_stream_module_process(void *const module) {
     quic_stream_module_t *const stream_module = module;
     const uint64_t *sid = NULL;
     const liteco_channel_t *recv_channel = NULL;
