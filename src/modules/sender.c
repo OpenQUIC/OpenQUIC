@@ -10,6 +10,7 @@
 #include "modules/sender.h"
 #include "modules/packet_number_generator.h"
 #include "modules/framer.h"
+#include "modules/udp_runway.h"
 #include "format/header.h"
 #include "session.h"
 
@@ -24,7 +25,7 @@ static inline quic_err_t quic_sender_generate_retry_header(quic_sender_module_t 
 /* all fields of the short header are completely filled */
 static inline quic_err_t quic_sender_generate_short_header(quic_session_t *const session, quic_buf_t *const buf);
 
-static quic_err_t quic_sender_pack_app_packet(quic_sender_module_t *const sender);
+static quic_send_packet_t *quic_sender_pack_app_packet(quic_sender_module_t *const sender);
 
 static quic_err_t quic_sender_module_init(void *const module);
 static quic_err_t quic_sender_module_process(void *const module);
@@ -80,15 +81,15 @@ static inline quic_err_t quic_sender_generate_short_header(quic_session_t *const
     buf->pos += 1 + quic_buf_size(&session->dst);
 
     uint8_t numlen = quic_packet_number_format_len(numgen->next);
+    header->first_byte |= (uint8_t) (numlen - 1);
     quic_packet_number_format(buf->pos, numgen->next, numlen);
     buf->pos += numlen;
 
     numgen->next++;
-
     return quic_err_success;
 }
 
-static quic_err_t quic_sender_pack_app_packet(quic_sender_module_t *const sender) {
+static quic_send_packet_t *quic_sender_pack_app_packet(quic_sender_module_t *const sender) {
     quic_session_t *const session = quic_module_of_session(sender, quic_sender_module);
     quic_framer_module_t *const framer = quic_session_module(quic_framer_module_t, session, quic_framer_module);
     quic_send_packet_t *packet = NULL;
@@ -96,9 +97,8 @@ static quic_err_t quic_sender_pack_app_packet(quic_sender_module_t *const sender
 
     quic_sender_generate_short_header(session, &packet->buf);
 
-    uint32_t max_bytes = sender->mtu - (packet->buf.pos - packet->buf.buf);
+    uint32_t max_bytes = packet->buf.capa - (packet->buf.pos - packet->buf.buf);
     uint32_t frame_len = 0;
-
 
     for ( ;; ) {
         frame_len = quic_framer_append_ctrl_frame(&packet->frames, max_bytes, framer);
@@ -115,7 +115,7 @@ static quic_err_t quic_sender_pack_app_packet(quic_sender_module_t *const sender
         }
     }
 
-    return quic_err_success;
+    return packet;
 }
 
 static quic_err_t quic_sender_module_init(void *const module) {
@@ -127,9 +127,20 @@ static quic_err_t quic_sender_module_init(void *const module) {
 }
 
 static quic_err_t quic_sender_module_process(void *const module) {
+    quic_session_t *const session = quic_module_of_session(module, quic_sender_module);
     quic_sender_module_t *const sender_module = module;
+    quic_send_packet_t *packet = NULL;
+    quic_udp_runway_module_t *const udp_runway = quic_session_module(quic_udp_runway_module_t, session, quic_udp_runway_module);
 
-    quic_sender_pack_app_packet(sender_module);
+    quic_frame_t *frame = NULL;
+
+    packet = quic_sender_pack_app_packet(sender_module);
+
+    quic_link_foreach(frame, &packet->frames) {
+        quic_frame_format(&packet->buf, frame);
+    }
+
+    quic_udp_runway_push(udp_runway, packet);
 
     return quic_err_success;
 }

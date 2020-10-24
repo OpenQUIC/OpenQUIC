@@ -13,19 +13,12 @@
 #include "utils/link.h"
 #include "utils/buf.h"
 
-typedef struct quic_send_packet_s quic_send_packet_t;
-struct quic_send_packet_s {
-    quic_link_t frames;
-    quic_buf_t buf;
-
-    uint8_t data[0];
-};
-
 #define quic_send_packet_init(send_packet, size) {               \
     (send_packet) = malloc(sizeof(quic_send_packet_t) + (size)); \
     if ((send_packet) == NULL) {                                 \
-        return quic_err_internal_error;                          \
+        return NULL;                                             \
     }                                                            \
+    quic_link_init((send_packet));                               \
     quic_link_init(&(send_packet)->frames);                      \
     (send_packet)->buf.buf = (send_packet)->data;                \
     (send_packet)->buf.capa = (size);                            \

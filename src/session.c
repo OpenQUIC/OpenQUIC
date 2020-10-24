@@ -66,7 +66,7 @@ static int quic_session_background_co(void *const session_) {
 
         liteco_recv((const void **) &active_module, NULL, __CURR_CO__->runtime, 0, &session->module_event_pipeline);
 
-        if (active_module == NULL) {
+        if (active_module == NULL || !active_module->process) {
             continue;
         }
 
