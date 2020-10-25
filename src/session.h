@@ -9,6 +9,7 @@
 #ifndef __OPENQUIC_SESSION_H__
 #define __OPENQUIC_SESSION_H__
 
+#include "def.h"
 #include "utils/buf.h"
 #include "utils/errno.h"
 #include "utils/rbt.h"
