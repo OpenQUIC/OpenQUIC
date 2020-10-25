@@ -9,6 +9,7 @@
 #include "session.h"
 #include "module.h"
 #include <malloc.h>
+#include <arpa/inet.h>
 
 static void *quic_session_background(void *const session_);
 static int quic_session_background_co(void *const session_);
