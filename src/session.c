@@ -14,7 +14,7 @@
 static void *quic_session_background(void *const session_);
 static int quic_session_background_co(void *const session_);
 
-quic_session_t *quic_session_create(const quic_buf_t src, const quic_buf_t dst, const bool is_cli) {
+quic_session_t *quic_session_create(const quic_config_t cfg) {
     uint32_t modules_size = quic_modules_size();
 
     quic_session_t *session = malloc(sizeof(quic_session_t) + modules_size);
@@ -22,10 +22,10 @@ quic_session_t *quic_session_create(const quic_buf_t src, const quic_buf_t dst, 
         return NULL;
     }
     quic_rbt_init(session);
-    session->is_cli = is_cli;
+    session->dst.buf = NULL;
 
-    quic_buf_copy(&session->key, &src);
-    quic_buf_copy(&session->dst, &dst);
+    quic_buf_copy(&session->key, &cfg.src);
+    session->cfg = cfg;
 
     liteco_channel_init(&session->module_event_pipeline);
 

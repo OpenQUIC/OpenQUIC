@@ -31,7 +31,7 @@
     (((id) % 2) == 0)
 
 #define quic_stream_id_same_principal(id, session) \
-    (quic_stream_id_is_cli(id) == (session)->is_cli)
+    (quic_stream_id_is_cli(id) == (session)->cfg.is_cli)
 
 extern quic_module_t quic_stream_module;
 
@@ -310,26 +310,26 @@ struct quic_stream_module_s {
 #define quic_stream_outbidi_module(str) \
     ((quic_stream_module_t *) (((void *) (str)) - offsetof(quic_stream_module_t, outbidi)))
 
-#define quic_streams_open(strs, container_of_module, stream, bidi) {                     \
-    quic_stream_module_t *const _module = container_of_module(strs);                     \
-    quic_session_t *const _sess = quic_module_of_session(_module, quic_stream_module);   \
-    pthread_mutex_lock(&strs->mtx);                                                      \
-    const uint64_t sid = quic_stream_id_transfer((bidi), _sess->is_cli, strs->next_sid); \
-    strs->next_sid++;                                                                    \
-    stream = quic_streams_find(strs->streams, &sid);                                     \
-    if (!quic_rbt_is_nil(stream)) {                                                      \
-        quic_rbt_remove(&strs->streams, &stream);                                        \
-        if (_module->destory) {                                                          \
-            _module->destory(stream);                                                    \
-        }                                                                                \
-        quic_stream_destory(stream, _sess);                                              \
-    }                                                                                    \
-    (stream) = quic_stream_create(sid, _sess, _module->extends_size);                    \
-    if (_module->init) {                                                                 \
-        _module->init(stream);                                                           \
-    }                                                                                    \
-    quic_streams_insert(&strs->streams, stream);                                         \
-    pthread_mutex_unlock(&strs->mtx);                                                    \
+#define quic_streams_open(strs, container_of_module, stream, bidi) {                         \
+    quic_stream_module_t *const _module = container_of_module(strs);                         \
+    quic_session_t *const _sess = quic_module_of_session(_module, quic_stream_module);       \
+    pthread_mutex_lock(&strs->mtx);                                                          \
+    const uint64_t sid = quic_stream_id_transfer((bidi), _sess->cfg.is_cli, strs->next_sid); \
+    strs->next_sid++;                                                                        \
+    stream = quic_streams_find(strs->streams, &sid);                                         \
+    if (!quic_rbt_is_nil(stream)) {                                                          \
+        quic_rbt_remove(&strs->streams, &stream);                                            \
+        if (_module->destory) {                                                              \
+            _module->destory(stream);                                                        \
+        }                                                                                    \
+        quic_stream_destory(stream, _sess);                                                  \
+    }                                                                                        \
+    (stream) = quic_stream_create(sid, _sess, _module->extends_size);                        \
+    if (_module->init) {                                                                     \
+        _module->init(stream);                                                               \
+    }                                                                                        \
+    quic_streams_insert(&strs->streams, stream);                                             \
+    pthread_mutex_unlock(&strs->mtx);                                                        \
 }
 
 #define quic_streams_delete(strs, container_of_module, sid) {                             \

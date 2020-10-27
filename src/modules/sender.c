@@ -35,8 +35,8 @@ static inline quic_err_t  quic_sender_generate_long_header(quic_session_t *const
     header->first_byte = type;
     header->version = 0x00000000;
 
-    quic_long_header_dst_conn_len(header) = quic_buf_size(&session->dst);
-    memcpy(quic_long_header_dst_conn_off(header), session->dst.pos, quic_buf_size(&session->dst));
+    quic_long_header_dst_conn_len(header) = quic_buf_size(&session->cfg.dst);
+    memcpy(quic_long_header_dst_conn_off(header), session->cfg.dst.pos, quic_buf_size(&session->cfg.dst));
     quic_long_header_src_conn_len(header) = quic_buf_size(&session->key);
     memcpy(quic_long_header_src_conn_off(header), session->key.pos, quic_buf_size(&session->key));
 
@@ -77,8 +77,8 @@ static inline quic_err_t quic_sender_generate_short_header(quic_session_t *const
     quic_short_header_t *const header = buf->pos;
     
     header->first_byte = quic_packet_short_type;
-    memcpy(quic_short_header_dst_conn_off(header), session->dst.pos, quic_buf_size(&session->dst));
-    buf->pos += 1 + quic_buf_size(&session->dst);
+    memcpy(quic_short_header_dst_conn_off(header), session->cfg.dst.pos, quic_buf_size(&session->cfg.dst));
+    buf->pos += 1 + quic_buf_size(&session->cfg.dst);
 
     uint8_t numlen = quic_packet_number_format_len(numgen->next);
     header->first_byte |= (uint8_t) (numlen - 1);

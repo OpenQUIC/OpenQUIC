@@ -18,17 +18,32 @@
 #include "module.h"
 #include <stdbool.h>
 #include <sys/time.h>
+#include <netinet/in.h>
 #include <pthread.h>
+
+typedef struct quic_config_s quic_config_t;
+struct quic_config_s {
+    quic_buf_t src;
+    union {
+        struct sockaddr_in v4;
+        struct sockaddr_in6 v6;
+    } local_addr;
+    union {
+        struct sockaddr_in v4;
+        struct sockaddr_in6 v6;
+    } remote_addr;
+    quic_buf_t dst;
+
+    bool is_cli;
+    uint32_t conn_len;
+};
 
 typedef struct quic_session_s quic_session_t;
 struct quic_session_s {
     QUIC_RBT_STRING_FIELDS
     quic_buf_t dst;
-    uint32_t conn_len;
 
-    bool is_cli;
-    bool recv_first;
-    uint64_t last_recv_time;
+    quic_config_t cfg;
 
     pthread_t background_thread;
 
@@ -45,7 +60,7 @@ struct quic_session_s {
 #define quic_module_activate(session, module_def) \
     (liteco_channel_send(&(session)->module_event_pipeline, &(module_def)))
 
-quic_session_t *quic_session_create(const quic_buf_t src, const quic_buf_t dst, const bool is_cli);
+quic_session_t *quic_session_create(const quic_config_t cfg);
 
 typedef quic_err_t (*quic_session_handler_t) (quic_session_t *const, const quic_frame_t *const);
 

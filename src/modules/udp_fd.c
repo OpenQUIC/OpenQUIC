@@ -12,8 +12,18 @@ static quic_err_t quic_udp_fd_module_init(void *const module);
 
 static quic_err_t quic_udp_fd_module_init(void *const module) {
     quic_udp_fd_module_t *const uf_module = module;
+    quic_session_t *const session = quic_module_of_session(module, quic_udp_fd_module);
 
-    uf_module->fd = 0;
+    uf_module->local_addr.v4 = session->cfg.local_addr.v4;
+    uf_module->remote_addr.v4 = session->cfg.remote_addr.v4;
+
+    if ((uf_module->fd = socket(AF_INET, SOCK_DGRAM, 0)) == -1) {
+        return quic_err_internal_error;
+    }
+
+    if (bind(uf_module->fd, (const struct sockaddr *) &uf_module->local_addr, sizeof(struct sockaddr_in)) != 0) {
+        return quic_err_internal_error;
+    }
 
     return quic_err_success;
 }

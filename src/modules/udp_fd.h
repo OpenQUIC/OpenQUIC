@@ -36,7 +36,9 @@ struct quic_udp_fd_module_s {
 extern quic_module_t quic_udp_fd_module;
 
 static inline quic_err_t quic_udp_fd_write(quic_udp_fd_module_t *const module, const void *const data, const uint32_t len) {
-    sendto(module->fd, data, len, 0, (struct sockaddr *) &module->remote_addr, sizeof(struct sockaddr_in));
+    if (sendto(module->fd, data, len, 0, (struct sockaddr *) &module->remote_addr, sizeof(struct sockaddr_in)) < 0) {
+        return quic_err_internal_error;
+    }
 
     return quic_err_success;
 }
@@ -58,5 +60,8 @@ static inline quic_err_t quic_udp_fd_read(quic_udp_fd_module_t *const module) {
 
     return quic_err_success;
 }
+
+#define quic_session_recv_packet(session) \
+    quic_udp_fd_read(quic_session_module(quic_udp_fd_module_t, (session), quic_udp_fd_module))
 
 #endif

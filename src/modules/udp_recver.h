@@ -22,6 +22,9 @@ struct quic_udp_recver_module_s {
     quic_link_t queue;
 
     quic_recv_packet_t *curr_packet;
+
+    bool recv_first;
+    uint64_t last_recv_time;
 };
 
 extern quic_module_t quic_udp_recver_module;
