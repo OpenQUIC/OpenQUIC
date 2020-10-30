@@ -26,8 +26,11 @@ struct quic_link_s {
 #define quic_link_empty(link) \
     ((link)->next == (link))
 
-#define quic_link_next(node)                \
+#define quic_link_next(node) \
     ((typeof(node)) (node)->next)
+
+#define quic_link_prev(node) \
+    ((typeof(node)) (node)->prev)
 
 #define quic_link_insert_after(link, node) {     \
     (node)->next = (link)->next;                 \
