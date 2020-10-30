@@ -43,7 +43,7 @@ struct quic_header_s {
 #define quic_packet_0rtt_type       0x10
 #define quic_packet_handshake_type  0x20
 #define quic_packet_retry_type      0x30
-#define quic_packet_short_type      0x80
+#define quic_packet_short_type      0x00
 
 typedef struct quic_long_header_s quic_long_header_t;
 struct quic_long_header_s {

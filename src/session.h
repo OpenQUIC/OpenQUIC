@@ -36,6 +36,8 @@ struct quic_config_s {
 
     bool is_cli;
     uint32_t conn_len;
+
+    uint64_t stream_recv_timeout;
 };
 
 typedef struct quic_session_s quic_session_t;

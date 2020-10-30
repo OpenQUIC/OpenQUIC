@@ -17,13 +17,15 @@ static quic_err_t quic_udp_fd_module_init(void *const module) {
     uf_module->local_addr.v4 = session->cfg.local_addr.v4;
     uf_module->remote_addr.v4 = session->cfg.remote_addr.v4;
 
-    if ((uf_module->fd = socket(AF_INET, SOCK_DGRAM, 0)) == -1) {
+    if ((uf_module->fd = socket(PF_INET, SOCK_DGRAM, 0)) == -1) {
         return quic_err_internal_error;
     }
 
-    if (bind(uf_module->fd, (const struct sockaddr *) &uf_module->local_addr, sizeof(struct sockaddr_in)) != 0) {
+    if (bind(uf_module->fd, (const struct sockaddr *) &uf_module->local_addr, sizeof(struct sockaddr_in)) == -1) {
         return quic_err_internal_error;
     }
+
+    uf_module->mtu = 1460;
 
     return quic_err_success;
 }

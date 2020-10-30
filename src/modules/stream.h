@@ -107,6 +107,7 @@ quic_frame_stream_t *quic_send_stream_generate(quic_send_stream_t *const str, bo
     uint64_t final_off;                \
     bool fin_flag;                     \
                                        \
+    uint64_t deadline_timeout;         \
     uint64_t deadline;                 \
                                        \
     bool closed;                       \
@@ -176,12 +177,12 @@ struct quic_stream_s {
 __quic_extends uint64_t quic_stream_write(quic_stream_t *const str, const void *const data, const uint64_t len);
 __quic_extends uint64_t quic_stream_read(quic_stream_t *const str, void *const data, const uint64_t len);
 
-static inline quic_stream_t *quic_stream_create(sid, sess, extends_size)
+static inline quic_stream_t *quic_stream_create(sid, session, extends_size)
     const uint64_t sid;
-    quic_session_t *const sess;
+    quic_session_t *const session;
     const uint32_t extends_size; {
 
-    quic_stream_flowctrl_module_t *const flowctrl_module = quic_session_stream_flowctrl(sess);
+    quic_stream_flowctrl_module_t *const flowctrl_module = quic_session_stream_flowctrl(session);
 
     quic_stream_t *str = malloc(sizeof(quic_stream_t) + flowctrl_module->size + extends_size);
     if (str == NULL) {
@@ -189,12 +190,14 @@ static inline quic_stream_t *quic_stream_create(sid, sess, extends_size)
     }
     quic_rbt_init(str);
     str->key = sid;
-    str->session = sess;
+    str->session = session;
     str->flowctrl_module = flowctrl_module;
     quic_stream_flowctrl_init(str->flowctrl_module, quic_stream_extend_flowctrl(str));
 
     quic_send_stream_init(&str->send);
     quic_recv_stream_init(&str->recv);
+
+    str->recv.deadline_timeout = session->cfg.stream_recv_timeout;
 
     return str;
 }

@@ -67,6 +67,7 @@ static inline quic_err_t quic_udp_recver_handle_packet(quic_udp_recver_module_t 
         payload.short_payload = quic_short_header(header, session->cfg.conn_len);
         payload.short_payload.payload_len = module->curr_packet->len - ((uint8_t *) payload.short_payload.payload - module->curr_packet->data);
     }
+    quic_udp_recver_process_packet(session, (quic_payload_t *) &payload);
 
     return quic_err_success;
 }

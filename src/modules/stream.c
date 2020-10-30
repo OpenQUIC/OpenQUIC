@@ -229,6 +229,8 @@ static int quic_recv_stream_read_co(void *const args) {
     uint64_t len = read_args->len;
     uint64_t readed_len = 0;
 
+    str->deadline = str->deadline_timeout == 0 ? 0 : quic_now() + str->deadline_timeout;
+
     pthread_mutex_lock(&str->mtx);
     for ( ;; ) {
         if (str->closed) {
@@ -316,7 +318,7 @@ static int quic_stream_inuni_streams_accept_co(void *const args) {
     const uint64_t *key = NULL;
 
     liteco_recv((const void **) &key, NULL, &__accept_runtime, 0, &strs->accept_speaker);
-    accept_args->str = quic_streams_find(strs->streams, *key);
+    accept_args->str = quic_streams_find(strs->streams, key);
 
     return 0;
 }
@@ -345,7 +347,7 @@ static int quic_stream_inbidi_streams_accept_co(void *const args) {
     const uint64_t *key = NULL;
 
     liteco_recv((const void **) &key, NULL, &__accept_runtime, 0, &strs->accept_speaker);
-    accept_args->str = quic_streams_find(strs->streams, *key);
+    accept_args->str = quic_streams_find(strs->streams, key);
 
     return 0;
 }
@@ -441,9 +443,10 @@ quic_err_t quic_session_handle_stream_frame(quic_session_t *const session, const
     const quic_frame_stream_t *const stream_frame = (const quic_frame_stream_t *) frame;
 
     quic_stream_t *stream = quic_stream_module_recv_relation_stream(module, stream_frame->sid);
-    if (stream == NULL) {
+    if (stream == NULL || quic_rbt_is_nil(stream)) {
         return quic_err_success;
     }
+
     quic_recv_stream_handle_frame(&stream->recv, stream_frame);
 
     return quic_err_success;
