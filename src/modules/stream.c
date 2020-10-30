@@ -229,7 +229,7 @@ static int quic_recv_stream_read_co(void *const args) {
     uint64_t len = read_args->len;
     uint64_t readed_len = 0;
 
-    str->deadline = str->deadline_timeout == 0 ? 0 : quic_now() + str->deadline_timeout;
+    uint64_t timeout = str->deadline == 0 ? 0 : str->deadline + quic_now();
 
     pthread_mutex_lock(&str->mtx);
     for ( ;; ) {
@@ -245,12 +245,12 @@ static int quic_recv_stream_read_co(void *const args) {
             quic_module_activate(p_str->session, quic_stream_module);
             break;
         }
-        if (str->deadline != 0 && str->deadline < quic_now()) {
+        if (timeout != 0 && timeout < quic_now()) {
             break;
         }
 
         pthread_mutex_unlock(&str->mtx);
-        liteco_recv(NULL, NULL, &__stream_runtime, str->deadline, &str->handled_notifier);
+        liteco_recv(NULL, NULL, &__stream_runtime, timeout, &str->handled_notifier);
         pthread_mutex_lock(&str->mtx);
 
         uint64_t once_readed_len = quic_sorter_read(&str->sorter, len, data);

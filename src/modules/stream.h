@@ -107,7 +107,6 @@ quic_frame_stream_t *quic_send_stream_generate(quic_send_stream_t *const str, bo
     uint64_t final_off;                \
     bool fin_flag;                     \
                                        \
-    uint64_t deadline_timeout;         \
     uint64_t deadline;                 \
                                        \
     bool closed;                       \
@@ -197,7 +196,7 @@ static inline quic_stream_t *quic_stream_create(sid, session, extends_size)
     quic_send_stream_init(&str->send);
     quic_recv_stream_init(&str->recv);
 
-    str->recv.deadline_timeout = session->cfg.stream_recv_timeout;
+    str->recv.deadline = session->cfg.stream_recv_timeout;
 
     return str;
 }
