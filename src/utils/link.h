@@ -51,6 +51,11 @@ struct quic_link_s {
          (quic_link_t *) (node) != (quic_link_t *) (link); \
          (node) = (typeof(node)) (node)->next)
 
+#define quic_link_rforeach(node, link)                     \
+    for ((node) = (typeof(node)) (link)->prev;             \
+         (quic_link_t *) (node) != (quic_link_t *) (link); \
+         (node) = (typeof(node)) (node)->prev)
+
 #define quic_link_remove(node) {        \
     (node)->next->prev = (node)->prev;  \
     (node)->prev->next = (node)->next;  \

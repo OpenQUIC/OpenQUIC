@@ -100,6 +100,39 @@ quic_err_t quic_ack_generator_ignore(quic_ack_generator_module_t *const module) 
     return quic_err_success;
 }
 
+quic_frame_ack_t *quic_ack_generator_generate(quic_ack_generator_module_t *const module) {
+    quic_frame_ack_t *frame = malloc(sizeof(quic_frame_ack_t) + sizeof(quic_ack_range_t) * (module->ranges_count - 1));
+    frame->first_byte = quic_frame_ack_type;
+    frame->delay = 0;
+    frame->ect0 = 0;
+    frame->ect1 = 0;
+    frame->ect_ce = 0;
+    frame->ranges.count = module->ranges_count - 1;
+    frame->ranges.size = sizeof(quic_ack_range_t);
+
+    uint64_t smallest = 0;
+    bool first = true;
+    quic_ack_generator_range_t *range = NULL;
+    uint32_t rangeidx = 0;
+    quic_link_rforeach(range, &module->ranges) {
+        if (first) {
+            first = false;
+
+            frame->largest_ack = range->end;
+            frame->first_range = range->end - range->start;
+            smallest = range->start;
+        }
+        else {
+            quic_arr(&frame->ranges, rangeidx, quic_ack_range_t)->gap = smallest - range->end - 2;
+            quic_arr(&frame->ranges, rangeidx, quic_ack_range_t)->len = range->end - range->start;
+            smallest = range->start;
+            rangeidx++;
+        }
+    }
+
+    return frame;
+}
+
 static quic_err_t quic_ack_generator_init(void *const module) {
     quic_ack_generator_module_t *const ag_module = module;
     ag_module->ignore_threhold = 0;
