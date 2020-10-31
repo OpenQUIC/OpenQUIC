@@ -30,14 +30,23 @@ struct quic_ack_generator_module_s {
 
 quic_err_t quic_ack_generator_insert_ranges(quic_ack_generator_module_t *const module, const uint64_t num);
 
+quic_err_t quic_ack_generator_ignore(quic_ack_generator_module_t *const module);
+
 static inline quic_err_t quic_ack_generator_module_received(quic_ack_generator_module_t *const module, const uint64_t num) {
     if (num < module->ignore_threhold) {
         return quic_err_success;
     }
 
+    return quic_ack_generator_insert_ranges(module, num);
+}
 
+static inline quic_err_t quic_ack_generator_set_ignore_threhold(quic_ack_generator_module_t *const module, const uint64_t num) {
+    if (num <= module->ignore_threhold) {
+        return quic_err_success;
+    }
+    module->ignore_threhold = num;
 
-    return quic_err_success;
+    return quic_ack_generator_ignore(module);
 }
 
 extern quic_module_t quic_ack_generator_module;

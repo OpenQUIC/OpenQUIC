@@ -75,6 +75,40 @@ quic_err_t quic_ack_generator_insert_ranges(quic_ack_generator_module_t *const m
     return quic_err_success;
 }
 
+quic_err_t quic_ack_generator_ignore(quic_ack_generator_module_t *const module) {
+    quic_ack_generator_range_t *range = NULL;
+
+    quic_link_foreach(range, &module->ranges) {
+        if (module->ignore_threhold <= range->start) {
+            return quic_err_success;
+        }
+
+        if (module->ignore_threhold > range->end) {
+            quic_link_t *prev = range->prev;
+
+            quic_link_remove(range);
+            free(range);
+
+            range = (quic_ack_generator_range_t *) prev;
+        }
+        else {
+            range->start = module->ignore_threhold;
+            return quic_err_success;
+        }
+    }
+
+    return quic_err_success;
+}
+
+static quic_err_t quic_ack_generator_init(void *const module) {
+    quic_ack_generator_module_t *const ag_module = module;
+    ag_module->ignore_threhold = 0;
+    ag_module->ranges_count = 0;
+    quic_link_init(&ag_module->ranges);
+
+    return quic_err_success;
+}
+
 quic_module_t quic_ack_generator_module = {
     .module_size = sizeof(quic_ack_generator_module_t),
     .init = quic_ack_generator_init,
