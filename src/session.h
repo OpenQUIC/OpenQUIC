@@ -14,6 +14,7 @@
 #include "utils/errno.h"
 #include "utils/rbt.h"
 #include "format/frame.h"
+#include "recovery/rtt.h"
 #include "recovery/flowctrl.h"
 #include "module.h"
 #include <stdbool.h>
@@ -47,8 +48,9 @@ struct quic_session_s {
 
     quic_config_t cfg;
 
-    pthread_t background_thread;
+    quic_rtt_t rtt;
 
+    pthread_t background_thread;
     liteco_channel_t module_event_pipeline;
     uint8_t modules[0];
 };
