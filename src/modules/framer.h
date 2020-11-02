@@ -25,7 +25,7 @@ struct quic_framer_set_sid_s {
 #define quic_framer_set_sid_find(set, key) \
     ((quic_framer_set_sid_t *) quic_rbt_find((set), (key), quic_rbt_uint64_key_comparer))
 
-#define quic_framer_set_sid_insert(set, sid) { \
+#define quic_framer_set_sid_insert(set, sid) {               \
     quic_rbt_insert((set), (sid), quic_rbt_uint64_comparer); \
 }
 
