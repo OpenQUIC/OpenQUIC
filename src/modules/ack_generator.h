@@ -39,9 +39,9 @@ struct quic_ack_generator_module_s {
     uint64_t max_delay;
 
     // since last ack, packet count
-    uint32_t ss_pkg;
+    uint32_t ss_pkt;
     // since last ack, packet (eliciting ACK frame) count
-    uint32_t ss_ack_pkg;
+    uint32_t ss_ack_pkt;
 };
 
 extern quic_module_t quic_initial_ack_generator_module;
@@ -81,7 +81,7 @@ static inline quic_err_t quic_ack_generator_module_received(module, num, recv_ti
 
     quic_ack_generator_insert_ranges(module, num);
 
-    module->ss_pkg++;
+    module->ss_pkt++;
     if (!module->is_sent) {
         module->should_send = true;
         return quic_err_success;
@@ -92,9 +92,9 @@ static inline quic_err_t quic_ack_generator_module_received(module, num, recv_ti
     }
 
     if (!module->should_send && ack_eliciting) {
-        module->ss_ack_pkg++;
+        module->ss_ack_pkt++;
         if (num > 100) {
-            if (module->ss_ack_pkg >= 10) {
+            if (module->ss_ack_pkt >= 10) {
                 module->should_send = true;
             }
             else if (module->alarm == 0) {
@@ -103,7 +103,7 @@ static inline quic_err_t quic_ack_generator_module_received(module, num, recv_ti
                 module->alarm = recv_time + delay;
             }
         }
-        else if (module->ss_ack_pkg >= 2) {
+        else if (module->ss_ack_pkt >= 2) {
             module->should_send = true;
         }
         else {
@@ -133,12 +133,13 @@ static inline quic_err_t quic_ack_generator_set_ignore_threhold(quic_ack_generat
     return quic_ack_generator_ignore(module);
 }
 
-static inline uint64_t quic_ack_generator_append_ack_frame(quic_link_t *const frames, quic_ack_generator_module_t *const module) {
+static inline uint64_t quic_ack_generator_append_ack_frame(quic_link_t *const frames, uint64_t *const largest_ack, quic_ack_generator_module_t *const module) {
     quic_frame_ack_t *frame = quic_ack_generator_generate(module);
     if (frame == NULL) {
         return 0;
     }
 
+    *largest_ack = frame->largest_ack;
     uint64_t len = quic_frame_size(frame);
     quic_link_insert_before(frames, frame);
 
