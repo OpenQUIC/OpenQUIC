@@ -28,11 +28,28 @@ static quic_err_t quic_udp_runway_module_process(void *const module) {
     quic_udp_fd_module_t *const uf_module = quic_session_module(quic_udp_fd_module_t, session, quic_udp_fd_module);
 
     pthread_mutex_lock(&ur_module->mtx);
-
     while (!quic_link_empty(&ur_module->packets)) {
         quic_send_packet_t *packet = (quic_send_packet_t *) quic_link_next(&ur_module->packets);
         quic_link_remove(packet);
         pthread_mutex_unlock(&ur_module->mtx);
+
+        quic_sent_packet_rbt_t *sent_pkt = malloc(sizeof(quic_sent_packet_rbt_t));
+        if (sent_pkt) {
+            quic_rbt_init(sent_pkt);
+            sent_pkt->key = packet->num;
+
+            sent_pkt->frames.next = packet->frames.next;
+            sent_pkt->frames.next->prev = &sent_pkt->frames;
+            sent_pkt->frames.prev = packet->frames.prev;
+            sent_pkt->frames.prev->next = &sent_pkt->frames;
+
+            sent_pkt->largest_ack = packet->largest_ack;
+            sent_pkt->sent_time = quic_now();
+            sent_pkt->pkt_len = packet->buf.pos - packet->buf.buf;
+            sent_pkt->included_unacked = packet->included_unacked;
+
+            quic_retransmission_sent_mem_push(packet->retransmission_module, sent_pkt);
+        }
 
         quic_udp_fd_write(uf_module, packet->data, packet->buf.pos - packet->buf.buf);
         free(packet);

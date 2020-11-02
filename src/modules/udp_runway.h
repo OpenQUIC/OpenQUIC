@@ -11,13 +11,20 @@
 
 #include "module.h"
 #include "session.h"
+#include "modules/retransmission.h"
 #include "utils/link.h"
+#include "utils/rbt.h"
 #include "utils/buf.h"
 #include <pthread.h>
 
 typedef struct quic_send_packet_s quic_send_packet_t;
 struct quic_send_packet_s {
     QUIC_LINK_FIELDS
+
+    uint64_t num;
+    uint64_t largest_ack;
+    bool included_unacked;
+    quic_retransmission_module_t *retransmission_module;
 
     quic_link_t frames;
     quic_buf_t buf;
@@ -31,6 +38,13 @@ struct quic_udp_runway_module_s {
 
     pthread_mutex_t mtx;
 };
+
+#define quic_udp_runway_sent_men_packet_find(mem, key) \
+    ((quic_sent_packet_rbt_t *) quic_rbt_find((mem), (key), quic_rbt_uint64_key_comparer))
+
+#define quic_udp_runway_sent_mem_packet_insert(mem, pkt) {   \
+    quic_rbt_insert((mem), (pkt), quic_rbt_uint64_comparer); \
+}
 
 extern quic_module_t quic_udp_runway_module;
 
