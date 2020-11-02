@@ -11,6 +11,7 @@
 #include "modules/packet_number_generator.h"
 #include "modules/framer.h"
 #include "modules/udp_runway.h"
+#include "modules/ack_generator.h"
 #include "format/header.h"
 #include "session.h"
 
@@ -92,6 +93,7 @@ static inline quic_err_t quic_sender_generate_short_header(quic_session_t *const
 static quic_send_packet_t *quic_sender_pack_app_packet(quic_sender_module_t *const sender) {
     quic_session_t *const session = quic_module_of_session(sender, quic_sender_module);
     quic_framer_module_t *const framer = quic_session_module(quic_framer_module_t, session, quic_framer_module);
+    quic_ack_generator_module_t *const ag_module = quic_session_module(quic_ack_generator_module_t, session, quic_app_ack_generator_module);
     quic_send_packet_t *packet = NULL;
     quic_send_packet_init(packet, sender->mtu);
 
@@ -100,6 +102,7 @@ static quic_send_packet_t *quic_sender_pack_app_packet(quic_sender_module_t *con
     uint32_t max_bytes = packet->buf.capa - (packet->buf.pos - packet->buf.buf);
     uint32_t frame_len = 0;
 
+    max_bytes -= quic_ack_generator_append_ack_frame(&packet->frames, ag_module);
     for ( ;; ) {
         frame_len = quic_framer_append_ctrl_frame(&packet->frames, max_bytes, framer);
         max_bytes -= frame_len;

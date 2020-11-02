@@ -21,6 +21,7 @@ struct quic_udp_recver_module_s {
     pthread_mutex_t mtx;
     quic_link_t queue;
 
+    bool curr_ack_eliciting;
     quic_recv_packet_t *curr_packet;
 
     bool recv_first;

@@ -7,6 +7,7 @@
  */
 
 #include "modules/ack_generator.h"
+#include "utils/time.h"
 #include <malloc.h>
 
 static quic_err_t quic_ack_generator_init(void *const module);
@@ -101,9 +102,14 @@ quic_err_t quic_ack_generator_ignore(quic_ack_generator_module_t *const module) 
 }
 
 quic_frame_ack_t *quic_ack_generator_generate(quic_ack_generator_module_t *const module) {
+    uint64_t now = quic_now();
+
+    if (!module->should_send && (module->alarm == 0 || now < module->alarm)) {
+        return NULL;
+    }
+
     quic_frame_ack_t *frame = malloc(sizeof(quic_frame_ack_t) + sizeof(quic_ack_range_t) * (module->ranges_count - 1));
     frame->first_byte = quic_frame_ack_type;
-    frame->delay = 0;
     frame->ect0 = 0;
     frame->ect1 = 0;
     frame->ect_ce = 0;
@@ -129,8 +135,12 @@ quic_frame_ack_t *quic_ack_generator_generate(quic_ack_generator_module_t *const
             rangeidx++;
         }
     }
+    frame->delay = now - module->lg_obtime;
 
-    module->sent_largest_ack = frame->largest_ack;
+    module->alarm = 0;
+    module->should_send = false;
+    module->ss_pkg = 0;
+    module->ss_ack_pkg = 0;
 
     return frame;
 }
@@ -162,8 +172,6 @@ static quic_err_t quic_ack_generator_init(void *const module) {
     ag_module->lg_obnum = 0;
     ag_module->lg_obtime = 0;
 
-    ag_module->sent_largest_ack = 0;
-
     ag_module->should_send = false;
     ag_module->is_sent = false;
     ag_module->alarm = 0;
@@ -172,8 +180,6 @@ static quic_err_t quic_ack_generator_init(void *const module) {
     ag_module->ss_ack_pkg = 0;
 
     ag_module->max_delay = 25 * 1000;
-
-    ag_module->dropped = false;
 
     return quic_err_success;
 }
