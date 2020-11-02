@@ -18,10 +18,12 @@
     if ((send_packet) == NULL) {                                 \
         return NULL;                                             \
     }                                                            \
-    quic_link_init((send_packet));                               \
+    quic_link_init(((quic_link_t *) (send_packet)));             \
     quic_link_init(&(send_packet)->frames);                      \
     (send_packet)->buf.buf = (send_packet)->data;                \
     (send_packet)->buf.capa = (size);                            \
+    (send_packet)->largest_ack = 0;                              \
+    (send_packet)->included_unacked = false;                     \
     quic_buf_setpl(&(send_packet)->buf);                         \
 }
 

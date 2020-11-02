@@ -24,7 +24,7 @@ static inline quic_err_t quic_sender_generate_handshake_header(quic_sender_modul
 static inline quic_err_t quic_sender_generate_retry_header(quic_sender_module_t *const sender, quic_buf_t *const buf);
 
 /* all fields of the short header are completely filled */
-static inline quic_err_t quic_sender_generate_short_header(quic_session_t *const session, quic_buf_t *const buf);
+static inline quic_err_t quic_sender_generate_short_header(quic_session_t *const session, const uint64_t num, quic_buf_t *const buf);
 
 static quic_send_packet_t *quic_sender_pack_app_packet(quic_sender_module_t *const sender);
 
@@ -72,8 +72,7 @@ static inline quic_err_t quic_sender_generate_retry_header(quic_sender_module_t 
     return quic_err_success;
 }
 
-static inline quic_err_t quic_sender_generate_short_header(quic_session_t *const session, quic_buf_t *const buf) {
-    quic_packet_number_generator_module_t *const numgen = quic_session_module(quic_packet_number_generator_module_t, session, quic_app_packet_number_generator_module);
+static inline quic_err_t quic_sender_generate_short_header(quic_session_t *const session, const uint64_t num, quic_buf_t *const buf) {
 
     quic_short_header_t *const header = buf->pos;
     
@@ -81,34 +80,40 @@ static inline quic_err_t quic_sender_generate_short_header(quic_session_t *const
     memcpy(quic_short_header_dst_conn_off(header), session->cfg.dst.pos, quic_buf_size(&session->cfg.dst));
     buf->pos += 1 + quic_buf_size(&session->cfg.dst);
 
-    uint8_t numlen = quic_packet_number_format_len(numgen->next);
+    uint8_t numlen = quic_packet_number_format_len(num);
     header->first_byte |= (uint8_t) (numlen - 1);
-    quic_packet_number_format(buf->pos, numgen->next, numlen);
+    quic_packet_number_format(buf->pos, num, numlen);
     buf->pos += numlen;
 
-    numgen->next++;
     return quic_err_success;
 }
 
 static quic_send_packet_t *quic_sender_pack_app_packet(quic_sender_module_t *const sender) {
     quic_session_t *const session = quic_module_of_session(sender, quic_sender_module);
+
+    quic_packet_number_generator_module_t *const numgen = quic_session_module(quic_packet_number_generator_module_t, session, quic_app_packet_number_generator_module);
     quic_framer_module_t *const framer = quic_session_module(quic_framer_module_t, session, quic_framer_module);
     quic_ack_generator_module_t *const ag_module = quic_session_module(quic_ack_generator_module_t, session, quic_app_ack_generator_module);
+
     quic_send_packet_t *packet = NULL;
     quic_send_packet_init(packet, sender->mtu);
 
-    quic_sender_generate_short_header(session, &packet->buf);
+    packet->retransmission_module = quic_session_module(quic_retransmission_module_t, session, quic_app_retransmission_module);
+    packet->num = numgen->next++;
+
+    quic_sender_generate_short_header(session, packet->num, &packet->buf);
 
     uint32_t max_bytes = packet->buf.capa - (packet->buf.pos - packet->buf.buf);
     uint32_t frame_len = 0;
 
-    max_bytes -= quic_ack_generator_append_ack_frame(&packet->frames, ag_module);
+    max_bytes -= quic_ack_generator_append_ack_frame(&packet->frames, &packet->largest_ack, ag_module);
     for ( ;; ) {
         frame_len = quic_framer_append_ctrl_frame(&packet->frames, max_bytes, framer);
         max_bytes -= frame_len;
         if (frame_len == 0) {
             break;
         }
+        packet->included_unacked = true;
     }
     for ( ;; ) {
         frame_len = quic_framer_append_stream_frame(&packet->frames, max_bytes, false, framer);
@@ -116,6 +121,7 @@ static quic_send_packet_t *quic_sender_pack_app_packet(quic_sender_module_t *con
         if (frame_len == 0) {
             break;
         }
+        packet->included_unacked = true;
     }
 
     return packet;
