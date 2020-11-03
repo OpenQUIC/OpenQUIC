@@ -43,10 +43,22 @@
 #define quic_frame_app_connection_close_type  0x1d
 #define quic_frame_handshake_done_type        0x1e
 
-#define QUIC_FRAME_FIELDS \
-    QUIC_LINK_FIELDS      \
-    uint8_t first_byte;   \
-    uint8_t ref_count;    \
+#define QUIC_FRAME_FIELDS                                                            \
+    QUIC_LINK_FIELDS                                                                 \
+    uint8_t first_byte;                                                              \
+    uint8_t ref_count;                                                               \
+    void *acked_obj;                                                                 \
+    quic_err_t (*on_acked) (void *const acked_obj, const quic_frame_t *const frame); \
+
+#define quic_frame_init(frame, type) { \
+    quic_link_init((frame));           \
+    (frame)->first_byte = (type);      \
+    (frame)->acked_obj = NULL;         \
+    (frame)->on_acked = NULL;          \
+}
+
+#define quic_frame_on_acked(frame) \
+    ((frame)->on_acked((frame)->acked_obj, (frame)))
 
 typedef struct quic_frame_s quic_frame_t;
 struct quic_frame_s {
