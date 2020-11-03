@@ -109,7 +109,10 @@ quic_frame_ack_t *quic_ack_generator_generate(quic_ack_generator_module_t *const
     }
 
     quic_frame_ack_t *frame = malloc(sizeof(quic_frame_ack_t) + sizeof(quic_ack_range_t) * (module->ranges_count - 1));
-    frame->first_byte = quic_frame_ack_type;
+    if (frame == NULL) {
+        return NULL;
+    }
+    quic_frame_init(frame, quic_frame_ack_type);
     frame->ect0 = 0;
     frame->ect1 = 0;
     frame->ect_ce = 0;
