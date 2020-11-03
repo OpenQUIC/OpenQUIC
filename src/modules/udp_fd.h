@@ -19,6 +19,8 @@
 
 typedef struct quic_udp_fd_module_s quic_udp_fd_module_t;
 struct quic_udp_fd_module_s {
+    QUIC_MODULE_FIELDS
+
     int fd;
 
     uint32_t mtu;
@@ -43,7 +45,7 @@ static inline quic_err_t quic_udp_fd_write(quic_udp_fd_module_t *const module, c
 }
 
 static inline quic_err_t quic_udp_fd_read(quic_udp_fd_module_t *const module) {
-    quic_session_t *const session = quic_module_of_session(module, quic_udp_fd_module);
+    quic_session_t *const session = quic_module_of_session(module);
     quic_udp_recver_module_t *ur_module = quic_session_module(quic_udp_recver_module_t, session, quic_udp_recver_module);
 
     quic_recv_packet_t *rp = malloc(sizeof(quic_recv_packet_t) + module->mtu);

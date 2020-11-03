@@ -50,14 +50,16 @@ quic_err_t quic_retransmission_module_find_newly_acked(quic_retransmission_modul
 }
 
 static quic_err_t quic_retransmission_module_init(void *const module) {
-    quic_retransmission_module_t *r_module = (quic_retransmission_module_t *) module;
+    quic_retransmission_module_t *const r_module = (quic_retransmission_module_t *) module;
 
     r_module->sent_pkt_count = 0;
     r_module->max_delay = 0;
     r_module->unacked_len = 0;
+    r_module->loss_time = 0;
 
     quic_rbt_tree_init(r_module->sent_mem);
     quic_link_init(&r_module->acked_mem_queue);
+
 
     return quic_err_success;
 }

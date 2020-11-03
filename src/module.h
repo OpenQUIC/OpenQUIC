@@ -25,6 +25,19 @@ struct quic_module_s {
     uint32_t off;
 };
 
+#define QUIC_MODULE_FIELDS \
+    quic_module_t *module_declare;
+
+typedef struct quic_base_module_s quic_base_module_t;
+struct quic_base_module_s {
+    QUIC_MODULE_FIELDS
+};
+
+#define quic_module_init(module)                                           \
+    if (((quic_base_module_t *) (module))->module_declare->init) {         \
+        ((quic_base_module_t *) (module))->module_declare->init((module)); \
+    }
+
 extern quic_module_t *quic_modules[];
 
 uint32_t quic_modules_size();

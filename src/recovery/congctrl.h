@@ -12,6 +12,7 @@
 #include "recovery/rtt.h"
 #include "utils/errno.h"
 #include "space.h"
+#include "module.h"
 #include <stdbool.h>
 
 typedef struct quic_sent_packet_s quic_sent_packet_t;
@@ -62,6 +63,8 @@ static inline bool quic_congctrl_in_recovery(quic_congctrl_t *const congctrl, co
 
 typedef struct quic_congctrl_module_s quic_congctrl_module_t;
 struct quic_congctrl_module_s {
+    QUIC_MODULE_FIELDS
+
     void (*on_ack) (quic_congctrl_t *const congctrl, const uint64_t num, const uint64_t acked_bytes, const uint64_t prior_in_flight, uint64_t event_time);
     void (*on_lost) (quic_congctrl_t *const congctrl, const uint64_t num, const uint64_t lost_bytes, const uint64_t prior_in_flight);
     void (*on_sent) (quic_congctrl_t *const congctrl, const uint64_t num, const uint64_t in_flight, const uint64_t bytes, const bool is_retransmittable);
@@ -69,6 +72,6 @@ struct quic_congctrl_module_s {
     uint64_t (*next_send_time) (quic_congctrl_t *const congctrl, const uint64_t in_flight);
 };
 
-extern quic_congctrl_module_t quic_congctrl_module;
+extern quic_module_t quic_congctrl_module;
 
 #endif

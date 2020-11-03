@@ -32,9 +32,10 @@ quic_session_t *quic_session_create(const quic_config_t cfg) {
 
     int i;
     for (i = 0; quic_modules[i]; i++) {
-        if (quic_modules[i]->init) {
-            quic_modules[i]->init(quic_session_module(void, session, *quic_modules[i]));
-        }
+        quic_base_module_t *module = quic_session_module(quic_base_module_t, session, *quic_modules[i]);;
+        module->module_declare = quic_modules[i];
+
+        quic_module_init(module);
     }
 
     pthread_create(&session->background_thread, NULL, quic_session_background, session);

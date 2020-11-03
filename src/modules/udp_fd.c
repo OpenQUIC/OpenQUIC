@@ -12,7 +12,7 @@ static quic_err_t quic_udp_fd_module_init(void *const module);
 
 static quic_err_t quic_udp_fd_module_init(void *const module) {
     quic_udp_fd_module_t *const uf_module = module;
-    quic_session_t *const session = quic_module_of_session(module, quic_udp_fd_module);
+    quic_session_t *const session = quic_module_of_session(module);
 
     uf_module->local_addr.v4 = session->cfg.local_addr.v4;
     uf_module->remote_addr.v4 = session->cfg.remote_addr.v4;

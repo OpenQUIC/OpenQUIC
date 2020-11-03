@@ -29,6 +29,8 @@
 
 typedef struct quic_sender_module_s quic_sender_module_t;
 struct quic_sender_module_s {
+    QUIC_MODULE_FIELDS
+
     uint32_t mtu;
 };
 

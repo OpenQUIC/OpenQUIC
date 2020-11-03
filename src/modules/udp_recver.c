@@ -20,7 +20,7 @@ static quic_err_t quic_udp_recver_module_process(void *const module);
 extern quic_session_handler_t quic_session_handler[256];
 
 static inline quic_err_t quic_udp_recver_handle_packet(quic_udp_recver_module_t *const module) {
-    quic_session_t *const session = quic_module_of_session(module, quic_udp_recver_module);
+    quic_session_t *const session = quic_module_of_session(module);
     quic_ack_generator_module_t *ag_module = NULL;
 
     quic_buf_t recv_buf = { .buf = module->curr_packet->data, .capa = module->curr_packet->len };

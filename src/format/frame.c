@@ -36,10 +36,6 @@
     memcpy((frame).data, (buf)->pos, (len)); \
     (buf)->pos += (len)
 
-#define quic_frame_init { \
-    .ref_count = 1,       \
-}
-
 
 #define quic_put_byte(buf, byte)           \
     if ((buf)->pos + 1 > (buf)->last) {    \
@@ -73,7 +69,8 @@ quic_err_t quic_ping_parse(quic_frame_t **const frame, quic_buf_t *const buf) {
 
 quic_err_t quic_ack_parse(quic_frame_t **const frame, quic_buf_t *const buf) {
     *frame = NULL;
-    quic_frame_ack_t ref = quic_frame_init;
+    quic_frame_ack_t ref;
+    quic_frame_init(&ref, 0);
 
     ref.first_byte = quic_first_byte(buf);
 
@@ -104,7 +101,8 @@ quic_err_t quic_ack_parse(quic_frame_t **const frame, quic_buf_t *const buf) {
 
 quic_err_t quic_reset_stream_parse(quic_frame_t **const frame, quic_buf_t *const buf) {
     *frame = NULL;
-    quic_frame_reset_stream_t ref = quic_frame_init;
+    quic_frame_reset_stream_t ref;
+    quic_frame_init(&ref, 0);
 
     ref.first_byte = quic_first_byte(buf);
     quic_varint(ref.sid, buf);
@@ -119,7 +117,8 @@ quic_err_t quic_reset_stream_parse(quic_frame_t **const frame, quic_buf_t *const
 
 quic_err_t quic_stop_sending_parse(quic_frame_t **const frame, quic_buf_t *const buf) {
     *frame = NULL;
-    quic_frame_stop_sending_t ref = quic_frame_init;
+    quic_frame_stop_sending_t ref;
+    quic_frame_init(&ref, 0);
 
     ref.first_byte = quic_first_byte(buf);
     quic_varint(ref.sid, buf);
@@ -133,7 +132,8 @@ quic_err_t quic_stop_sending_parse(quic_frame_t **const frame, quic_buf_t *const
 
 quic_err_t quic_crypto_parse(quic_frame_t **const frame, quic_buf_t *const buf) {
     *frame = NULL;
-    quic_frame_crypto_t ref = quic_frame_init;
+    quic_frame_crypto_t ref;
+    quic_frame_init(&ref, 0);
 
     ref.first_byte = quic_first_byte(buf);
     quic_varint(ref.off, buf);
@@ -149,7 +149,8 @@ quic_err_t quic_crypto_parse(quic_frame_t **const frame, quic_buf_t *const buf) 
 
 quic_err_t quic_new_token_parse(quic_frame_t **const frame, quic_buf_t *const buf) {
     *frame = NULL;
-    quic_frame_new_token_t ref = quic_frame_init;
+    quic_frame_new_token_t ref;
+    quic_frame_init(&ref, 0);
 
     ref.first_byte = quic_first_byte(buf);
     quic_varint(ref.len, buf);
@@ -164,7 +165,8 @@ quic_err_t quic_new_token_parse(quic_frame_t **const frame, quic_buf_t *const bu
 
 quic_err_t quic_stream_parse(quic_frame_t **const frame, quic_buf_t *const buf) {
     *frame = NULL;
-    quic_frame_stream_t ref = quic_frame_init;
+    quic_frame_stream_t ref;
+    quic_frame_init(&ref, 0);
 
     ref.first_byte = quic_first_byte(buf);
     quic_varint(ref.sid, buf);
@@ -193,7 +195,8 @@ quic_err_t quic_stream_parse(quic_frame_t **const frame, quic_buf_t *const buf) 
 
 quic_err_t quic_max_data_parse(quic_frame_t **const frame, quic_buf_t *const buf) {
     *frame = NULL;
-    quic_frame_max_data_t ref = quic_frame_init;
+    quic_frame_max_data_t ref;
+    quic_frame_init(&ref, 0);
 
     ref.first_byte = quic_first_byte(buf);
     quic_varint(ref.max_data, buf);
@@ -206,7 +209,8 @@ quic_err_t quic_max_data_parse(quic_frame_t **const frame, quic_buf_t *const buf
 
 quic_err_t quic_max_stream_data_parse(quic_frame_t **const frame, quic_buf_t *const buf) {
     *frame = NULL;
-    quic_frame_max_stream_data_t ref = quic_frame_init;
+    quic_frame_max_stream_data_t ref;
+    quic_frame_init(&ref, 0);
 
     ref.first_byte = quic_first_byte(buf);
     quic_varint(ref.sid, buf);
@@ -220,7 +224,8 @@ quic_err_t quic_max_stream_data_parse(quic_frame_t **const frame, quic_buf_t *co
 
 quic_err_t quic_max_streams_parse(quic_frame_t **const frame, quic_buf_t *const buf) {
     *frame = NULL;
-    quic_frame_max_streams_t ref = quic_frame_init;
+    quic_frame_max_streams_t ref;
+    quic_frame_init(&ref, 0);
 
     ref.first_byte = quic_first_byte(buf);
     quic_varint(ref.max_streams, buf);
@@ -233,7 +238,8 @@ quic_err_t quic_max_streams_parse(quic_frame_t **const frame, quic_buf_t *const 
 
 quic_err_t quic_data_blocked_parse(quic_frame_t **const frame, quic_buf_t *const buf) {
     *frame = NULL;
-    quic_frame_data_blocked_t ref = quic_frame_init;
+    quic_frame_data_blocked_t ref;
+    quic_frame_init(&ref, 0);
 
     ref.first_byte = quic_first_byte(buf);
     quic_varint(ref.max_data, buf);
@@ -246,7 +252,8 @@ quic_err_t quic_data_blocked_parse(quic_frame_t **const frame, quic_buf_t *const
 
 quic_err_t quic_stream_data_blocked_parse(quic_frame_t **const frame, quic_buf_t *const buf) {
     *frame = NULL;
-    quic_frame_stream_data_blocked_t ref = quic_frame_init;
+    quic_frame_stream_data_blocked_t ref;
+    quic_frame_init(&ref, 0);
 
     ref.first_byte = quic_first_byte(buf);
     quic_varint(ref.sid, buf);
@@ -260,7 +267,8 @@ quic_err_t quic_stream_data_blocked_parse(quic_frame_t **const frame, quic_buf_t
 
 quic_err_t quic_streams_blocked_parse(quic_frame_t **const frame, quic_buf_t *const buf) {
     *frame = NULL;
-    quic_frame_streams_blocked_t ref = quic_frame_init;
+    quic_frame_streams_blocked_t ref;
+    quic_frame_init(&ref, 0);
 
     ref.first_byte = quic_first_byte(buf);
     quic_varint(ref.max_streams, buf);
@@ -273,7 +281,8 @@ quic_err_t quic_streams_blocked_parse(quic_frame_t **const frame, quic_buf_t *co
 
 quic_err_t quic_new_connection_id_parse(quic_frame_t **const frame, quic_buf_t *const buf) {
     *frame = NULL;
-    quic_frame_new_connection_id_t ref = quic_frame_init;
+    quic_frame_new_connection_id_t ref;
+    quic_frame_init(&ref, 0);
 
     ref.first_byte = quic_first_byte(buf);
     quic_varint(ref.seq, buf);
@@ -298,7 +307,8 @@ quic_err_t quic_new_connection_id_parse(quic_frame_t **const frame, quic_buf_t *
 
 quic_err_t quic_retire_connection_id_parse(quic_frame_t **const frame, quic_buf_t *const buf) {
     *frame = NULL;
-    quic_frame_retire_connection_id_t ref = quic_frame_init;
+    quic_frame_retire_connection_id_t ref;
+    quic_frame_init(&ref, 0);
 
     ref.first_byte = quic_first_byte(buf);
     quic_varint(ref.seq, buf);
@@ -311,7 +321,8 @@ quic_err_t quic_retire_connection_id_parse(quic_frame_t **const frame, quic_buf_
 
 quic_err_t quic_path_challenge_parse(quic_frame_t **const frame, quic_buf_t *const buf) {
     *frame = NULL;
-    quic_frame_path_challenge_t ref = quic_frame_init;
+    quic_frame_path_challenge_t ref;
+    quic_frame_init(&ref, 0);
 
     ref.first_byte = quic_first_byte(buf);
     if (buf->pos + 8 > buf->last) {
@@ -328,7 +339,8 @@ quic_err_t quic_path_challenge_parse(quic_frame_t **const frame, quic_buf_t *con
 
 quic_err_t quic_path_response_parse(quic_frame_t **const frame, quic_buf_t *const buf) {
     *frame = NULL;
-    quic_frame_path_response_t ref = quic_frame_init;
+    quic_frame_path_response_t ref;
+    quic_frame_init(&ref, 0);
 
     ref.first_byte = quic_first_byte(buf);
     if (buf->pos + 8 > buf->last) {
@@ -345,7 +357,8 @@ quic_err_t quic_path_response_parse(quic_frame_t **const frame, quic_buf_t *cons
 
 quic_err_t quic_connection_close_parse(quic_frame_t **const frame, quic_buf_t *const buf) {
     *frame = NULL;
-    quic_frame_connection_close_t ref = quic_frame_init;
+    quic_frame_connection_close_t ref;
+    quic_frame_init(&ref, 0);
 
     ref.first_byte = quic_first_byte(buf);
     quic_varint(ref.err, buf);

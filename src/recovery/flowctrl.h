@@ -21,6 +21,8 @@ typedef void quic_conn_flowctrl_t;
 typedef void quic_stream_flowctrl_t;
 
 #define QUIC_STREAM_FLOWCTRL_MODULE_FIELDS                                                                    \
+    QUIC_MODULE_FIELDS                                                                                        \
+                                                                                                              \
     uint32_t size;                                                                                            \
                                                                                                               \
     quic_err_t (*init) (quic_stream_flowctrl_t *const flowctrl, quic_stream_flowctrl_module_t *const module); \

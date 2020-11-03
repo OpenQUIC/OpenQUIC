@@ -15,6 +15,8 @@
 
 typedef struct quic_packet_number_generator_module_s quic_packet_number_generator_module_t;
 struct quic_packet_number_generator_module_s {
+    QUIC_MODULE_FIELDS
+
     uint64_t next;
 };
 

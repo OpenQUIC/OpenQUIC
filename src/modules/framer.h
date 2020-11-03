@@ -37,6 +37,8 @@ struct quic_framer_que_sid_s {
 
 typedef struct quic_framer_module_s quic_framer_module_t;
 struct quic_framer_module_s {
+    QUIC_MODULE_FIELDS
+
     quic_framer_set_sid_t *active_set;
     quic_link_t active_queue;
 
@@ -62,7 +64,7 @@ extern quic_module_t quic_framer_module;
 extern quic_module_t quic_sender_module;
 
 static inline quic_err_t quic_framer_add_active(quic_framer_module_t *const module, const uint64_t sid) {
-    quic_session_t *const session = quic_module_of_session(module, quic_framer_module);
+    quic_session_t *const session = quic_module_of_session(module);
 
     pthread_mutex_lock(&module->mtx);
     if (quic_rbt_is_nil(quic_framer_set_sid_find(module->active_set, &sid))) {

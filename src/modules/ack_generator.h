@@ -11,8 +11,8 @@
 
 #include "utils/link.h"
 #include "format/frame.h"
-#include "module.h"
 #include "recovery/rtt.h"
+#include "module.h"
 
 typedef struct quic_ack_generator_range_s quic_ack_generator_range_t;
 struct quic_ack_generator_range_s {
@@ -24,6 +24,8 @@ struct quic_ack_generator_range_s {
 
 typedef struct quic_ack_generator_module_s quic_ack_generator_module_t;
 struct quic_ack_generator_module_s {
+    QUIC_MODULE_FIELDS
+
     quic_link_t ranges;
 
     uint32_t ranges_count;

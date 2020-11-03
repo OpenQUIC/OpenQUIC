@@ -41,6 +41,8 @@ static int quic_send_stream_write_co(void *const args);
 static int quic_recv_stream_read_co(void *const args);
 static inline void __stream_runtime_init();
 
+static quic_err_t quic_send_stream_on_acked(void *const str_, const quic_frame_t *const frame_);
+
 static inline uint64_t quic_stream_frame_capacity(const uint64_t max_bytes,
                                                   const uint64_t sid, const uint64_t off, const bool fill, const uint64_t payload_size);
 
@@ -132,6 +134,8 @@ quic_frame_stream_t *quic_send_stream_generate(quic_send_stream_t *const str, bo
         return NULL;
     }
     quic_frame_init(frame, quic_frame_stream_type);
+    frame->on_acked = quic_send_stream_on_acked;
+    frame->acked_obj = str;
 
     if (str->off != 0) {
         frame->first_byte |= quic_frame_stream_type_off;
@@ -392,7 +396,7 @@ quic_stream_t *quic_session_accept_stream(quic_session_t *const session, const b
 }
 
 static inline quic_err_t quic_streams_release_spec(quic_stream_module_t *const module, const uint64_t sid) {
-    quic_session_t *const session = quic_module_of_session(module, quic_stream_module);
+    quic_session_t *const session = quic_module_of_session(module);
 
     if (quic_stream_id_is_bidi(sid)) {
         if (quic_stream_id_same_principal(sid, session)) {
@@ -410,6 +414,29 @@ static inline quic_err_t quic_streams_release_spec(quic_stream_module_t *const m
             quic_stream_inuni_delete(&module->inuni, &sid);
         }
     }
+
+    return quic_err_success;
+}
+
+static quic_err_t quic_send_stream_on_acked(void *const str_, const quic_frame_t *const frame_) {
+    (void) frame_;
+    quic_send_stream_t *const str = (quic_send_stream_t *) str_;
+    quic_stream_t *const p_str = quic_container_of_send_stream(str);
+    quic_stream_module_t *const module = quic_session_module(quic_stream_module_t, p_str->session, quic_stream_module);
+
+    pthread_mutex_lock(&str->mtx);
+    str->unacked_frames_count--;
+
+    if ((str->sent_fin || str->closed) && str->unacked_frames_count == 0) {
+        pthread_mutex_unlock(&str->mtx);
+
+        liteco_channel_send(&module->completed_speaker, &p_str->key);
+        quic_module_activate(p_str->session, quic_stream_module);
+    }
+    else {
+        pthread_mutex_unlock(&str->mtx);
+    }
+
 
     return quic_err_success;
 }

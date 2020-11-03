@@ -10,9 +10,11 @@
 #define __OPENQUIC_RETRANSMISSION_H__
 
 #include "module.h"
+#include "session.h"
 #include "format/frame.h"
 #include "utils/rbt.h"
 #include "utils/link.h"
+#include "recovery/rtt.h"
 
 typedef struct quic_sent_packet_rbt_s quic_sent_packet_rbt_t;
 struct quic_sent_packet_rbt_s {
@@ -33,11 +35,20 @@ struct quic_sent_packet_rbt_s {
 
 typedef struct quic_retransmission_module_s quic_retransmission_module_t;
 struct quic_retransmission_module_s {
+    QUIC_MODULE_FIELDS
+
     quic_sent_packet_rbt_t *sent_mem;
     uint32_t sent_pkt_count;
     uint32_t unacked_len;
 
     uint64_t max_delay;
+
+    uint64_t loss_time;
+    uint64_t last_sent_ack_time;
+
+    uint64_t alarm;
+
+    quic_rtt_t *rtt;
 
     quic_link_t acked_mem_queue;
 };
@@ -89,6 +100,17 @@ static inline quic_err_t quic_retransmission_process_newly_acked(quic_retransmis
 
         // TODO congestion on packet acked and detect lost packet alerm
     }
+
+    return quic_err_success;
+}
+
+static inline quic_err_t quic_retransmission_update_alarm(quic_retransmission_module_t *const module) {
+    quic_session_t *const session = quic_module_of_session(module);
+    if (module->loss_time) {
+        module->alarm = module->loss_time;
+    }
+
+    module->alarm = module->last_sent_ack_time; // TODO add PTO
 
     return quic_err_success;
 }

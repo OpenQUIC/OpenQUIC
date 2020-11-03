@@ -12,7 +12,7 @@
 static quic_err_t quic_framer_module_init(void *const module);
 
 uint64_t quic_framer_append_stream_frame(quic_link_t *const frames, const uint64_t capa, const bool fill, quic_framer_module_t *const module) {
-    quic_session_t *const session = quic_module_of_session(module, quic_framer_module);
+    quic_session_t *const session = quic_module_of_session(module);
     quic_stream_module_t *const stream_module = quic_session_module(quic_stream_module_t, session, quic_stream_module);
 
     uint64_t len = 0;

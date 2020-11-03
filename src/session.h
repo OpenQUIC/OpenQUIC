@@ -58,11 +58,11 @@ struct quic_session_s {
 #define quic_session_module(type, session, module) \
     ((type *) ((session)->modules + (module).off))
 
-#define quic_module_of_session(instance, module) \
-    ((quic_session_t *) ((((void *) (instance)) - (module).off) - offsetof(quic_session_t, modules)))
+#define quic_module_of_session(module) \
+    ((quic_session_t *) (((void *) (module)) - ((quic_base_module_t *) (module))->module_declare->off - offsetof(quic_session_t, modules)))
 
-#define quic_module_activate(session, module_def) \
-    (liteco_channel_send(&(session)->module_event_pipeline, &(module_def)))
+#define quic_module_activate(session, module) \
+    (liteco_channel_send(&(session)->module_event_pipeline, &(module)))
 
 quic_session_t *quic_session_create(const quic_config_t cfg);
 

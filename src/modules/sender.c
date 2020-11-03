@@ -48,26 +48,26 @@ static inline quic_err_t  quic_sender_generate_long_header(quic_session_t *const
 }
 
 static inline quic_err_t quic_sender_generate_initial_header(quic_sender_module_t *const sender, quic_buf_t *const buf) {
-    quic_session_t *const session = quic_module_of_session(sender, quic_sender_module);
+    quic_session_t *const session = quic_module_of_session(sender);
     quic_sender_generate_long_header(session, quic_packet_initial_type, buf);
     quic_varint_format_r(buf, 0);
     return quic_err_success;
 }
 
 static inline quic_err_t quic_sender_generate_0rtt_header(quic_sender_module_t *const sender, quic_buf_t *const buf) {
-    quic_session_t *const session = quic_module_of_session(sender, quic_sender_module);
+    quic_session_t *const session = quic_module_of_session(sender);
     quic_sender_generate_long_header(session, quic_packet_0rtt_type, buf);
     return quic_err_success;
 }
 
 static inline quic_err_t quic_sender_generate_handshake_header(quic_sender_module_t *const sender, quic_buf_t *const buf) {
-    quic_session_t *const session = quic_module_of_session(sender, quic_sender_module);
+    quic_session_t *const session = quic_module_of_session(sender);
     quic_sender_generate_long_header(session, quic_packet_handshake_type, buf);
     return quic_err_success;
 }
 
 static inline quic_err_t quic_sender_generate_retry_header(quic_sender_module_t *const sender, quic_buf_t *const buf) {
-    quic_session_t *const session = quic_module_of_session(sender, quic_sender_module);
+    quic_session_t *const session = quic_module_of_session(sender);
     quic_sender_generate_long_header(session, quic_packet_retry_type, buf);
     return quic_err_success;
 }
@@ -89,7 +89,7 @@ static inline quic_err_t quic_sender_generate_short_header(quic_session_t *const
 }
 
 static quic_send_packet_t *quic_sender_pack_app_packet(quic_sender_module_t *const sender) {
-    quic_session_t *const session = quic_module_of_session(sender, quic_sender_module);
+    quic_session_t *const session = quic_module_of_session(sender);
 
     quic_packet_number_generator_module_t *const numgen = quic_session_module(quic_packet_number_generator_module_t, session, quic_app_packet_number_generator_module);
     quic_framer_module_t *const framer = quic_session_module(quic_framer_module_t, session, quic_framer_module);
@@ -136,7 +136,7 @@ static quic_err_t quic_sender_module_init(void *const module) {
 }
 
 static quic_err_t quic_sender_module_process(void *const module) {
-    quic_session_t *const session = quic_module_of_session(module, quic_sender_module);
+    quic_session_t *const session = quic_module_of_session(module);
     quic_sender_module_t *const sender_module = module;
     quic_send_packet_t *packet = NULL;
     quic_udp_runway_module_t *const udp_runway = quic_session_module(quic_udp_runway_module_t, session, quic_udp_runway_module);

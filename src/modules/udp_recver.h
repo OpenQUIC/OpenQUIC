@@ -18,6 +18,8 @@
 
 typedef struct quic_udp_recver_module_s quic_udp_recver_module_t;
 struct quic_udp_recver_module_s {
+    QUIC_MODULE_FIELDS
+
     pthread_mutex_t mtx;
     quic_link_t queue;
 
@@ -31,7 +33,7 @@ struct quic_udp_recver_module_s {
 extern quic_module_t quic_udp_recver_module;
 
 static inline quic_err_t quic_udp_recver_push(quic_udp_recver_module_t *const module, quic_recv_packet_t *const packet) {
-    quic_session_t *const session = quic_module_of_session(module, quic_udp_recver_module);
+    quic_session_t *const session = quic_module_of_session(module);
     pthread_mutex_lock(&module->mtx);
     quic_link_insert_before(&module->queue, packet);
     pthread_mutex_unlock(&module->mtx);
