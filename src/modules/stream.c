@@ -131,9 +131,8 @@ quic_frame_stream_t *quic_send_stream_generate(quic_send_stream_t *const str, bo
         pthread_mutex_unlock(&str->mtx);
         return NULL;
     }
-    quic_link_init(frame);
+    quic_frame_init(frame, quic_frame_stream_type);
 
-    frame->first_byte = quic_frame_stream_type;
     if (str->off != 0) {
         frame->first_byte |= quic_frame_stream_type_off;
     }
@@ -170,6 +169,8 @@ quic_frame_stream_t *quic_send_stream_generate(quic_send_stream_t *const str, bo
             str->sent_fin = true;
         }
     }
+
+    str->unacked_frames_count++;
     pthread_mutex_unlock(&str->mtx);
 
     return frame;

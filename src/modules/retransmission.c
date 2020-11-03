@@ -15,7 +15,7 @@ static quic_err_t quic_retransmission_module_init(void *const module);
 quic_err_t quic_retransmission_module_find_newly_acked(quic_retransmission_module_t *const module, const quic_frame_ack_t *const frame) {
     quic_sent_packet_rbt_t *pkt = NULL;
 
-    quic_link_init(&module->del_mem_queue);
+    quic_link_init(&module->acked_mem_queue);
 
     {
         quic_rbt_foreach(pkt, module->sent_mem) {
@@ -37,13 +37,13 @@ quic_err_t quic_retransmission_module_find_newly_acked(quic_retransmission_modul
         }
     }
 
-    while (!quic_link_empty(&module->del_mem_queue)) {
-        quic_rbt_foreach_qnode_t *node = (quic_rbt_foreach_qnode_t *) quic_link_next(&module->del_mem_queue);
+    while (!quic_link_empty(&module->acked_mem_queue)) {
+        quic_rbt_foreach_qnode_t *node = (quic_rbt_foreach_qnode_t *) quic_link_next(&module->acked_mem_queue);
         quic_sent_packet_rbt_t *pkt = (quic_sent_packet_rbt_t *) node->node;
         quic_link_remove(node);
         free(node);
 
-        quic_retransmission_sent_mem_drop(module, pkt);
+        quic_retransmission_sent_mem_drop(module, pkt, true);
     }
 
     return quic_err_success;
@@ -57,7 +57,7 @@ static quic_err_t quic_retransmission_module_init(void *const module) {
     r_module->unacked_len = 0;
 
     quic_rbt_tree_init(r_module->sent_mem);
-    quic_link_init(&r_module->del_mem_queue);
+    quic_link_init(&r_module->acked_mem_queue);
 
     return quic_err_success;
 }

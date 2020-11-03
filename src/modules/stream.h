@@ -46,14 +46,14 @@ extern quic_module_t quic_stream_module;
                                       \
     bool sent_fin;                    \
     bool closed;                      \
+    uint32_t unacked_frames_count;    \
 
 typedef struct quic_send_stream_s quic_send_stream_t;
 struct quic_send_stream_s {
     QUIC_SEND_STREAM_FIELDS
 };
 
-static inline quic_err_t quic_send_stream_init(str)
-    quic_send_stream_t *const str; {
+static inline quic_err_t quic_send_stream_init(quic_send_stream_t *const str) {
     
     pthread_mutex_init(&str->mtx, NULL);
     str->reader_buf = NULL;
@@ -65,6 +65,8 @@ static inline quic_err_t quic_send_stream_init(str)
 
     str->sent_fin = false;
     str->closed = false;
+
+    str->unacked_frames_count = 0;
 
     return quic_err_success;
 }

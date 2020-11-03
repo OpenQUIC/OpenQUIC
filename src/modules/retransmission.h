@@ -39,7 +39,7 @@ struct quic_retransmission_module_s {
 
     uint64_t max_delay;
 
-    quic_link_t del_mem_queue;
+    quic_link_t acked_mem_queue;
 };
 
 extern quic_module_t quic_initial_retransmission_module;
@@ -59,12 +59,17 @@ static inline quic_err_t quic_retransmission_sent_mem_push(quic_retransmission_m
     return quic_err_success;
 }
 
-static inline quic_err_t quic_retransmission_sent_mem_drop(quic_retransmission_module_t *const module, quic_sent_packet_rbt_t *pkt) {
+static inline quic_err_t quic_retransmission_sent_mem_drop(quic_retransmission_module_t *const module, quic_sent_packet_rbt_t *pkt, const bool acked) {
     quic_rbt_remove(&module->sent_mem, &pkt);
     while (!quic_link_empty(&pkt->frames)) {
-        quic_link_t *node = quic_link_next(&pkt->frames);
-        quic_link_remove(node);
-        free(node);
+        quic_frame_t *frame = (quic_frame_t *) quic_link_next(&pkt->frames);
+        quic_link_remove(frame);
+
+        if (acked) {
+            quic_frame_on_acked(frame);
+        }
+
+        free(frame);
     }
     free(pkt);
 
@@ -77,7 +82,7 @@ static inline quic_err_t quic_retransmission_process_newly_acked(quic_retransmis
         return quic_err_internal_error;
     }
     node->node = (quic_rbt_t *) pkt;
-    quic_link_insert_after(&module->del_mem_queue, node);
+    quic_link_insert_after(&module->acked_mem_queue, node);
 
     if (pkt->included_unacked) {
         module->unacked_len -= pkt->pkt_len;
