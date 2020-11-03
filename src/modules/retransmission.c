@@ -110,7 +110,7 @@ quic_err_t quic_session_handle_ack_frame(quic_session_t *const session, const qu
 
         quic_rtt_update(&session->rtt, ack_frame->recv_time, pkt->sent_time, delay);
 
-        // TODO congestion control
+        // TODO congestion control try exist slowstart
     }
 
     quic_retransmission_module_find_newly_acked(r_module, ack_frame);

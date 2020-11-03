@@ -48,8 +48,6 @@ struct quic_retransmission_module_s {
 
     uint64_t alarm;
 
-    quic_rtt_t *rtt;
-
     quic_link_t acked_mem_queue;
 };
 
@@ -59,13 +57,24 @@ extern quic_module_t quic_app_retransmission_module;
 
 quic_err_t quic_retransmission_module_find_newly_acked(quic_retransmission_module_t *const module, const quic_frame_ack_t *const frame);
 
+static inline quic_err_t quic_retransmission_update_alarm(quic_retransmission_module_t *const module) {
+    quic_session_t *const session = quic_module_of_session(module);
+    module->alarm = module->unacked_len && module->loss_time
+        ? module->loss_time
+        : module->last_sent_ack_time + quic_rtt_pto(&session->rtt, module->max_delay);
+    return quic_err_success;
+}
+
 static inline quic_err_t quic_retransmission_sent_mem_push(quic_retransmission_module_t *const module, quic_sent_packet_rbt_t *const pkt) {
     quic_sent_pkts_insert(&module->sent_mem, pkt);
     module->sent_pkt_count++;
 
     if (pkt->included_unacked) {
+        module->last_sent_ack_time = pkt->sent_time;
         module->unacked_len += pkt->pkt_len;
     }
+
+    quic_retransmission_update_alarm(module);
 
     return quic_err_success;
 }
@@ -100,17 +109,6 @@ static inline quic_err_t quic_retransmission_process_newly_acked(quic_retransmis
 
         // TODO congestion on packet acked and detect lost packet alerm
     }
-
-    return quic_err_success;
-}
-
-static inline quic_err_t quic_retransmission_update_alarm(quic_retransmission_module_t *const module) {
-    quic_session_t *const session = quic_module_of_session(module);
-    if (module->loss_time) {
-        module->alarm = module->loss_time;
-    }
-
-    module->alarm = module->last_sent_ack_time; // TODO add PTO
 
     return quic_err_success;
 }
