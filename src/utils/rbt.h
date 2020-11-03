@@ -62,23 +62,23 @@ struct quic_rbt_foreach_qnode_s {
     quic_rbt_t *node;
 };
 
-#define quic_rbt_foreach(node, root)                                                                                   \
+#define quic_rbt_foreach(node_, root)                                                                                  \
     quic_link_t _rbt_foreach_queue;                                                                                    \
     quic_link_init(&_rbt_foreach_queue);                                                                               \
     for (({                                                                                                            \
-          (node) = (typeof(node)) quic_rbt_nil;                                                                        \
+          (node_) = (typeof(node_)) quic_rbt_nil;                                                                      \
           if (!quic_rbt_is_nil(root)) {                                                                                \
               quic_rbt_foreach_qnode_t *_inited_node = malloc(sizeof(quic_rbt_foreach_qnode_t));                       \
               quic_link_init(_inited_node);                                                                            \
               _inited_node->node = (quic_rbt_t *) (root);                                                              \
               quic_link_insert_after(&_rbt_foreach_queue, _inited_node);                                               \
-              (node) = (typeof(node)) (root);                                                                          \
+              (node_) = (typeof(node_)) (root);                                                                        \
           }                                                                                                            \
           });                                                                                                          \
-          !quic_rbt_is_nil((node));                                                                                    \
+          !quic_rbt_is_nil((node_));                                                                                   \
           ({                                                                                                           \
            if (quic_link_empty(&_rbt_foreach_queue)) {                                                                 \
-               (node) = (typeof(node)) quic_rbt_nil;                                                                   \
+               (node_) = (typeof(node_)) quic_rbt_nil;                                                                 \
            }                                                                                                           \
            else {                                                                                                      \
                quic_rbt_foreach_qnode_t *_cur_node = (quic_rbt_foreach_qnode_t *) quic_link_prev(&_rbt_foreach_queue); \
@@ -96,7 +96,7 @@ struct quic_rbt_foreach_qnode_s {
                   _inited_node->node = _cur_node->node->rb_l;                                                          \
                   quic_link_insert_after(&_rbt_foreach_queue, _inited_node);                                           \
                }                                                                                                       \
-               (node) = (typeof(node)) _cur_node->node;                                                                \
+               (node_) = (typeof(node_)) _cur_node->node;                                                              \
                free(_cur_node);                                                                                        \
            }                                                                                                           \
            }))                                                                                                         \
