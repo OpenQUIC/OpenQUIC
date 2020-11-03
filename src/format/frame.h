@@ -68,7 +68,8 @@ typedef struct quic_frame_ack_s quic_frame_ack_t;
 struct quic_frame_ack_s {
     QUIC_FRAME_FIELDS
 
-    uint8_t packet_type; /* only used for session handle ACK frame */
+    uint8_t packet_type; /* only used for session handle ACK frame (find retransmission module) */
+    uint64_t recv_time; /* only used for session handle ACK frame (congestion control) */
 
     uint64_t largest_ack;
     uint64_t delay;

@@ -39,11 +39,11 @@ struct quic_header_s {
 #define quic_packet_type(header)    \
     (((header)->first_byte & 0x30))
 
-#define quic_packet_initial_type    0x00
-#define quic_packet_0rtt_type       0x10
-#define quic_packet_handshake_type  0x20
-#define quic_packet_retry_type      0x30
-#define quic_packet_short_type      0x00
+#define quic_packet_initial_type    0xc0
+#define quic_packet_0rtt_type       0xd0
+#define quic_packet_handshake_type  0xe0
+#define quic_packet_retry_type      0xf0
+#define quic_packet_short_type      0x40
 
 typedef struct quic_long_header_s quic_long_header_t;
 struct quic_long_header_s {
