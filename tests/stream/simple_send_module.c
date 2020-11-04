@@ -31,8 +31,9 @@ quic_module_t quic_stream_flowctrl_module = {
 
 quic_module_t quic_connection_flowctrl_module = {
     .module_size = 0,
-    .init = NULL,
-    .destory = NULL
+    .init        = NULL,
+    .loop        = NULL,
+    .destory     = NULL
 };
 
 int main() {

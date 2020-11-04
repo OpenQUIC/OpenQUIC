@@ -56,6 +56,7 @@ extern quic_module_t quic_handshake_retransmission_module;
 extern quic_module_t quic_app_retransmission_module;
 
 quic_err_t quic_retransmission_module_find_newly_acked(quic_retransmission_module_t *const module, const quic_frame_ack_t *const frame);
+quic_err_t quic_retransmission_module_find_newly_lost(quic_retransmission_module_t *const module);
 
 static inline quic_err_t quic_retransmission_update_alarm(quic_retransmission_module_t *const module) {
     quic_session_t *const session = quic_module_of_session(module);

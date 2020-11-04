@@ -461,9 +461,10 @@ static quic_err_t quic_session_stream_module_process(void *const module) {
 
 quic_module_t quic_stream_module = {
     .module_size = sizeof(quic_stream_module_t),
-    .init = quic_stream_module_init,
-    .process = quic_session_stream_module_process,
-    .destory = NULL,
+    .init        = quic_stream_module_init,
+    .process     = quic_session_stream_module_process,
+    .loop        = NULL,
+    .destory     = NULL,
 };
 
 quic_err_t quic_session_handle_stream_frame(quic_session_t *const session, const quic_frame_t *const frame) {

@@ -12,7 +12,7 @@
 #include "module.h"
 #include "recv_packet.h"
 #include "session.h"
-#include "modules/udp_recver.h"
+#include "modules/recver.h"
 #include "utils/time.h"
 #include <netinet/in.h>
 #include <errno.h>
@@ -46,7 +46,7 @@ static inline quic_err_t quic_udp_fd_write(quic_udp_fd_module_t *const module, c
 
 static inline quic_err_t quic_udp_fd_read(quic_udp_fd_module_t *const module) {
     quic_session_t *const session = quic_module_of_session(module);
-    quic_udp_recver_module_t *ur_module = quic_session_module(quic_udp_recver_module_t, session, quic_udp_recver_module);
+    quic_recver_module_t *ur_module = quic_session_module(quic_recver_module_t, session, quic_recver_module);
 
     quic_recv_packet_t *rp = malloc(sizeof(quic_recv_packet_t) + module->mtu);
     if (rp == NULL) {
@@ -59,7 +59,7 @@ static inline quic_err_t quic_udp_fd_read(quic_udp_fd_module_t *const module) {
     rp->len = ret;
     rp->recv_time = quic_now();
 
-    quic_udp_recver_push(ur_module, rp);
+    quic_recver_push(ur_module, rp);
 
     return quic_err_success;
 }

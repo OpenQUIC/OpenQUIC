@@ -27,10 +27,11 @@ quic_session_t *quic_session_create(const quic_config_t cfg) {
 
     quic_buf_copy(&session->key, &cfg.src);
     session->cfg = cfg;
+    session->loop_deadline = 0;
 
     liteco_channel_init(&session->module_event_pipeline);
 
-    int i;
+    uint32_t i;
     for (i = 0; quic_modules[i]; i++) {
         quic_base_module_t *module = quic_session_module(quic_base_module_t, session, *quic_modules[i]);;
         module->module_declare = quic_modules[i];
@@ -62,18 +63,29 @@ static void *quic_session_background(void *const session_) {
 }
 
 static int quic_session_background_co(void *const session_) {
+    uint32_t i;
     quic_session_t *const session = session_;
     const quic_module_t *active_module = NULL;
 
     for ( ;; ) {
-
-        liteco_recv((const void **) &active_module, NULL, __CURR_CO__->runtime, 0, &session->module_event_pipeline);
-
-        if (active_module == NULL || !active_module->process) {
-            continue;
+        liteco_recv((const void **) &active_module, NULL, __CURR_CO__->runtime, session->loop_deadline, &session->module_event_pipeline);
+        if (session->module_event_pipeline.closed) {
+            break;
         }
 
-        active_module->process(quic_session_module(void, session, *active_module));
+        if (active_module) {
+            void *module = quic_session_module(void, session, *active_module);
+            quic_module_process(module);
+        }
+        for (i = 0; quic_modules[i]; i++) {
+            void *module = quic_session_module(void, session, *quic_modules[i]);
+            quic_module_loop(module);
+        }
+    }
+
+    for (i = 0; quic_modules[i]; i++) {
+        void *module = quic_session_module(void, session, *quic_modules[i]);
+        quic_module_destory(module);
     }
 
     return LITECO_SUCCESS;

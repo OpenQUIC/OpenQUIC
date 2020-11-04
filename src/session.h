@@ -52,6 +52,7 @@ struct quic_session_s {
 
     pthread_t background_thread;
     liteco_channel_t module_event_pipeline;
+    uint64_t loop_deadline;
     uint8_t modules[0];
 };
 

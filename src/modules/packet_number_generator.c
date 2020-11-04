@@ -26,21 +26,24 @@ uint64_t quic_packet_number_generate(quic_packet_number_generator_module_t *cons
 
 quic_module_t quic_initial_packet_number_generator_module = {
     .module_size = sizeof(quic_packet_number_generator_module_t),
-    .init = quic_packer_number_generator_module_init,
-    .process = NULL,
-    .destory = NULL
+    .init        = quic_packer_number_generator_module_init,
+    .process     = NULL,
+    .loop        = NULL,
+    .destory     = NULL
 };
 
 quic_module_t quic_handshake_packet_number_generator_module = {
     .module_size = sizeof(quic_packet_number_generator_module_t),
-    .init = quic_packer_number_generator_module_init,
-    .process = NULL,
-    .destory = NULL
+    .init        = quic_packer_number_generator_module_init,
+    .process     = NULL,
+    .loop        = NULL,
+    .destory     = NULL
 };
 
 quic_module_t quic_app_packet_number_generator_module = {
     .module_size = sizeof(quic_packet_number_generator_module_t),
-    .init = quic_packer_number_generator_module_init,
-    .process = NULL,
-    .destory = NULL
+    .init        = quic_packer_number_generator_module_init,
+    .process     = NULL,
+    .loop        = NULL,
+    .destory     = NULL
 };

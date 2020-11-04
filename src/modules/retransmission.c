@@ -8,6 +8,7 @@
 
 #include "modules/retransmission.h"
 #include "format/header.h"
+#include "utils/time.h"
 #include "session.h"
 
 static quic_err_t quic_retransmission_module_init(void *const module);
@@ -49,6 +50,20 @@ quic_err_t quic_retransmission_module_find_newly_acked(quic_retransmission_modul
     return quic_err_success;
 }
 
+quic_err_t quic_retransmission_module_find_newly_lost(quic_retransmission_module_t *const module) {
+    quic_session_t *const session = quic_module_of_session(module);
+
+    module->loss_time = 0;
+    uint64_t max_rtt = session->rtt.smoothed_rtt;
+    double lost_delay = (9 * max_rtt) >> 3;
+    lost_delay = lost_delay > 1000 ? lost_delay : 1000;
+    uint64_t lost_send_time = quic_now() - lost_delay;
+
+    // TODO foreach mem for check lost
+ 
+    return quic_err_success;
+}
+
 static quic_err_t quic_retransmission_module_init(void *const module) {
     quic_retransmission_module_t *const r_module = (quic_retransmission_module_t *) module;
 
@@ -66,23 +81,26 @@ static quic_err_t quic_retransmission_module_init(void *const module) {
 
 quic_module_t quic_initial_retransmission_module = {
     .module_size = sizeof(quic_retransmission_module_t),
-    .init = quic_retransmission_module_init,
-    .process = NULL,
-    .destory = NULL
+    .init        = quic_retransmission_module_init,
+    .process     = NULL,
+    .loop        = NULL,
+    .destory     = NULL
 };
 
 quic_module_t quic_handshake_retransmission_module = {
     .module_size = sizeof(quic_retransmission_module_t),
-    .init = quic_retransmission_module_init,
-    .process = NULL,
-    .destory = NULL
+    .init        = quic_retransmission_module_init,
+    .process     = NULL,
+    .loop        = NULL,
+    .destory     = NULL
 };
 
 quic_module_t quic_app_retransmission_module = {
     .module_size = sizeof(quic_retransmission_module_t),
-    .init = quic_retransmission_module_init,
-    .process = NULL,
-    .destory = NULL
+    .init        = quic_retransmission_module_init,
+    .process     = NULL,
+    .loop        = NULL,
+    .destory     = NULL
 };
 
 quic_err_t quic_session_handle_ack_frame(quic_session_t *const session, const quic_frame_t *const frame) {
@@ -114,6 +132,7 @@ quic_err_t quic_session_handle_ack_frame(quic_session_t *const session, const qu
     }
 
     quic_retransmission_module_find_newly_acked(r_module, ack_frame);
+    quic_retransmission_update_alarm(r_module);
 
     return quic_err_success;
 }

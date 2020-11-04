@@ -6,20 +6,20 @@
  *
  */
 
-#include "modules/udp_recver.h"
+#include "modules/recver.h"
 #include "modules/ack_generator.h"
 #include "format/header.h"
 
-static inline quic_err_t quic_udp_recver_handle_packet(quic_udp_recver_module_t *const module);
-static quic_err_t quic_udp_recver_process_packet(quic_session_t *const sess, quic_udp_recver_module_t *const module, const quic_payload_t *payload, const uint64_t recv_time);
-static quic_err_t quic_udp_recver_process_packet_payload(quic_session_t *const sess, quic_udp_recver_module_t *const module, const quic_payload_t *payload, const uint64_t recv_time);
+static inline quic_err_t quic_recver_handle_packet(quic_recver_module_t *const module);
+static quic_err_t quic_recver_process_packet(quic_session_t *const sess, quic_recver_module_t *const module, const quic_payload_t *payload, const uint64_t recv_time);
+static quic_err_t quic_recver_process_packet_payload(quic_session_t *const sess, quic_recver_module_t *const module, const quic_payload_t *payload, const uint64_t recv_time);
 
-static quic_err_t quic_udp_recver_module_init(void *const module);
-static quic_err_t quic_udp_recver_module_process(void *const module);
+static quic_err_t quic_recver_module_init(void *const module);
+static quic_err_t quic_recver_module_process(void *const module);
 
 extern quic_session_handler_t quic_session_handler[256];
 
-static inline quic_err_t quic_udp_recver_handle_packet(quic_udp_recver_module_t *const module) {
+static inline quic_err_t quic_recver_handle_packet(quic_recver_module_t *const module) {
     quic_session_t *const session = quic_module_of_session(module);
     quic_ack_generator_module_t *ag_module = NULL;
 
@@ -73,7 +73,7 @@ static inline quic_err_t quic_udp_recver_handle_packet(quic_udp_recver_module_t 
         ag_module = quic_session_module(quic_ack_generator_module_t, session, quic_app_ack_generator_module);
     }
 
-    quic_udp_recver_process_packet(session, module, (quic_payload_t *) &payload, module->curr_packet->recv_time);
+    quic_recver_process_packet(session, module, (quic_payload_t *) &payload, module->curr_packet->recv_time);
 
     if (ag_module) {
         quic_ack_generator_module_received(ag_module,
@@ -86,17 +86,17 @@ static inline quic_err_t quic_udp_recver_handle_packet(quic_udp_recver_module_t 
     return quic_err_success;
 }
 
-static quic_err_t quic_udp_recver_process_packet(quic_session_t *const sess, quic_udp_recver_module_t *const module, const quic_payload_t *payload, const uint64_t recv_time) {
+static quic_err_t quic_recver_process_packet(quic_session_t *const sess, quic_recver_module_t *const module, const quic_payload_t *payload, const uint64_t recv_time) {
     quic_err_t err = quic_err_success;
 
-    if ((err = quic_udp_recver_process_packet_payload(sess, module, payload, recv_time)) != quic_err_success) {
+    if ((err = quic_recver_process_packet_payload(sess, module, payload, recv_time)) != quic_err_success) {
         return err;
     }
 
     return quic_err_success;
 }
 
-static quic_err_t quic_udp_recver_process_packet_payload(quic_session_t *const sess, quic_udp_recver_module_t *const module, const quic_payload_t *payload, const uint64_t recv_time) {
+static quic_err_t quic_recver_process_packet_payload(quic_session_t *const sess, quic_recver_module_t *const module, const quic_payload_t *payload, const uint64_t recv_time) {
     quic_err_t err = quic_err_success;
 
     quic_buf_t buf;
@@ -137,8 +137,8 @@ static quic_err_t quic_udp_recver_process_packet_payload(quic_session_t *const s
     return quic_err_success;
 }
 
-static quic_err_t quic_udp_recver_module_init(void *const module) {
-    quic_udp_recver_module_t *const ur_module = module;
+static quic_err_t quic_recver_module_init(void *const module) {
+    quic_recver_module_t *const ur_module = module;
 
     pthread_mutex_init(&ur_module->mtx, NULL);
     quic_link_init(&ur_module->queue);
@@ -151,15 +151,15 @@ static quic_err_t quic_udp_recver_module_init(void *const module) {
     return quic_err_success;
 }
 
-static quic_err_t quic_udp_recver_module_process(void *const module) {
-    quic_udp_recver_module_t *const ur_module = module;
+static quic_err_t quic_recver_module_process(void *const module) {
+    quic_recver_module_t *const ur_module = module;
 
     pthread_mutex_lock(&ur_module->mtx);
     ur_module->curr_packet = (quic_recv_packet_t *) quic_link_next(&ur_module->queue);
     quic_link_remove(ur_module->curr_packet);
     pthread_mutex_unlock(&ur_module->mtx);
 
-    quic_udp_recver_handle_packet(module);
+    quic_recver_handle_packet(module);
 
     free(ur_module->curr_packet);
     ur_module->curr_packet = NULL;
@@ -167,9 +167,10 @@ static quic_err_t quic_udp_recver_module_process(void *const module) {
     return quic_err_success;
 }
 
-quic_module_t quic_udp_recver_module = {
-    .module_size = sizeof(quic_udp_recver_module_t),
-    .init = quic_udp_recver_module_init,
-    .process = quic_udp_recver_module_process,
-    .destory = NULL
+quic_module_t quic_recver_module = {
+    .module_size = sizeof(quic_recver_module_t),
+    .init        = quic_recver_module_init,
+    .process     = quic_recver_module_process,
+    .loop        = NULL,
+    .destory     = NULL
 };

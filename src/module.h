@@ -21,6 +21,7 @@ struct quic_module_s {
     quic_err_t (*init) (void *const module);
     quic_err_t (*process) (void *const module);
     quic_err_t (*destory) (void *const module);
+    quic_err_t (*loop) (void *const module);
 
     uint32_t off;
 };
@@ -36,6 +37,21 @@ struct quic_base_module_s {
 #define quic_module_init(module)                                           \
     if (((quic_base_module_t *) (module))->module_declare->init) {         \
         ((quic_base_module_t *) (module))->module_declare->init((module)); \
+    }
+
+#define quic_module_process(module)                                           \
+    if (((quic_base_module_t *) (module))->module_declare->process) {         \
+        ((quic_base_module_t *) (module))->module_declare->process((module)); \
+    }
+
+#define quic_module_loop(module)                                           \
+    if (((quic_base_module_t *) (module))->module_declare->loop) {         \
+        ((quic_base_module_t *) (module))->module_declare->loop((module)); \
+    }
+
+#define quic_module_destory(module)                                           \
+    if (((quic_base_module_t *) (module))->module_declare->destory) {         \
+        ((quic_base_module_t *) (module))->module_declare->destory((module)); \
     }
 
 extern quic_module_t *quic_modules[];

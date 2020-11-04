@@ -10,6 +10,7 @@
 #define __OPENQUIC_SENDER_H__
 
 #include "module.h"
+#include "modules/retransmission.h"
 #include "utils/link.h"
 #include "utils/buf.h"
 
@@ -26,6 +27,21 @@
     (send_packet)->included_unacked = false;                     \
     quic_buf_setpl(&(send_packet)->buf);                         \
 }
+
+typedef struct quic_send_packet_s quic_send_packet_t;
+struct quic_send_packet_s {
+    QUIC_LINK_FIELDS
+
+    uint64_t num;
+    uint64_t largest_ack;
+    bool included_unacked;
+    quic_retransmission_module_t *retransmission_module;
+
+    quic_link_t frames;
+    quic_buf_t buf;
+
+    uint8_t data[0];
+};
 
 typedef struct quic_sender_module_s quic_sender_module_t;
 struct quic_sender_module_s {

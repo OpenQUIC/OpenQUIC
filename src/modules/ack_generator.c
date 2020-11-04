@@ -189,21 +189,24 @@ static quic_err_t quic_ack_generator_init(void *const module) {
 
 quic_module_t quic_initial_ack_generator_module = {
     .module_size = sizeof(quic_ack_generator_module_t),
-    .init = quic_ack_generator_init,
-    .process = NULL,
-    .destory = NULL
+    .init        = quic_ack_generator_init,
+    .process     = NULL,
+    .loop        = NULL,
+    .destory     = NULL
 };
 
 quic_module_t quic_handshake_ack_generator_module = {
     .module_size = sizeof(quic_ack_generator_module_t),
-    .init = quic_ack_generator_init,
-    .process = NULL,
-    .destory = NULL
+    .init        = quic_ack_generator_init,
+    .process     = NULL,
+    .loop        = NULL,
+    .destory     = NULL
 };
 
 quic_module_t quic_app_ack_generator_module = {
     .module_size = sizeof(quic_ack_generator_module_t),
-    .init = quic_ack_generator_init,
-    .process = NULL,
-    .destory = NULL
+    .init        = quic_ack_generator_init,
+    .process     = NULL,
+    .loop        = NULL,
+    .destory     = NULL
 };
