@@ -49,6 +49,8 @@
     uint8_t ref_count;                                                               \
     void *acked_obj;                                                                 \
     quic_err_t (*on_acked) (void *const acked_obj, const quic_frame_t *const frame); \
+    void *lost_obj;                                                                  \
+    quic_err_t (*on_lost) (void *const lost_obj, const quic_frame_t *const frame);   \
 
 #define quic_frame_init(frame, type) { \
     quic_link_init((frame));           \
@@ -57,8 +59,11 @@
     (frame)->on_acked = NULL;          \
 }
 
-#define quic_frame_on_acked(frame) \
-    ((frame)->on_acked((frame)->acked_obj, (frame)))
+#define quic_frame_on_acked(frame)                   \
+    ((frame)->on_acked((frame)->acked_obj, (frame))) \
+
+#define quic_frame_on_lost(frame)                   \
+    ((frame)->on_lost((frame)->lost_obj, (frame)))  \
 
 typedef struct quic_frame_s quic_frame_t;
 struct quic_frame_s {

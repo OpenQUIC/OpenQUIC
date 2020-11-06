@@ -45,10 +45,11 @@ struct quic_retransmission_module_s {
 
     uint64_t loss_time;
     uint64_t last_sent_ack_time;
+    uint64_t largest_ack;
+
+    quic_link_t droped_queue;
 
     uint64_t alarm;
-
-    quic_link_t acked_mem_queue;
 };
 
 extern quic_module_t quic_initial_retransmission_module;
@@ -80,36 +81,71 @@ static inline quic_err_t quic_retransmission_sent_mem_push(quic_retransmission_m
     return quic_err_success;
 }
 
-static inline quic_err_t quic_retransmission_sent_mem_drop(quic_retransmission_module_t *const module, quic_sent_packet_rbt_t *pkt, const bool acked) {
+#define quic_retransmission_sent_mem_drop_acked 0x01
+#define quic_retransmission_sent_mem_drop_lost 0x02
+
+static inline quic_err_t quic_retransmission_sent_mem_drop(quic_retransmission_module_t *const module, quic_sent_packet_rbt_t *pkt, const uint8_t process_type) {
     quic_rbt_remove(&module->sent_mem, &pkt);
     while (!quic_link_empty(&pkt->frames)) {
         quic_frame_t *frame = (quic_frame_t *) quic_link_next(&pkt->frames);
         quic_link_remove(frame);
 
-        if (acked) {
+        switch (process_type) {
+        case quic_retransmission_sent_mem_drop_acked:
+            if (!frame->on_acked) {
+                free(frame);
+            }
             quic_frame_on_acked(frame);
-        }
+            break;
 
-        free(frame);
+        case quic_retransmission_sent_mem_drop_lost:
+            if (!frame->on_lost) {
+                free(frame);
+            }
+            quic_frame_on_lost(frame);
+            break;
+
+        default:
+            free(frame);
+        }
     }
     free(pkt);
 
     return quic_err_success;
 }
 
-static inline quic_err_t quic_retransmission_process_newly_acked(quic_retransmission_module_t *const module, quic_sent_packet_rbt_t *const pkt) {
+static inline quic_err_t quic_retransmission_append_to_drop_queue(quic_retransmission_module_t *const module, quic_sent_packet_rbt_t *const pkt) {
     quic_rbt_foreach_qnode_t *node = malloc(sizeof(quic_rbt_foreach_qnode_t));
     if (node == NULL) {
         return quic_err_internal_error;
     }
     node->node = (quic_rbt_t *) pkt;
-    quic_link_insert_after(&module->acked_mem_queue, node);
+    quic_link_insert_after(&module->droped_queue, node);
+
+    return quic_err_success;
+}
+
+static inline quic_err_t quic_retransmission_process_newly_acked(quic_retransmission_module_t *const module, quic_sent_packet_rbt_t *const pkt) {
+    quic_retransmission_append_to_drop_queue(module, pkt);
 
     if (pkt->included_unacked) {
         module->unacked_len -= pkt->pkt_len;
 
-        // TODO congestion on packet acked and detect lost packet alerm
+        // TODO update congestion status on packet acked
     }
+
+    return quic_err_success;
+}
+
+static inline quic_err_t quic_retransmission_process_newly_lost(quic_retransmission_module_t *const module, quic_sent_packet_rbt_t *const pkt) {
+    quic_retransmission_append_to_drop_queue(module, pkt);
+
+    if (pkt->included_unacked) {
+        module->unacked_len -= pkt->pkt_len;
+
+        // TODO update congestion status on packet lost
+    }
+
 
     return quic_err_success;
 }

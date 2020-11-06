@@ -419,7 +419,8 @@ static inline quic_err_t quic_streams_release_spec(quic_stream_module_t *const m
 }
 
 static quic_err_t quic_send_stream_on_acked(void *const str_, const quic_frame_t *const frame_) {
-    (void) frame_;
+    free((void *) frame_);
+
     quic_send_stream_t *const str = (quic_send_stream_t *) str_;
     quic_stream_t *const p_str = quic_container_of_send_stream(str);
     quic_stream_module_t *const module = quic_session_module(quic_stream_module_t, p_str->session, quic_stream_module);
