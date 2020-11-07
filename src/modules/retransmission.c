@@ -87,12 +87,20 @@ static quic_err_t quic_retransmission_sent_mem_drop_from_queue(quic_retransmissi
 static quic_err_t quic_retransmission_module_init(void *const module) {
     quic_retransmission_module_t *const r_module = (quic_retransmission_module_t *) module;
 
-    r_module->sent_pkt_count = 0;
-    r_module->max_delay = 0;
-    r_module->unacked_len = 0;
-    r_module->loss_time = 0;
-
     quic_rbt_tree_init(r_module->sent_mem);
+
+    r_module->sent_pkt_count = 0;
+    r_module->unacked_len = 0;
+
+    r_module->max_delay = 0;
+
+    r_module->loss_time = 0;
+    r_module->last_sent_ack_time = 0;
+    r_module->largest_ack = 0;
+
+    quic_link_init(&r_module->droped_queue);
+
+    r_module->alarm = 0;
 
     return quic_err_success;
 }

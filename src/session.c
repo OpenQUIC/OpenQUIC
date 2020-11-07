@@ -73,6 +73,8 @@ static int quic_session_background_co(void *const session_) {
             break;
         }
 
+        quic_session_reset_loop_deadline(session);
+
         if (active_module) {
             void *module = quic_session_module(void, session, *active_module);
             quic_module_process(module);

@@ -68,6 +68,7 @@ static inline quic_err_t quic_retransmission_update_alarm(quic_retransmission_mo
 }
 
 static inline quic_err_t quic_retransmission_sent_mem_push(quic_retransmission_module_t *const module, quic_sent_packet_rbt_t *const pkt) {
+    quic_session_t *const session = quic_module_of_session(module);
     quic_sent_pkts_insert(&module->sent_mem, pkt);
     module->sent_pkt_count++;
 
@@ -77,6 +78,18 @@ static inline quic_err_t quic_retransmission_sent_mem_push(quic_retransmission_m
     }
 
     quic_retransmission_update_alarm(module);
+    quic_session_update_loop_deadline(session, module->alarm);
+
+    return quic_err_success;
+}
+
+static inline quic_err_t quic_retransmission_on_lost(quic_retransmission_module_t *const module) {
+    quic_session_t *const session = quic_module_of_session(module);
+    if (module->unacked_len) {
+        quic_retransmission_module_find_newly_lost(module);
+    }
+
+    quic_session_update_loop_deadline(session, module->alarm);
 
     return quic_err_success;
 }
