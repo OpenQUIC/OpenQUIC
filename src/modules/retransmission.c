@@ -7,6 +7,7 @@
  */
 
 #include "modules/retransmission.h"
+#include "modules/congestion.h"
 #include "format/header.h"
 #include "utils/time.h"
 #include "session.h"
@@ -132,6 +133,8 @@ quic_module_t quic_app_retransmission_module = {
 quic_err_t quic_session_handle_ack_frame(quic_session_t *const session, const quic_frame_t *const frame) {
     const quic_frame_ack_t *const ack_frame = (const quic_frame_ack_t *) frame;
     quic_retransmission_module_t *r_module = NULL;
+    quic_congestion_module_t *const c_module = quic_session_module(quic_congestion_module_t, session, quic_congestion_module);
+
     switch (ack_frame->packet_type) {
     case quic_packet_initial_type:
         r_module = quic_session_module(quic_retransmission_module_t, session, quic_initial_retransmission_module);
@@ -155,9 +158,7 @@ quic_err_t quic_session_handle_ack_frame(quic_session_t *const session, const qu
             delay = ack_frame->delay < r_module->max_delay ? ack_frame->delay : r_module->max_delay;
         }
 
-        quic_rtt_update(&session->rtt, ack_frame->recv_time, pkt->sent_time, delay);
-
-        // TODO congestion control try exist slowstart
+        quic_congestion_update(c_module, ack_frame->recv_time, pkt->sent_time, delay);
     }
 
     quic_retransmission_module_find_newly_acked(r_module, ack_frame);

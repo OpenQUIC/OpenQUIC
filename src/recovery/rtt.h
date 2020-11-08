@@ -12,10 +12,11 @@
 #include "utils/errno.h"
 #include <stdint.h>
 
-#define QUIC_RTT_FIELDS    \
-    uint64_t min_rtt;      \
-    uint64_t smoothed_rtt; \
-    uint64_t rttvar;       \
+#define QUIC_RTT_FIELDS     \
+    uint64_t min_rtt;       \
+    uint64_t smoothed_rtt;  \
+    uint64_t rttvar;        \
+    uint64_t latest_simple; \
 
 typedef struct quic_rtt_s quic_rtt_t;
 struct quic_rtt_s {
@@ -26,6 +27,7 @@ static inline quic_err_t quic_rtt_init(quic_rtt_t *const rtt) {
     rtt->min_rtt = 0;
     rtt->smoothed_rtt = 333 * 1000;
     rtt->rttvar = 333 * 1000 >> 2;
+    rtt->latest_simple = 0;
 
     return quic_err_success;
 }
@@ -46,6 +48,7 @@ static inline quic_err_t quic_rtt_update(quic_rtt_t *const rtt, const uint64_t r
         if (rtt->min_rtt + ack_delay < latest_rtt) {
             adjusted_rtt -= ack_delay;
         }
+        rtt->latest_simple = adjusted_rtt;
         rtt->smoothed_rtt = (7 * rtt->smoothed_rtt + adjusted_rtt) >> 3;
 #define __abs_distance__(a, b) ((a) > (b) ? ((a) - (b)) : ((b) - (a)))
         uint64_t rttvar_simple = __abs_distance__(latest_rtt, adjusted_rtt);
