@@ -14,18 +14,18 @@
 #include "utils/link.h"
 #include "utils/buf.h"
 
-#define quic_send_packet_init(send_packet, size) {               \
-    (send_packet) = malloc(sizeof(quic_send_packet_t) + (size)); \
-    if ((send_packet) == NULL) {                                 \
-        return NULL;                                             \
-    }                                                            \
-    quic_link_init(((quic_link_t *) (send_packet)));             \
-    quic_link_init(&(send_packet)->frames);                      \
-    (send_packet)->buf.buf = (send_packet)->data;                \
-    (send_packet)->buf.capa = (size);                            \
-    (send_packet)->largest_ack = 0;                              \
-    (send_packet)->included_unacked = false;                     \
-    quic_buf_setpl(&(send_packet)->buf);                         \
+#define quic_send_packet_init(send_pkt, size) {               \
+    (send_pkt) = malloc(sizeof(quic_send_packet_t) + (size)); \
+    if ((send_pkt) == NULL) {                                 \
+        return NULL;                                          \
+    }                                                         \
+    quic_link_init(((quic_link_t *) (send_pkt)));             \
+    quic_link_init(&(send_pkt)->frames);                      \
+    (send_pkt)->buf.buf = (send_pkt)->data;                   \
+    (send_pkt)->buf.capa = (size);                            \
+    (send_pkt)->largest_ack = 0;                              \
+    (send_pkt)->included_unacked = false;                     \
+    quic_buf_setpl(&(send_pkt)->buf);                         \
 }
 
 typedef struct quic_send_packet_s quic_send_packet_t;
@@ -48,6 +48,7 @@ struct quic_sender_module_s {
     QUIC_MODULE_FIELDS
 
     uint32_t mtu;
+    uint64_t next_send_time;
 };
 
 extern quic_module_t quic_sender_module;

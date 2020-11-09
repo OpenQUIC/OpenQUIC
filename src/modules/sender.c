@@ -12,6 +12,7 @@
 #include "modules/framer.h"
 #include "modules/udp_fd.h"
 #include "modules/ack_generator.h"
+#include "modules/congestion.h"
 #include "format/header.h"
 #include "session.h"
 
@@ -110,7 +111,8 @@ static quic_send_packet_t *quic_sender_pack_app_packet(quic_sender_module_t *con
     uint32_t max_bytes = pkt->buf.capa - (pkt->buf.pos - pkt->buf.buf);
     uint32_t frame_len = 0;
 
-    max_bytes -= quic_ack_generator_append_ack_frame(&pkt->frames, &pkt->largest_ack, ag_module);
+    frame_len = quic_ack_generator_append_ack_frame(&pkt->frames, &pkt->largest_ack, ag_module);
+    max_bytes -= frame_len;
     for ( ;; ) {
         frame_len = quic_framer_append_ctrl_frame(&pkt->frames, max_bytes, framer);
         max_bytes -= frame_len;
@@ -139,6 +141,7 @@ static quic_err_t quic_sender_module_init(void *const module) {
     quic_sender_module_t *const s_module = module;
 
     s_module->mtu = 1460;
+    s_module->next_send_time = 0;
 
     return quic_err_success;
 }
@@ -158,12 +161,14 @@ static quic_err_t quic_sender_module_loop(void *const module) {
 static inline quic_err_t quic_sender_send_packet(quic_sender_module_t *const module, quic_send_packet_t *const pkt) {
     quic_session_t *const session = quic_module_of_session(module);
     quic_udp_fd_module_t *const uf_module = quic_session_module(quic_udp_fd_module_t, session, quic_udp_fd_module);
+    quic_congestion_module_t *const c_module = quic_session_module(quic_congestion_module_t, session, quic_congestion_module);
 
     quic_sent_packet_rbt_t *sent_pkt = malloc(sizeof(quic_sent_packet_rbt_t));
     if (sent_pkt) {
         quic_rbt_init(sent_pkt);
         sent_pkt->key = pkt->num;
 
+        // note: linked lists have been transferred to 'mem', no need to release them
         sent_pkt->frames.next = pkt->frames.next;
         sent_pkt->frames.next->prev = &sent_pkt->frames;
         sent_pkt->frames.prev = pkt->frames.prev;
@@ -175,7 +180,12 @@ static inline quic_err_t quic_sender_send_packet(quic_sender_module_t *const mod
         sent_pkt->included_unacked = pkt->included_unacked;
 
         quic_retransmission_sent_mem_push(pkt->retransmission_module, sent_pkt);
-        // TODO calc next send time
+        quic_congestion_on_sent(c_module, sent_pkt->key, sent_pkt->pkt_len, sent_pkt->included_unacked);
+
+        module->next_send_time = (module->next_send_time > sent_pkt->sent_time ? module->next_send_time : sent_pkt->sent_time)
+            + (c_module->next_send_time ? c_module->next_send_time(c_module, pkt->retransmission_module->unacked_len) : 0);
+
+        quic_session_update_loop_deadline(session, module->next_send_time);
     }
 
     quic_udp_fd_write(uf_module, pkt->data, pkt->buf.pos - pkt->buf.buf);

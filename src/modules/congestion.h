@@ -15,13 +15,13 @@ typedef struct quic_congestion_module_s quic_congestion_module_t;
 struct quic_congestion_module_s {
     QUIC_MODULE_FIELDS
 
-    quic_err_t (*on_sent) (quic_congestion_module_t *const module, const uint64_t num, const uint64_t sent_bytes, const bool retransmission);
+    quic_err_t (*on_sent) (quic_congestion_module_t *const module, const uint64_t num, const uint64_t sent_bytes, const bool include_unacked);
     quic_err_t (*on_acked) (quic_congestion_module_t *const module, const uint64_t num, const uint64_t acked_bytes, const uint64_t unacked_unacked, const uint64_t event_time);
     quic_err_t (*on_lost) (quic_congestion_module_t *const module, const uint64_t num, const uint64_t lost_bytes, const uint64_t unacked_bytes);
 
     quic_err_t (*update) (quic_congestion_module_t *const module, const uint64_t recv_time, const uint64_t sent_time, const uint64_t ack_delay);
     bool (*allow_send) (quic_congestion_module_t *const module, const uint64_t unacked);
-    uint64_t (*next_send_time) (quic_congestion_module_t *const module, const uint64_t unacked);
+    uint64_t (*next_send_time) (quic_congestion_module_t *const module, const uint64_t unacked_bytes);
 
     uint8_t instance[0];
 };
@@ -29,6 +29,26 @@ struct quic_congestion_module_s {
 #define quic_congestion_update(module, recv_time, sent_time, ack_delay)    \
     if ((module)->update) {                                                \
         (module)->update((module), (recv_time), (sent_time), (ack_delay)); \
+    }
+
+#define quic_congestion_on_sent(module, num, sent_bytes, include_unacked)    \
+    if ((module)->on_sent) {                                                 \
+        (module)->on_sent((module), (num), (sent_bytes), (include_unacked)); \
+    }
+
+#define quic_congestion_on_acked(module, num, acked_bytes, unacked_bytes, event_time)      \
+    if ((module)->on_acked) {                                                              \
+        (module)->on_acked((module), (num), (acked_bytes), (unacked_bytes), (event_time)); \
+    }
+
+#define quic_congestion_on_lost(module, num, lost_bytes, unacked_bytes)     \
+    if ((module)->on_lost) {                                                \
+        (module)->on_lost((module), (num), (lost_bytes), (unacked_bytes));  \
+    }
+
+#define quic_congestion_next_send_time(module, unacked_bytes) \
+    if ((module)->next_send_time) {                           \
+        (module)->next_send_time((module), (unacked_bytes));  \
     }
 
 extern quic_module_t quic_congestion_module;

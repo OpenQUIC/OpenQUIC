@@ -79,7 +79,7 @@ struct quic_congestion_prr_s {
 
 static inline quic_err_t quic_congestion_module_init(void *const module);
 static quic_err_t quic_congestion_module_on_acked(quic_congestion_module_t *const module, const uint64_t num, const uint64_t acked_bytes, const uint64_t unacked_bytes, const uint64_t event_time);
-static quic_err_t quic_congestion_module_on_sent(quic_congestion_module_t *const module, const uint64_t num, const uint64_t sent_bytes, const bool retransmission);
+static quic_err_t quic_congestion_module_on_sent(quic_congestion_module_t *const module, const uint64_t num, const uint64_t sent_bytes, const bool included_unacked);
 static quic_err_t quic_congestion_module_on_lost(quic_congestion_module_t *const module, const uint64_t num, const uint64_t lost_bytes, const uint64_t unacked_bytes);
 static quic_err_t quic_congestion_module_update(quic_congestion_module_t *const module, const uint64_t recv_time, const uint64_t sent_time, const uint64_t delay);
 static bool quic_congestion_module_allow_send(quic_congestion_module_t *const module, const uint64_t unacked_bytes);
@@ -246,8 +246,8 @@ static inline uint64_t quic_congestion_cubic_on_lost(quic_congestion_cubic_t *co
     return cwnd * 7 / 10;
 }
 
-static quic_err_t quic_congestion_module_on_sent(quic_congestion_module_t *const module, const uint64_t num, const uint64_t sent_bytes, const bool retransmission) {
-    if (!retransmission) {
+static quic_err_t quic_congestion_module_on_sent(quic_congestion_module_t *const module, const uint64_t num, const uint64_t sent_bytes, const bool included_unacked) {
+    if (!included_unacked) {
         return quic_err_success;
     }
 
@@ -442,7 +442,11 @@ static uint64_t quic_congestion_module_next_send_time(quic_congestion_module_t *
 }
 
 quic_module_t quic_congestion_module = {
-    .module_size = sizeof(quic_congestion_module_t) + sizeof(quic_congestion_slowstart_t) + sizeof(quic_congestion_cubic_t),
+    .module_size = sizeof(quic_congestion_module_t)
+        + sizeof(quic_congestion_base_t)
+        + sizeof(quic_congestion_slowstart_t)
+        + sizeof(quic_congestion_cubic_t)
+        + sizeof(quic_congestion_prr_t),
     .init        = quic_congestion_module_init,
     .process     = NULL,
     .loop        = NULL,

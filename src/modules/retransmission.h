@@ -9,12 +9,13 @@
 #ifndef __OPENQUIC_RETRANSMISSION_H__
 #define __OPENQUIC_RETRANSMISSION_H__
 
-#include "module.h"
-#include "session.h"
 #include "format/frame.h"
 #include "utils/rbt.h"
 #include "utils/link.h"
 #include "recovery/rtt.h"
+#include "modules/congestion.h"
+#include "module.h"
+#include "session.h"
 
 typedef struct quic_sent_packet_rbt_s quic_sent_packet_rbt_t;
 struct quic_sent_packet_rbt_s {
@@ -61,36 +62,33 @@ quic_err_t quic_retransmission_module_find_newly_lost(quic_retransmission_module
 
 static inline quic_err_t quic_retransmission_update_alarm(quic_retransmission_module_t *const module) {
     quic_session_t *const session = quic_module_of_session(module);
+
     module->alarm = module->unacked_len && module->loss_time
         ? module->loss_time
         : module->last_sent_ack_time + quic_rtt_pto(&session->rtt, module->max_delay);
+
+    quic_session_update_loop_deadline(session, module->alarm);
     return quic_err_success;
 }
 
 static inline quic_err_t quic_retransmission_sent_mem_push(quic_retransmission_module_t *const module, quic_sent_packet_rbt_t *const pkt) {
-    quic_session_t *const session = quic_module_of_session(module);
     quic_sent_pkts_insert(&module->sent_mem, pkt);
     module->sent_pkt_count++;
 
     if (pkt->included_unacked) {
         module->last_sent_ack_time = pkt->sent_time;
         module->unacked_len += pkt->pkt_len;
-    }
 
-    quic_retransmission_update_alarm(module);
-    quic_session_update_loop_deadline(session, module->alarm);
+        quic_retransmission_update_alarm(module);
+    }
 
     return quic_err_success;
 }
 
 static inline quic_err_t quic_retransmission_on_lost(quic_retransmission_module_t *const module) {
-    quic_session_t *const session = quic_module_of_session(module);
-    if (module->unacked_len) {
+    if (module->loss_time) {
         quic_retransmission_module_find_newly_lost(module);
     }
-
-    quic_session_update_loop_deadline(session, module->alarm);
-
     return quic_err_success;
 }
 
@@ -138,27 +136,30 @@ static inline quic_err_t quic_retransmission_append_to_drop_queue(quic_retransmi
     return quic_err_success;
 }
 
-static inline quic_err_t quic_retransmission_process_newly_acked(quic_retransmission_module_t *const module, quic_sent_packet_rbt_t *const pkt) {
+static inline quic_err_t quic_retransmission_process_newly_acked(quic_retransmission_module_t *const module, quic_sent_packet_rbt_t *const pkt, const uint64_t event_time) {
+    quic_session_t *const session = quic_module_of_session(module);
+    quic_congestion_module_t *const c_module = quic_session_module(quic_congestion_module_t, session, quic_congestion_module);
+
     quic_retransmission_append_to_drop_queue(module, pkt);
 
     if (pkt->included_unacked) {
         module->unacked_len -= pkt->pkt_len;
-
-        // TODO update congestion status on packet acked
+        quic_congestion_on_acked(c_module, pkt->key, pkt->pkt_len, module->unacked_len, event_time);
     }
 
     return quic_err_success;
 }
 
 static inline quic_err_t quic_retransmission_process_newly_lost(quic_retransmission_module_t *const module, quic_sent_packet_rbt_t *const pkt) {
+    quic_session_t *const session = quic_module_of_session(module);
+    quic_congestion_module_t *const c_module = quic_session_module(quic_congestion_module_t, session, quic_congestion_module);
+
     quic_retransmission_append_to_drop_queue(module, pkt);
 
     if (pkt->included_unacked) {
         module->unacked_len -= pkt->pkt_len;
-
-        // TODO update congestion status on packet lost
+        quic_congestion_on_lost(c_module, pkt->key, pkt->pkt_len, module->unacked_len);
     }
-
 
     return quic_err_success;
 }
