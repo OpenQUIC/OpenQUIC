@@ -77,7 +77,7 @@ struct quic_congestion_prr_s {
 #define quic_congestion_prr(module) \
     ((quic_congestion_prr_t *) ((module)->instance + sizeof(quic_congestion_base_t) + sizeof(quic_congestion_slowstart_t) + sizeof(quic_congestion_cubic_t)))
 
-static inline quic_err_t quic_congestion_module_init(void *const module);
+static quic_err_t quic_congestion_module_init(void *const module);
 static quic_err_t quic_congestion_module_on_acked(quic_congestion_module_t *const module, const uint64_t num, const uint64_t acked_bytes, const uint64_t unacked_bytes, const uint64_t event_time);
 static quic_err_t quic_congestion_module_on_sent(quic_congestion_module_t *const module, const uint64_t num, const uint64_t sent_bytes, const bool included_unacked);
 static quic_err_t quic_congestion_module_on_lost(quic_congestion_module_t *const module, const uint64_t num, const uint64_t lost_bytes, const uint64_t unacked_bytes);

@@ -46,6 +46,11 @@ int main() {
     cfg.dst.buf = "1";
     cfg.dst.capa = 1;
     quic_buf_setpl(&cfg.dst);
+    cfg.disable_prr = false;
+    cfg.initial_cwnd = 1460;
+    cfg.min_cwnd = 1460;
+    cfg.max_cwnd = 10 * 1460;
+    cfg.slowstart_large_reduction = true;
 
 
     cfg.local_addr.v4.sin_addr.s_addr = inet_addr("127.0.0.1");
