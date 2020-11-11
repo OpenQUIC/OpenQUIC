@@ -63,11 +63,13 @@ quic_err_t quic_retransmission_module_find_newly_lost(quic_retransmission_module
 static inline quic_err_t quic_retransmission_update_alarm(quic_retransmission_module_t *const module) {
     quic_session_t *const session = quic_module_of_session(module);
 
+    // TODO last_sent_ack_time
     module->alarm = module->unacked_len && module->loss_time
         ? module->loss_time
         : module->last_sent_ack_time + quic_rtt_pto(&session->rtt, module->max_delay);
 
     quic_session_update_loop_deadline(session, module->alarm);
+
     return quic_err_success;
 }
 

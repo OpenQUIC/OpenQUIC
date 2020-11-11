@@ -109,8 +109,11 @@ static quic_err_t quic_retransmission_module_init(void *const module) {
 
 static quic_err_t quic_retransmission_module_loop(void *const module) {
     quic_session_t *const session = quic_module_of_session(module);
-
     quic_retransmission_module_t *const r_module = (quic_retransmission_module_t *) module;
+
+    if (r_module->alarm == 0) {
+        return quic_err_success;
+    }
 
     if (r_module->alarm > quic_now()) {
         quic_session_update_loop_deadline(session, r_module->alarm);
