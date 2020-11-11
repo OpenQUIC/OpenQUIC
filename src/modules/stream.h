@@ -12,8 +12,9 @@
 #include "def.h"
 #include "sorter.h"
 #include "session.h"
+#include "module.h"
+#include "modules/stream_flowctrl.h"
 #include "format/frame.h"
-#include "recovery/flowctrl.h"
 #include "utils/errno.h"
 #include "utils/rbt.h"
 #include "utils/link.h"
@@ -183,16 +184,16 @@ static inline quic_stream_t *quic_stream_create(sid, session, extends_size)
     quic_session_t *const session;
     const uint32_t extends_size; {
 
-    quic_stream_flowctrl_module_t *const flowctrl_module = quic_session_stream_flowctrl(session);
+    quic_stream_flowctrl_module_t *const f_module = quic_session_module(quic_stream_flowctrl_module_t, session, quic_stream_flowctrl_module);
 
-    quic_stream_t *str = malloc(sizeof(quic_stream_t) + flowctrl_module->size + extends_size);
+    quic_stream_t *str = malloc(sizeof(quic_stream_t) + f_module->module_size + extends_size);
     if (str == NULL) {
         return NULL;
     }
     quic_rbt_init(str);
     str->key = sid;
     str->session = session;
-    str->flowctrl_module = flowctrl_module;
+    str->flowctrl_module = f_module;
     quic_stream_flowctrl_init(str->flowctrl_module, quic_stream_extend_flowctrl(str));
 
     quic_send_stream_init(&str->send);
@@ -203,8 +204,8 @@ static inline quic_stream_t *quic_stream_create(sid, session, extends_size)
     return str;
 }
 
-static inline quic_err_t quic_stream_destory(quic_stream_t *const str, quic_session_t *const sess) {
-    quic_stream_flowctrl_module_t *const flowctrl_module = quic_session_stream_flowctrl(sess);
+static inline quic_err_t quic_stream_destory(quic_stream_t *const str, quic_session_t *const session) {
+    quic_stream_flowctrl_module_t *const flowctrl_module = quic_session_module(quic_stream_flowctrl_module_t, session, quic_stream_flowctrl_module);
 
     // TODO Make sure they're not running (writing or reading)
     quic_send_stream_destory(&str->send);

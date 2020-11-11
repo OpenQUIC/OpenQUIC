@@ -14,8 +14,7 @@
 #include "utils/errno.h"
 #include "utils/rbt.h"
 #include "format/frame.h"
-#include "recovery/rtt.h"
-#include "recovery/flowctrl.h"
+#include "rtt.h"
 #include "module.h"
 #include <stdbool.h>
 #include <sys/time.h>

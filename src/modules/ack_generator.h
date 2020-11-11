@@ -11,7 +11,7 @@
 
 #include "utils/link.h"
 #include "format/frame.h"
-#include "recovery/rtt.h"
+#include "rtt.h"
 #include "module.h"
 
 typedef struct quic_ack_generator_range_s quic_ack_generator_range_t;

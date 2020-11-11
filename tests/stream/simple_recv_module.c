@@ -4,17 +4,17 @@
 #include "modules/udp_fd.h"
 #include <arpa/inet.h>
 
-uint64_t get_swnd(quic_stream_flowctrl_t *const flowctrl) {
+uint64_t get_swnd(void *const flowctrl) {
     (void) flowctrl;
     return 13;
 }
 
-void sent(quic_stream_flowctrl_t *const flowctrl, const uint64_t bytes) {
+void sent(void *const flowctrl, const uint64_t bytes) {
     (void) flowctrl;
     (void) bytes;
 }
 
-void update_rwnd(quic_stream_flowctrl_t *const flowctrl, const uint64_t t_off, const bool fin) {
+void update_rwnd(void *const flowctrl, const uint64_t t_off, const bool fin) {
     (void) flowctrl;
     (void) t_off;
     (void) fin;

@@ -32,6 +32,8 @@ struct quic_buf_s {
 
 #define quic_buf_size(a) ((a)->last - (a)->pos)
 
+#define quic_buf_writed_len(a) ((a)->pos - (a)->buf)
+
 #define quic_buf_empty(a) (quic_buf_size(a) == 0)
 
 #define quic_buf_cmp(a, b) \
