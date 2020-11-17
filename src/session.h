@@ -44,6 +44,9 @@ struct quic_config_s {
     uint64_t max_cwnd;
     uint64_t min_cwnd;
     bool slowstart_large_reduction;
+
+    uint64_t stream_flowctrl_initial_rwnd;
+    uint64_t stream_flowctrl_initial_swnd;
 };
 
 typedef struct quic_session_s quic_session_t;

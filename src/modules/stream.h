@@ -36,22 +36,19 @@
 
 extern quic_module_t quic_stream_module;
 
-#define QUIC_SEND_STREAM_FIELDS       \
-    pthread_mutex_t mtx;              \
-    const void *reader_buf;           \
-    uint64_t reader_len;              \
-    uint64_t off;                     \
-                                      \
-    liteco_channel_t writed_notifier; \
-    uint64_t deadline;                \
-                                      \
-    bool sent_fin;                    \
-    bool closed;                      \
-    uint32_t unacked_frames_count;    \
-
 typedef struct quic_send_stream_s quic_send_stream_t;
 struct quic_send_stream_s {
-    QUIC_SEND_STREAM_FIELDS
+    pthread_mutex_t mtx;
+    const void *reader_buf;
+    uint64_t reader_len;
+    uint64_t off;
+
+    liteco_channel_t writed_notifier;
+    uint64_t deadline;
+
+    bool sent_fin;
+    bool closed;
+    uint32_t unacked_frames_count;
 };
 
 static inline quic_err_t quic_send_stream_init(quic_send_stream_t *const str) {
@@ -100,23 +97,21 @@ uint64_t quic_send_stream_write(quic_send_stream_t *const str, const void *data,
 
 quic_frame_stream_t *quic_send_stream_generate(quic_send_stream_t *const str, bool *const empty, uint64_t bytes, const bool fill);
 
-#define QUIC_RECV_STREAM_FIELDS        \
-    pthread_mutex_t mtx;               \
-    quic_sorter_t sorter;              \
-                                       \
-    liteco_channel_t handled_notifier; \
-                                       \
-    uint64_t read_off;                 \
-    uint64_t final_off;                \
-    bool fin_flag;                     \
-                                       \
-    uint64_t deadline;                 \
-                                       \
-    bool closed;                       \
 
 typedef struct quic_recv_stream_s quic_recv_stream_t;
 struct quic_recv_stream_s {
-    QUIC_RECV_STREAM_FIELDS
+    pthread_mutex_t mtx;
+    quic_sorter_t sorter;
+
+    liteco_channel_t handled_notifier;
+
+    uint64_t read_off;
+    uint64_t final_off;
+    bool fin_flag;
+
+    uint64_t deadline;
+
+    bool closed;
 };
 
 static inline quic_err_t quic_recv_stream_init(str)
@@ -211,9 +206,7 @@ static inline quic_err_t quic_stream_destory(quic_stream_t *const str, quic_sess
     quic_send_stream_destory(&str->send);
     quic_recv_stream_destory(&str->recv);
     
-    if (flowctrl_module->destory) {
-        flowctrl_module->destory(quic_stream_extend_flowctrl(str));
-    }
+    quic_stream_flowctrl_destory(flowctrl_module, quic_stream_extend_flowctrl(str));
 
     free(str);
 
@@ -461,7 +454,7 @@ static inline quic_err_t quic_recv_stream_handle_frame(quic_recv_stream_t *const
     bool fin = (frame->first_byte & quic_frame_stream_type_fin) == quic_frame_stream_type_fin;
     bool newly_fin = false;
 
-    flowctrl_module->update_rwnd(quic_stream_extend_flowctrl(quic_container_of_recv_stream(str)), t_off, fin);
+    quic_stream_flowctrl_update_rwnd(flowctrl_module, quic_stream_extend_flowctrl(p_str), t_off, fin);
 
     if (fin) {
         newly_fin = str->final_off == QUIC_SORTER_MAX_SIZE;
@@ -472,7 +465,7 @@ static inline quic_err_t quic_recv_stream_handle_frame(quic_recv_stream_t *const
     if (str->closed) {
         pthread_mutex_unlock(&str->mtx);
         if (newly_fin) {
-            flowctrl_module->abandon(quic_stream_extend_flowctrl(p_str));
+            quic_stream_flowctrl_abandon(flowctrl_module, quic_stream_extend_flowctrl(p_str));
             liteco_channel_send(&module->completed_speaker, &p_str->key);
 
             quic_module_activate(p_str->session, quic_stream_module);
@@ -508,10 +501,10 @@ end:
     liteco_channel_close(&str->handled_notifier);
 
     if (completed) {
-        flowctrl_module->abandon(quic_stream_extend_flowctrl(quic_container_of_recv_stream(str)));
+        quic_stream_flowctrl_abandon(flowctrl_module, quic_stream_extend_flowctrl(p_str));
         liteco_channel_send(&module->completed_speaker, &p_str->key);
 
-        quic_module_activate(quic_container_of_recv_stream(str)->session, quic_stream_module);
+        quic_module_activate(p_str->session, quic_stream_module);
     }
     return quic_err_success;
 }
