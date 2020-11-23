@@ -61,11 +61,15 @@
     (frame)->on_lost = NULL;           \
 }
 
-#define quic_frame_on_acked(frame)                   \
-    ((frame)->on_acked((frame)->acked_obj, (frame))) \
+#define quic_frame_on_acked(frame)                        \
+    if ((frame)->on_acked) {                              \
+        ((frame)->on_acked((frame)->acked_obj, (frame))); \
+    }
 
-#define quic_frame_on_lost(frame)                   \
-    ((frame)->on_lost((frame)->lost_obj, (frame)))  \
+#define quic_frame_on_lost(frame)                       \
+    if ((frame)->on_lost) {                             \
+        ((frame)->on_lost((frame)->lost_obj, (frame))); \
+    }
 
 typedef struct quic_frame_s quic_frame_t;
 struct quic_frame_s {
