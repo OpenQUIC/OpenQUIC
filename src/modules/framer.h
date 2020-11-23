@@ -50,9 +50,7 @@ struct quic_framer_module_s {
 
 
 static inline quic_err_t quic_framer_ctrl(quic_framer_module_t *const module, quic_frame_t *const frame) {
-    pthread_mutex_lock(&module->mtx);
     quic_link_insert_before(&module->ctrls, frame);
-    pthread_mutex_unlock(&module->mtx);
     return quic_err_success;
 }
 

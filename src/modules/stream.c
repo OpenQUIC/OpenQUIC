@@ -149,6 +149,7 @@ quic_frame_stream_t *quic_send_stream_generate(quic_send_stream_t *const str, bo
     frame->off = str->off;
     frame->len = payload_size;
 
+
     if (str->reader_len == 0) {
         *empty = true;
         if (str->closed && !str->sent_fin) {
