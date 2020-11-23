@@ -307,7 +307,7 @@ struct quic_stream_module_s {
 
     uint32_t extends_size;
 
-    // TODO mtx, because adjust 'rwnd' on the app size, but read 'rwnd' in the background
+    pthread_mutex_t rwnd_updated_mtx;
     quic_stream_rwnd_updated_sid_t *rwnd_updated;
 
     quic_err_t (*init) (quic_stream_t *const str);
@@ -315,6 +315,7 @@ struct quic_stream_module_s {
 };
 
 static inline quic_err_t quic_stream_module_update_rwnd(quic_stream_module_t *const module, const uint64_t sid) {
+    pthread_mutex_lock(&module->rwnd_updated_mtx);
     if (quic_rbt_is_nil(quic_stream_rwnd_updated_sid_find(module->rwnd_updated, sid))) {
         quic_stream_rwnd_updated_sid_t *updated_sid = malloc(sizeof(quic_stream_rwnd_updated_sid_t));
         quic_rbt_init(updated_sid);
@@ -322,6 +323,8 @@ static inline quic_err_t quic_stream_module_update_rwnd(quic_stream_module_t *co
 
         quic_stream_rwnd_updated_sid_insert(module->rwnd_updated, updated_sid);
     }
+    pthread_mutex_unlock(&module->rwnd_updated_mtx);
+
     return quic_err_success;
 }
 

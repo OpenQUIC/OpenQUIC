@@ -73,6 +73,24 @@ quic_err_t quic_retransmission_module_find_newly_lost(quic_retransmission_module
     return quic_err_success;
 }
 
+uint64_t quic_retransmission_append_frame(quic_link_t *const frames, const uint64_t capa, quic_retransmission_module_t *const module) {
+    uint64_t len = 0;
+    quic_frame_t *frame = NULL;
+
+    quic_link_foreach(frame, &module->retransmission_queue) {
+        len = quic_frame_size(frame);
+        if (len > capa) {
+            len = 0;
+            continue;
+        }
+        quic_link_remove(frame);
+        quic_link_insert_before(frames, frame);
+        break;
+    }
+
+    return len;
+}
+
 static quic_err_t quic_retransmission_sent_mem_drop_from_queue(quic_retransmission_module_t *const module, const uint8_t process_type) {
     while (!quic_link_empty(&module->droped_queue)) {
         quic_rbt_foreach_qnode_t *node = (quic_rbt_foreach_qnode_t *) quic_link_next(&module->droped_queue);
@@ -103,6 +121,8 @@ static quic_err_t quic_retransmission_module_init(void *const module) {
     quic_link_init(&r_module->droped_queue);
 
     r_module->alarm = 0;
+
+    quic_link_init(&r_module->retransmission_queue);
 
     return quic_err_success;
 }

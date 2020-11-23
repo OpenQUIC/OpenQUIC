@@ -51,6 +51,8 @@ struct quic_retransmission_module_s {
     quic_link_t droped_queue;
 
     uint64_t alarm;
+
+    quic_link_t retransmission_queue;
 };
 
 extern quic_module_t quic_initial_retransmission_module;
@@ -59,6 +61,12 @@ extern quic_module_t quic_app_retransmission_module;
 
 quic_err_t quic_retransmission_module_find_newly_acked(quic_retransmission_module_t *const module, const quic_frame_ack_t *const frame);
 quic_err_t quic_retransmission_module_find_newly_lost(quic_retransmission_module_t *const module);
+uint64_t quic_retransmission_append_frame(quic_link_t *const frames, const uint64_t capa, quic_retransmission_module_t *const module);
+
+static inline quic_err_t quic_retransmission_module_retransmission(quic_retransmission_module_t *const module, quic_frame_t *const frame) {
+    quic_link_insert_before(&module->retransmission_queue, frame);
+    return quic_err_success;
+}
 
 static inline quic_err_t quic_retransmission_update_alarm(quic_retransmission_module_t *const module) {
     quic_session_t *const session = quic_module_of_session(module);

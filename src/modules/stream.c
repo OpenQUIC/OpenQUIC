@@ -384,6 +384,7 @@ static quic_err_t quic_stream_module_init(void *const module) {
 
     stream_module->extends_size = 0;
 
+    pthread_mutex_init(&stream_module->rwnd_updated_mtx, NULL);
     quic_rbt_tree_init(stream_module->rwnd_updated);
 
     stream_module->init = NULL;
@@ -482,6 +483,8 @@ quic_err_t quic_stream_module_process_rwnd(quic_stream_module_t *const module) {
     quic_framer_module_t *const framer = quic_session_module(quic_framer_module_t, session, quic_framer_module);
 
     quic_stream_rwnd_updated_sid_t *sid = NULL;
+
+    pthread_mutex_lock(&module->rwnd_updated_mtx);
     while (quic_rbt_is_nil(module->rwnd_updated)) {
         sid = module->rwnd_updated;
         quic_stream_t *const str = quic_stream_module_recv_relation_stream(module, sid->key);
@@ -501,6 +504,7 @@ quic_err_t quic_stream_module_process_rwnd(quic_stream_module_t *const module) {
             }
         }
     }
+    pthread_mutex_unlock(&module->rwnd_updated_mtx);
 
     return quic_err_success;
 }

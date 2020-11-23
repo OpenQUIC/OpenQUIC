@@ -120,6 +120,17 @@ static quic_send_packet_t *quic_sender_pack_app_packet(quic_sender_module_t *con
     // generate ACK frame and serialize it
     frame_len = quic_ack_generator_append_ack_frame(&pkt->frames, &pkt->largest_ack, ag_module);
     max_bytes -= frame_len;
+
+    // serialize retransmission frames
+    for ( ;; ) {
+        frame_len = quic_retransmission_append_frame(&pkt->frames, max_bytes, pkt->retransmission_module);
+        max_bytes -= frame_len;
+        if (frame_len == 0) {
+            break;
+        }
+        pkt->included_unacked = true;
+    }
+
     // serialize ctrl frames
     for ( ;; ) {
         frame_len = quic_framer_append_ctrl_frame(&pkt->frames, max_bytes, framer);
@@ -131,7 +142,7 @@ static quic_send_packet_t *quic_sender_pack_app_packet(quic_sender_module_t *con
     }
     // serialize stream frames
     for ( ;; ) {
-        frame_len = quic_framer_append_stream_frame(&pkt->frames, max_bytes, false, framer);
+        frame_len = quic_framer_append_stream_frame(&pkt->frames, max_bytes, false, framer, pkt->retransmission_module);
         max_bytes -= frame_len;
         if (frame_len == 0) {
             break;

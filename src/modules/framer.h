@@ -10,6 +10,7 @@
 #define __OPENQUIC_FRAMER_H__
 
 #include "module.h"
+#include "modules/retransmission.h"
 #include "format/frame.h"
 #include "utils/rbt.h"
 #include "utils/link.h"
@@ -55,8 +56,7 @@ static inline quic_err_t quic_framer_ctrl(quic_framer_module_t *const module, qu
     return quic_err_success;
 }
 
-
-uint64_t quic_framer_append_stream_frame(quic_link_t *const frames, const uint64_t capa, const bool fill, quic_framer_module_t *const module);
+uint64_t quic_framer_append_stream_frame(quic_link_t *const frames, const uint64_t capa, const bool fill, quic_framer_module_t *const module, quic_retransmission_module_t *const retransmission_module);
 
 uint64_t quic_framer_append_ctrl_frame(quic_link_t *const frames, const uint64_t capa, quic_framer_module_t *const module);
 

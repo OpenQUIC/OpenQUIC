@@ -10,8 +10,9 @@
 #include "modules/stream.h"
 
 static quic_err_t quic_framer_module_init(void *const module);
+static quic_err_t quic_framer_stream_frame_on_lost(void *const lost_obj, const quic_frame_t *const frame);
 
-uint64_t quic_framer_append_stream_frame(quic_link_t *const frames, const uint64_t capa, const bool fill, quic_framer_module_t *const module) {
+uint64_t quic_framer_append_stream_frame(quic_link_t *const frames, const uint64_t capa, const bool fill, quic_framer_module_t *const module, quic_retransmission_module_t *const retransmission_module) {
     quic_session_t *const session = quic_module_of_session(module);
     quic_stream_module_t *const stream_module = quic_session_module(quic_stream_module_t, session, quic_stream_module);
 
@@ -35,6 +36,9 @@ uint64_t quic_framer_append_stream_frame(quic_link_t *const frames, const uint64
     if (frame == NULL) {
         goto remove;
     }
+    frame->lost_obj = retransmission_module;
+    frame->on_lost = quic_framer_stream_frame_on_lost;
+
     len = frame->len;
     quic_link_insert_before(frames, frame);
 
@@ -80,6 +84,13 @@ uint64_t quic_framer_append_ctrl_frame(quic_link_t *const frames, const uint64_t
     pthread_mutex_unlock(&module->mtx);
 
     return len;
+}
+
+static quic_err_t quic_framer_stream_frame_on_lost(void *const lost_obj, const quic_frame_t *const frame) {
+    quic_retransmission_module_t *const r_module = lost_obj;
+    quic_retransmission_module_retransmission(r_module, (quic_frame_t *) frame);
+
+    return quic_err_success;
 }
 
 static quic_err_t quic_framer_module_init(void *const module) {
