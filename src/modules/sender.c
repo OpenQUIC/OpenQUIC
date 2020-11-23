@@ -13,6 +13,7 @@
 #include "modules/udp_fd.h"
 #include "modules/ack_generator.h"
 #include "modules/congestion.h"
+#include "modules/stream.h"
 #include "format/header.h"
 #include "session.h"
 
@@ -93,6 +94,7 @@ static inline quic_err_t quic_sender_generate_short_header(quic_session_t *const
 
 static quic_send_packet_t *quic_sender_pack_app_packet(quic_sender_module_t *const sender) {
     quic_session_t *const session = quic_module_of_session(sender);
+    quic_stream_module_t *const stream_module = quic_session_module(quic_stream_module_t, session, quic_stream_module);
 
     quic_packet_number_generator_module_t *const numgen = quic_session_module(quic_packet_number_generator_module_t, session, quic_app_packet_number_generator_module);
     quic_framer_module_t *const framer = quic_session_module(quic_framer_module_t, session, quic_framer_module);
@@ -100,19 +102,25 @@ static quic_send_packet_t *quic_sender_pack_app_packet(quic_sender_module_t *con
 
     quic_frame_t *frame = NULL;
 
+    // generate max stream data
+    quic_stream_module_process_rwnd(stream_module);
+
+    // init send_pkt
     quic_send_packet_t *pkt = NULL;
     quic_send_packet_init(pkt, sender->mtu);
-
     pkt->retransmission_module = quic_session_module(quic_retransmission_module_t, session, quic_app_retransmission_module);
     pkt->num = numgen->next++;
 
+    // generate short header
     quic_sender_generate_short_header(session, pkt->num, &pkt->buf);
 
     uint32_t max_bytes = pkt->buf.capa - (pkt->buf.pos - pkt->buf.buf);
     uint32_t frame_len = 0;
 
+    // generate ACK frame and serialize it
     frame_len = quic_ack_generator_append_ack_frame(&pkt->frames, &pkt->largest_ack, ag_module);
     max_bytes -= frame_len;
+    // serialize ctrl frames
     for ( ;; ) {
         frame_len = quic_framer_append_ctrl_frame(&pkt->frames, max_bytes, framer);
         max_bytes -= frame_len;
@@ -121,6 +129,7 @@ static quic_send_packet_t *quic_sender_pack_app_packet(quic_sender_module_t *con
         }
         pkt->included_unacked = true;
     }
+    // serialize stream frames
     for ( ;; ) {
         frame_len = quic_framer_append_stream_frame(&pkt->frames, max_bytes, false, framer);
         max_bytes -= frame_len;
@@ -148,8 +157,8 @@ static quic_err_t quic_sender_module_init(void *const module) {
 
 static quic_err_t quic_sender_module_loop(void *const module) {
     quic_sender_module_t *const s_module = module;
-    quic_send_packet_t *pkt = NULL;
 
+    quic_send_packet_t *pkt = NULL;
     pkt = quic_sender_pack_app_packet(s_module);
 
     quic_sender_send_packet(s_module, pkt);

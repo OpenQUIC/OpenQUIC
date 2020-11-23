@@ -67,6 +67,7 @@ static int quic_session_background_co(void *const session_) {
     quic_session_t *const session = session_;
     const quic_module_t *active_module = NULL;
 
+    // event loop
     for ( ;; ) {
         active_module = NULL;
         liteco_recv((const void **) &active_module, NULL, __CURR_CO__->runtime, session->loop_deadline, &session->module_event_pipeline);

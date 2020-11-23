@@ -9,6 +9,7 @@
 #include "format/frame.h"
 #include "modules/stream.h"
 #include "modules/framer.h"
+#include "modules/stream_flowctrl.h"
 #include "utils/time.h"
 #include "utils/varint.h"
 #include "module.h"
@@ -383,6 +384,8 @@ static quic_err_t quic_stream_module_init(void *const module) {
 
     stream_module->extends_size = 0;
 
+    quic_rbt_tree_init(stream_module->rwnd_updated);
+
     stream_module->init = NULL;
     stream_module->destory = NULL;
 
@@ -474,6 +477,34 @@ static quic_err_t quic_session_stream_module_process(void *const module) {
     return quic_err_success;
 }
 
+quic_err_t quic_stream_module_process_rwnd(quic_stream_module_t *const module) {
+    quic_session_t *const session = quic_module_of_session(module);
+    quic_framer_module_t *const framer = quic_session_module(quic_framer_module_t, session, quic_framer_module);
+
+    quic_stream_rwnd_updated_sid_t *sid = NULL;
+    while (quic_rbt_is_nil(module->rwnd_updated)) {
+        sid = module->rwnd_updated;
+        quic_stream_t *const str = quic_stream_module_recv_relation_stream(module, sid->key);
+        quic_rbt_remove(&module->rwnd_updated, &sid);
+        free(sid);
+
+        if (str && !quic_rbt_is_nil(str)) {
+            quic_stream_flowctrl_t *const flowctrl = quic_stream_extend_flowctrl(str);
+
+            quic_frame_max_stream_data_t *frame = malloc(sizeof(quic_frame_max_stream_data_t));
+            if (frame) {
+                quic_frame_init(frame, quic_frame_max_stream_data_type);
+                frame->sid = str->key;
+                frame->max_data = flowctrl->rwnd;
+
+                quic_framer_ctrl(framer, (quic_frame_t *) frame);
+            }
+        }
+    }
+
+    return quic_err_success;
+}
+
 quic_module_t quic_stream_module = {
     .module_size = sizeof(quic_stream_module_t),
     .init        = quic_stream_module_init,
@@ -484,14 +515,28 @@ quic_module_t quic_stream_module = {
 
 quic_err_t quic_session_handle_stream_frame(quic_session_t *const session, const quic_frame_t *const frame) {
     quic_stream_module_t *module = quic_session_module(quic_stream_module_t, session, quic_stream_module);
-    const quic_frame_stream_t *const stream_frame = (const quic_frame_stream_t *) frame;
+    const quic_frame_stream_t *const s_frame = (const quic_frame_stream_t *) frame;
 
-    quic_stream_t *stream = quic_stream_module_recv_relation_stream(module, stream_frame->sid);
+    quic_stream_t *const stream = quic_stream_module_recv_relation_stream(module, s_frame->sid);
     if (stream == NULL || quic_rbt_is_nil(stream)) {
         return quic_err_success;
     }
 
-    quic_recv_stream_handle_frame(&stream->recv, stream_frame);
+    quic_recv_stream_handle_frame(&stream->recv, s_frame);
+
+    return quic_err_success;
+}
+
+quic_err_t quic_session_handle_max_stream_data_frame(quic_session_t *const session, const quic_frame_t *const frame) {
+    quic_stream_module_t *module = quic_session_module(quic_stream_module_t, session, quic_stream_module);
+    const quic_frame_max_stream_data_t *const md_frame = (const quic_frame_max_stream_data_t *) frame;
+
+    quic_stream_t *const stream = quic_stream_module_send_relation_stream(module, md_frame->sid);
+    if (stream == NULL || quic_rbt_is_nil(stream)) {
+        return quic_err_success;
+    }
+
+    quic_send_stream_handle_max_stream_data_frame(&stream->send, md_frame);
 
     return quic_err_success;
 }

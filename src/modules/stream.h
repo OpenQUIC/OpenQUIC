@@ -14,6 +14,7 @@
 #include "session.h"
 #include "module.h"
 #include "modules/stream_flowctrl.h"
+#include "modules/framer.h"
 #include "format/frame.h"
 #include "utils/errno.h"
 #include "utils/rbt.h"
@@ -215,7 +216,7 @@ static inline quic_err_t quic_stream_destory(quic_stream_t *const str, quic_sess
 
 #define QUIC_STREAMS_FIELDS \
     pthread_mutex_t mtx;    \
-    quic_rbt_t *streams;    \
+    quic_stream_t *streams; \
     uint32_t streams_count; \
 
 #define quic_streams_basic_init(strs) {     \
@@ -282,6 +283,17 @@ static inline quic_err_t quic_outuni_streams_init(quic_outuni_streams_t *const s
     return quic_err_success;
 }
 
+typedef struct quic_stream_rwnd_updated_sid_s quic_stream_rwnd_updated_sid_t;
+struct quic_stream_rwnd_updated_sid_s {
+    QUIC_RBT_UINT64_FIELDS
+};
+
+#define quic_stream_rwnd_updated_sid_find(set, key) \
+    ((quic_stream_rwnd_updated_sid_t *) quic_rbt_find((set), (key), quic_rbt_uint64_key_comparer))
+
+#define quic_stream_rwnd_updated_sid_insert(set, sid) \
+    quic_rbt_insert((set), (sid), quic_rbt_uint64_comparer); 
+
 typedef struct quic_stream_module_s quic_stream_module_t;
 struct quic_stream_module_s {
     QUIC_MODULE_FIELDS
@@ -295,9 +307,25 @@ struct quic_stream_module_s {
 
     uint32_t extends_size;
 
+    // TODO mtx, because adjust 'rwnd' on the app size, but read 'rwnd' in the background
+    quic_stream_rwnd_updated_sid_t *rwnd_updated;
+
     quic_err_t (*init) (quic_stream_t *const str);
     void (*destory) (quic_stream_t *const str);
 };
+
+static inline quic_err_t quic_stream_module_update_rwnd(quic_stream_module_t *const module, const uint64_t sid) {
+    if (quic_rbt_is_nil(quic_stream_rwnd_updated_sid_find(module->rwnd_updated, sid))) {
+        quic_stream_rwnd_updated_sid_t *updated_sid = malloc(sizeof(quic_stream_rwnd_updated_sid_t));
+        quic_rbt_init(updated_sid);
+        updated_sid->key = sid;
+
+        quic_stream_rwnd_updated_sid_insert(module->rwnd_updated, updated_sid);
+    }
+    return quic_err_success;
+}
+
+quic_err_t quic_stream_module_process_rwnd(quic_stream_module_t *const module);
 
 #define quic_stream_inuni_module(str) \
     ((quic_stream_module_t *) (((void *) (str)) - offsetof(quic_stream_module_t, inuni)))
@@ -512,6 +540,7 @@ end:
 static inline quic_err_t quic_send_stream_close(quic_send_stream_t *const str) {
     quic_stream_t *const p_str = quic_container_of_send_stream(str);
     quic_stream_module_t *const module = quic_session_module(quic_stream_module_t, p_str->session, quic_stream_module);
+    quic_framer_module_t *const framer_module = quic_session_module(quic_framer_module_t, p_str->session, quic_framer_module);
 
     pthread_mutex_lock(&str->mtx);
     if (str->closed) {
@@ -520,8 +549,26 @@ static inline quic_err_t quic_send_stream_close(quic_send_stream_t *const str) {
     }
     str->closed = true;
     pthread_mutex_unlock(&str->mtx);
-    liteco_channel_notify(&str->writed_notifier);
-    liteco_channel_send(&module->completed_speaker, &p_str->key);
+    quic_framer_add_active(framer_module, p_str->key); // send fin flag
+    liteco_channel_notify(&str->writed_notifier); // notify app writed
+    liteco_channel_send(&module->completed_speaker, &p_str->key); // destory stream instance
+
+    return quic_err_success;
+}
+
+static inline quic_err_t quic_send_stream_handle_max_stream_data_frame(quic_send_stream_t *const str, const quic_frame_max_stream_data_t *const frame) {
+    quic_stream_t *const p_str = quic_container_of_send_stream(str);
+    quic_stream_flowctrl_module_t *const f_module = quic_session_module(quic_stream_flowctrl_module_t, p_str->session, quic_stream_flowctrl_module);
+    quic_framer_module_t *const framer_module = quic_session_module(quic_framer_module_t, p_str->session, quic_framer_module);
+
+    pthread_mutex_lock(&str->mtx);
+    bool remain = str->reader_len != 0;
+    pthread_mutex_unlock(&str->mtx);
+
+    quic_stream_flowctrl_update_swnd(f_module, quic_stream_extend_flowctrl(p_str), frame->max_data);
+    if (remain) {
+        quic_framer_add_active(framer_module, p_str->key);
+    }
 
     return quic_err_success;
 }

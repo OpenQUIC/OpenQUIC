@@ -26,7 +26,7 @@ uint64_t quic_framer_append_stream_frame(quic_link_t *const frames, const uint64
     quic_link_remove(que_sid);
 
     quic_stream_t *const stream = quic_stream_module_send_relation_stream(stream_module, que_sid->sid);
-    if (stream == NULL) {
+    if (stream == NULL || quic_rbt_is_nil(stream)) {
         goto remove;
     }
 

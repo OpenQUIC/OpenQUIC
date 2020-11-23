@@ -57,6 +57,8 @@
     (frame)->first_byte = (type);      \
     (frame)->acked_obj = NULL;         \
     (frame)->on_acked = NULL;          \
+    (frame)->lost_obj = NULL;          \
+    (frame)->on_lost = NULL;           \
 }
 
 #define quic_frame_on_acked(frame)                   \
