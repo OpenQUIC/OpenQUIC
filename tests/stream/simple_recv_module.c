@@ -4,45 +4,6 @@
 #include "modules/udp_fd.h"
 #include <arpa/inet.h>
 
-uint64_t get_swnd(void *const flowctrl) {
-    (void) flowctrl;
-    return 13;
-}
-
-void sent(void *const flowctrl, const uint64_t bytes) {
-    (void) flowctrl;
-    (void) bytes;
-}
-
-void update_rwnd(void *const flowctrl, const uint64_t t_off, const bool fin) {
-    (void) flowctrl;
-    (void) t_off;
-    (void) fin;
-}
-
-quic_err_t quic_stream_flowctrl_module_init(void *const module) {
-    quic_stream_flowctrl_module_t *const ref = module;
-    ref->init = NULL;
-    ref->get_swnd = get_swnd;
-    ref->sent = sent;
-    ref->update_rwnd = update_rwnd;
-
-    return quic_err_success;
-}
-
-quic_module_t quic_stream_flowctrl_module = {
-    .module_size = sizeof(quic_stream_flowctrl_module_t),
-    .init        = quic_stream_flowctrl_module_init,
-    .destory     = NULL
-};
-
-quic_module_t quic_connection_flowctrl_module = {
-    .module_size = 0,
-    .init        = NULL,
-    .loop        = NULL,
-    .destory     = NULL
-};
-
 int main() {
     quic_config_t cfg = { };
     cfg.conn_len = 1;
