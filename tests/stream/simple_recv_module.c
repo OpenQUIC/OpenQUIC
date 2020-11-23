@@ -60,6 +60,10 @@ int main() {
     cfg.max_cwnd = 10 * 1460;
     cfg.slowstart_large_reduction = true;
 
+    cfg.stream_flowctrl_initial_rwnd = 1460;
+    cfg.stream_flowctrl_max_rwnd_size = 5 * 1460;
+    cfg.stream_flowctrl_initial_swnd = 1460;
+
     cfg.local_addr.v4.sin_addr.s_addr = inet_addr("127.0.0.1");
     cfg.remote_addr.v4.sin_addr.s_addr = inet_addr("127.0.0.1");
     cfg.local_addr.v4.sin_family = AF_INET;

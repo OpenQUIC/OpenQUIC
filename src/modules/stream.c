@@ -485,7 +485,7 @@ quic_err_t quic_stream_module_process_rwnd(quic_stream_module_t *const module) {
     quic_stream_rwnd_updated_sid_t *sid = NULL;
 
     pthread_mutex_lock(&module->rwnd_updated_mtx);
-    while (quic_rbt_is_nil(module->rwnd_updated)) {
+    while (!quic_rbt_is_nil(module->rwnd_updated)) {
         sid = module->rwnd_updated;
         quic_stream_t *const str = quic_stream_module_recv_relation_stream(module, sid->key);
         quic_rbt_remove(&module->rwnd_updated, &sid);

@@ -46,8 +46,8 @@ struct quic_config_s {
     bool slowstart_large_reduction;
 
     uint64_t stream_flowctrl_initial_rwnd;
-    uint64_t stream_flowctrl_initial_swnd;
     uint64_t stream_flowctrl_max_rwnd_size;
+    uint64_t stream_flowctrl_initial_swnd;
 };
 
 typedef struct quic_session_s quic_session_t;
