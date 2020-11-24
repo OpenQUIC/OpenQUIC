@@ -321,7 +321,7 @@ static inline quic_err_t quic_stream_module_update_rwnd(quic_stream_module_t *co
         quic_rbt_init(updated_sid);
         updated_sid->key = sid;
 
-        quic_stream_rwnd_updated_sid_insert(module->rwnd_updated, updated_sid);
+        quic_stream_rwnd_updated_sid_insert(&module->rwnd_updated, updated_sid);
     }
     pthread_mutex_unlock(&module->rwnd_updated_mtx);
 
@@ -430,7 +430,12 @@ static inline quic_stream_t *quic_stream_outbidi_open(quic_outbidi_streams_t *co
 }
 
 static inline quic_stream_t *quic_stream_inuni_open(quic_inuni_streams_t *const strs, const uint64_t sid) {
-    quic_stream_t *stream = NULL;
+    quic_stream_t *stream = quic_streams_find(strs->streams, &sid);
+    if (!quic_rbt_is_nil(stream)) {
+        return stream;
+    }
+
+    stream = NULL;
     quic_streams_open_and_notify_accept(strs, quic_stream_inuni_module, &sid, stream);
     return stream;
 }
@@ -438,7 +443,12 @@ static inline quic_stream_t *quic_stream_inuni_open(quic_inuni_streams_t *const 
 quic_stream_t *quic_stream_inuni_accept(quic_inuni_streams_t *const strs);
 
 static inline quic_stream_t *quic_stream_inbidi_open(quic_inbidi_streams_t *const strs, const uint64_t sid) {
-    quic_stream_t *stream = NULL;
+    quic_stream_t *stream = quic_streams_find(strs->streams, &sid);
+    if (!quic_rbt_is_nil(stream)) {
+        return stream;
+    }
+
+    stream = NULL;
     quic_streams_open_and_notify_accept(strs, quic_stream_inbidi_module, &sid, stream);
     return stream;
 }
@@ -554,6 +564,7 @@ static inline quic_err_t quic_send_stream_close(quic_send_stream_t *const str) {
     pthread_mutex_unlock(&str->mtx);
     quic_framer_add_active(framer_module, p_str->key); // send fin flag
     liteco_channel_notify(&str->writed_notifier); // notify app writed
+    // TODO should user destory
     liteco_channel_send(&module->completed_speaker, &p_str->key); // destory stream instance
 
     return quic_err_success;

@@ -60,9 +60,9 @@ extern quic_module_t quic_stream_flowctrl_module;
         (module)->sent((instance), (sent_bytes));               \
     }
 
-#define quic_stream_flowctrl_read(module, instance, readed_bytes) \
-    if ((module)->read) {                                         \
-        (module)->read((instance), (readed_bytes));               \
+#define quic_stream_flowctrl_read(module, instance, sid, readed_bytes) \
+    if ((module)->read) {                                              \
+        (module)->read((instance), (sid), (readed_bytes));             \
     }
 
 #define quic_stream_flowctrl_newly_blocked(module, limit, instance) \
