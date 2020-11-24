@@ -50,6 +50,10 @@ quic_err_t quic_sorter_destory(quic_sorter_t *const sorter) {
 }
 
 quic_err_t quic_sorter_write(quic_sorter_t *const sorter, uint64_t off, uint64_t len, const void *data) {
+    if (len == 0) {
+        return quic_err_success;
+    }
+
     quic_sorter_gap_t *start_gap = NULL;
     quic_sorter_gap_t *end_gap = NULL;
     uint64_t end = off + len - 1;
