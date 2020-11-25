@@ -442,6 +442,7 @@ static uint64_t quic_congestion_module_next_send_time(quic_congestion_module_t *
 }
 
 quic_module_t quic_congestion_module = {
+    .name        = "congestion",
     .module_size = sizeof(quic_congestion_module_t)
         + sizeof(quic_congestion_base_t)
         + sizeof(quic_congestion_slowstart_t)

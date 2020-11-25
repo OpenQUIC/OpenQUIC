@@ -33,7 +33,7 @@ static quic_send_packet_t *quic_sender_pack_app_packet(quic_sender_module_t *con
 static inline quic_err_t quic_sender_send_packet(quic_sender_module_t *const module, quic_send_packet_t *const pkt);
 
 static quic_err_t quic_sender_module_init(void *const module);
-static quic_err_t quic_sender_module_loop(void *const module);
+static quic_err_t quic_sender_module_loop(void *const module, const uint64_t now);
 
 static inline quic_err_t  quic_sender_generate_long_header(quic_session_t *const session, const uint8_t type, quic_buf_t *const buf) {
     quic_long_header_t *const header = buf->pos;
@@ -166,8 +166,14 @@ static quic_err_t quic_sender_module_init(void *const module) {
     return quic_err_success;
 }
 
-static quic_err_t quic_sender_module_loop(void *const module) {
+static quic_err_t quic_sender_module_loop(void *const module, const uint64_t now) {
     quic_sender_module_t *const s_module = module;
+    quic_session_t *const session = quic_module_of_session(s_module);
+
+    if (now < s_module->next_send_time) {
+        quic_session_update_loop_deadline(session, s_module->next_send_time);
+        return quic_err_success;
+    }
 
     quic_send_packet_t *pkt = NULL;
     pkt = quic_sender_pack_app_packet(s_module);
@@ -175,6 +181,7 @@ static quic_err_t quic_sender_module_loop(void *const module) {
     quic_sender_send_packet(s_module, pkt);
     free(pkt);
 
+    quic_session_update_loop_deadline(session, s_module->next_send_time);
     return quic_err_success;
 }
 
@@ -214,6 +221,7 @@ static inline quic_err_t quic_sender_send_packet(quic_sender_module_t *const mod
 }
 
 quic_module_t quic_sender_module = {
+    .name        = "sender",
     .module_size = sizeof(quic_sender_module_t),
     .init        = quic_sender_module_init,
     .process     = NULL,

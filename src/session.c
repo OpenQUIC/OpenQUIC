@@ -8,6 +8,7 @@
 
 #include "session.h"
 #include "module.h"
+#include "utils/time.h"
 #include <malloc.h>
 #include <arpa/inet.h>
 
@@ -81,9 +82,10 @@ static int quic_session_background_co(void *const session_) {
             void *module = quic_session_module(void, session, *active_module);
             quic_module_process(module);
         }
+        const uint64_t now = quic_now();
         for (i = 0; quic_modules[i]; i++) {
             void *module = quic_session_module(void, session, *quic_modules[i]);
-            quic_module_loop(module);
+            quic_module_loop(module, now);
         }
     }
 

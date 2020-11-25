@@ -101,7 +101,7 @@ static int quic_send_stream_write_co(void *const args) {
             notified = true;
         }
 
-        liteco_recv(NULL, NULL, &__stream_runtime, str->deadline, &str->writed_notifier);
+        liteco_recv(NULL, NULL, &__stream_runtime, str->deadline, &str->sent_segment_notifier);
         pthread_mutex_lock(&str->mtx);
 
         write_args->writed_len = len - str->reader_len;
@@ -115,16 +115,36 @@ static int quic_send_stream_write_co(void *const args) {
 }
 
 quic_frame_stream_t *quic_send_stream_generate(quic_send_stream_t *const str, bool *const empty, uint64_t bytes, const bool fill) {
+#define this_functor_check_should_send_fin (str->closed && !str->sent_fin)
+
     quic_stream_t *const p_str = quic_container_of_send_stream(str);
     quic_stream_flowctrl_module_t *const flowctrl_module = p_str->flowctrl_module;
     quic_framer_module_t *const framer = quic_session_module(quic_framer_module_t, p_str->session, quic_framer_module);
     *empty = false;
 
     pthread_mutex_lock(&str->mtx);
+
     uint64_t payload_size = quic_stream_flowctrl_get_swnd(flowctrl_module, quic_stream_extend_flowctrl(p_str));
     if (str->reader_len < payload_size) {
         payload_size = str->reader_len;
     }
+    if (payload_size == 0 && !str->closed) {
+        uint64_t max_data = 0;
+        if (quic_stream_flowctrl_newly_blocked(flowctrl_module, &max_data, quic_stream_extend_flowctrl(p_str))) {
+            quic_frame_stream_data_blocked_t *blocked_frame = malloc(sizeof(quic_frame_stream_data_blocked_t));
+            if (blocked_frame) {
+                quic_frame_init(blocked_frame, quic_frame_stream_data_blocked_type);
+                blocked_frame->sid = p_str->key;
+                blocked_frame->max_data = max_data;
+
+                quic_framer_ctrl(framer, (quic_frame_t *) blocked_frame);
+            }
+        }
+
+        pthread_mutex_unlock(&str->mtx);
+        return NULL;
+    }
+
     uint64_t payload_capa = quic_stream_frame_capacity(bytes, p_str->key, str->off, fill, payload_size);
     if (payload_capa < payload_size) {
         payload_size = payload_capa;
@@ -151,22 +171,9 @@ quic_frame_stream_t *quic_send_stream_generate(quic_send_stream_t *const str, bo
 
     if (str->reader_len == 0) {
         *empty = true;
-        if (str->closed && !str->sent_fin) {
+        if (this_functor_check_should_send_fin) {
             frame->first_byte |= quic_frame_stream_type_fin;
             str->sent_fin = true;
-        }
-    }
-    else if (payload_size == 0 && !str->closed) {
-        uint64_t max_data = 0;
-        if (quic_stream_flowctrl_newly_blocked(flowctrl_module, &max_data, quic_stream_extend_flowctrl(p_str))) {
-            quic_frame_stream_data_blocked_t *blocked_frame = malloc(sizeof(quic_frame_stream_data_blocked_t));
-            if (blocked_frame) {
-                quic_frame_init(blocked_frame, quic_frame_stream_data_blocked_type);
-                blocked_frame->sid = p_str->key;
-                blocked_frame->max_data = max_data;
-
-                quic_framer_ctrl(framer, (quic_frame_t *) blocked_frame);
-            }
         }
     }
     else {
@@ -179,10 +186,10 @@ quic_frame_stream_t *quic_send_stream_generate(quic_send_stream_t *const str, bo
         if (str->reader_len == 0) {
             *empty = true;
             pthread_mutex_unlock(&str->mtx);
-            liteco_channel_notify(&str->writed_notifier);
+            liteco_channel_notify(&str->sent_segment_notifier);
             pthread_mutex_lock(&str->mtx);
         }
-        if (str->closed && str->reader_len != 0 && !str->sent_fin) {
+        if (str->reader_len != 0 && this_functor_check_should_send_fin) {
             *empty = true;
             frame->first_byte |= quic_frame_stream_type_fin;
             str->sent_fin = true;
@@ -193,6 +200,8 @@ quic_frame_stream_t *quic_send_stream_generate(quic_send_stream_t *const str, bo
     pthread_mutex_unlock(&str->mtx);
 
     return frame;
+
+#undef this_functor_check_should_send_fin
 }
 
 static inline uint64_t quic_stream_frame_capacity(const uint64_t max_bytes,
@@ -513,6 +522,7 @@ quic_err_t quic_stream_module_process_rwnd(quic_stream_module_t *const module) {
 }
 
 quic_module_t quic_stream_module = {
+    .name        = "stream",
     .module_size = sizeof(quic_stream_module_t),
     .init        = quic_stream_module_init,
     .process     = quic_session_stream_module_process,

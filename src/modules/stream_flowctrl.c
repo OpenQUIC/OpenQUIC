@@ -7,6 +7,7 @@
  */
 
 #include "modules/stream_flowctrl.h"
+#include "modules/conn_flowctrl.h"
 #include "modules/framer.h"
 #include "modules/stream.h"
 #include "utils/time.h"
@@ -66,6 +67,8 @@ static quic_err_t quic_stream_flowctrl_instance_init(quic_stream_flowctrl_module
 
 static void quic_stream_flowctrl_instance_update_rwnd(void *const instance, const uint64_t off, const bool fin) {
     quic_stream_flowctrl_t *const flowctrl = instance;
+    quic_session_t *const session = quic_module_of_session(flowctrl->module);
+    quic_conn_flowctrl_module_t *const cf_module = quic_session_module(quic_conn_flowctrl_module_t, session, quic_conn_flowctrl_module);
 
     if (flowctrl->fin_flag && ((fin && off != flowctrl->recv_off) || off > flowctrl->recv_off)) {
         return;
@@ -75,25 +78,26 @@ static void quic_stream_flowctrl_instance_update_rwnd(void *const instance, cons
         return;
     }
 
+    quic_conn_flowctrl_increment_recv(cf_module, off - flowctrl->recv_off);
     flowctrl->recv_off = off;
-
-    // TODO influence connection flowctrl
 }
 
 static void quic_stream_flowctrl_instance_update_swnd(void *const instance, const uint64_t off) {
     quic_stream_flowctrl_t *const flowctrl = instance;
 
     if (off > flowctrl->swnd) {
-        flowctrl->swnd= off;
+        flowctrl->swnd = off;
     }
 }
 
 static void quic_stream_flowctrl_instance_abandon(void *const instance) {
     quic_stream_flowctrl_t *const flowctrl = instance;
+    quic_session_t *const session = quic_module_of_session(flowctrl->module);
+    quic_conn_flowctrl_module_t *const cf_module = quic_session_module(quic_conn_flowctrl_module_t, session, quic_conn_flowctrl_module);
 
     uint64_t unread_bytes = flowctrl->recv_off - flowctrl->read_off;
     if (unread_bytes > 0) {
-        // TODO mark conn flowctrl read
+        quic_conn_flowctrl_read(cf_module, unread_bytes);
     }
 }
 
@@ -104,6 +108,7 @@ static uint64_t quic_stream_flowctrl_instance_get_swnd(void *const instance) {
         return 0;
     }
 
+    // TODO conn swnd
     return flowctrl->swnd - flowctrl->sent_bytes;
 }
 
@@ -117,6 +122,7 @@ static void quic_stream_flowctrl_instance_read(void *const instance, const uint6
     quic_stream_flowctrl_t *const flowctrl = instance;
     quic_session_t *const session = quic_module_of_session(flowctrl->module);
     quic_stream_module_t *const s_module = quic_session_module(quic_stream_module_t, session, quic_stream_module);
+    quic_conn_flowctrl_module_t *const cf_module = quic_session_module(quic_conn_flowctrl_module_t, session, quic_conn_flowctrl_module);
 
     if (!flowctrl->read_off) {
         flowctrl->epoch_off = 0;
@@ -129,7 +135,7 @@ static void quic_stream_flowctrl_instance_read(void *const instance, const uint6
         quic_stream_module_update_rwnd(s_module, sid);
     }
 
-    // TODO conn flowctrl read
+    quic_conn_flowctrl_read(cf_module, readed_bytes);
 }
 
 static bool quic_stream_flowctrl_instance_newly_blocked(uint64_t *const limit, void *const instance) {
@@ -146,6 +152,7 @@ static bool quic_stream_flowctrl_instance_newly_blocked(uint64_t *const limit, v
 
 static inline void quic_stream_flowctrl_adjust_rwnd(quic_stream_flowctrl_t *const flowctrl) {
     quic_session_t *const session = quic_module_of_session(flowctrl->module);
+    quic_conn_flowctrl_module_t *const cf_module = quic_session_module(quic_conn_flowctrl_module_t, session, quic_conn_flowctrl_module);
 
     uint64_t in_epoch_readed_bytes = flowctrl->read_off - flowctrl->epoch_off;
     if (in_epoch_readed_bytes <= (flowctrl->rwnd_size >> 1) || !session->rtt.smoothed_rtt) {
@@ -158,7 +165,7 @@ static inline void quic_stream_flowctrl_adjust_rwnd(quic_stream_flowctrl_t *cons
         flowctrl->rwnd_size = (flowctrl->rwnd_size >> 1) > session->cfg.stream_flowctrl_max_rwnd_size ? session->cfg.stream_flowctrl_max_rwnd_size : (flowctrl->rwnd_size >> 1);
 
         if (prev_rwnd_size < flowctrl->rwnd_size) {
-            // TODO update conn flowctrl rwnd
+            quic_conn_flowctrl_ensure_min_rwnd_size(cf_module, flowctrl->rwnd_size * 3 >> 2);
         }
     }
 
@@ -169,6 +176,7 @@ static inline void quic_stream_flowctrl_adjust_rwnd(quic_stream_flowctrl_t *cons
 }
 
 quic_module_t quic_stream_flowctrl_module = {
+    .name        = "stream_flowctrl",
     .module_size = sizeof(quic_stream_flowctrl_module_t),
     .init        = quic_stream_flowctrl_module_init,
     .process     = NULL,

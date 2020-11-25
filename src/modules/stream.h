@@ -44,7 +44,7 @@ struct quic_send_stream_s {
     uint64_t reader_len;
     uint64_t off;
 
-    liteco_channel_t writed_notifier;
+    liteco_channel_t sent_segment_notifier;
     uint64_t deadline;
 
     bool sent_fin;
@@ -59,7 +59,7 @@ static inline quic_err_t quic_send_stream_init(quic_send_stream_t *const str) {
     str->reader_len = 0;
     str->off = 0;
 
-    liteco_channel_init(&str->writed_notifier);
+    liteco_channel_init(&str->sent_segment_notifier);
     str->deadline = 0;
 
     str->sent_fin = false;
@@ -71,7 +71,7 @@ static inline quic_err_t quic_send_stream_init(quic_send_stream_t *const str) {
 }
 
 static inline quic_err_t quic_send_stream_destory(quic_send_stream_t *const str) {
-    liteco_channel_close(&str->writed_notifier);
+    liteco_channel_close(&str->sent_segment_notifier);
     pthread_mutex_destroy(&str->mtx);
 
     free(str);
@@ -90,7 +90,7 @@ static inline quic_err_t quic_send_stream_set_deadline(quic_send_stream_t *const
     pthread_mutex_lock(&str->mtx);
     str->deadline = deadline;
     pthread_mutex_unlock(&str->mtx);
-    liteco_channel_notify(&str->writed_notifier);
+    liteco_channel_notify(&str->sent_segment_notifier);
     return quic_err_success;
 }
 
@@ -563,7 +563,7 @@ static inline quic_err_t quic_send_stream_close(quic_send_stream_t *const str) {
     str->closed = true;
     pthread_mutex_unlock(&str->mtx);
     quic_framer_add_active(framer_module, p_str->key); // send fin flag
-    liteco_channel_notify(&str->writed_notifier); // notify app writed
+    liteco_channel_notify(&str->sent_segment_notifier); // notify app writed
     // TODO should user destory
     liteco_channel_send(&module->completed_speaker, &p_str->key); // destory stream instance
 

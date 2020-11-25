@@ -168,6 +168,7 @@ static quic_err_t quic_recver_module_process(void *const module) {
 }
 
 quic_module_t quic_recver_module = {
+    .name        = "recver",
     .module_size = sizeof(quic_recver_module_t),
     .init        = quic_recver_module_init,
     .process     = quic_recver_module_process,

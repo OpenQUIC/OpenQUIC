@@ -17,11 +17,12 @@ typedef struct quic_session_s quic_session_t;
 
 typedef struct quic_module_s quic_module_t;
 struct quic_module_s {
+    const char *name;
     const uint32_t module_size;
     quic_err_t (*init) (void *const module);
     quic_err_t (*process) (void *const module);
     quic_err_t (*destory) (void *const module);
-    quic_err_t (*loop) (void *const module);
+    quic_err_t (*loop) (void *const module, const uint64_t now);
 
     uint32_t off;
 };
@@ -44,9 +45,9 @@ struct quic_base_module_s {
         ((quic_base_module_t *) (module))->module_declare->process((module)); \
     }
 
-#define quic_module_loop(module)                                           \
-    if (((quic_base_module_t *) (module))->module_declare->loop) {         \
-        ((quic_base_module_t *) (module))->module_declare->loop((module)); \
+#define quic_module_loop(module, now)                                             \
+    if (((quic_base_module_t *) (module))->module_declare->loop) {                \
+        ((quic_base_module_t *) (module))->module_declare->loop((module), (now)); \
     }
 
 #define quic_module_destory(module)                                           \

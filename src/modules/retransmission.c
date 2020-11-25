@@ -13,7 +13,7 @@
 #include "session.h"
 
 static quic_err_t quic_retransmission_module_init(void *const module);
-static quic_err_t quic_retransmission_module_loop(void *const module);
+static quic_err_t quic_retransmission_module_loop(void *const module, const uint64_t now);
 
 static quic_err_t quic_retransmission_sent_mem_drop_from_queue(quic_retransmission_module_t *const module, const uint8_t process_type);
 
@@ -127,15 +127,14 @@ static quic_err_t quic_retransmission_module_init(void *const module) {
     return quic_err_success;
 }
 
-static quic_err_t quic_retransmission_module_loop(void *const module) {
+static quic_err_t quic_retransmission_module_loop(void *const module, const uint64_t now) {
     quic_session_t *const session = quic_module_of_session(module);
     quic_retransmission_module_t *const r_module = (quic_retransmission_module_t *) module;
 
     if (r_module->alarm == 0) {
         return quic_err_success;
     }
-
-    if (r_module->alarm > quic_now()) {
+    if (now < r_module->alarm) {
         quic_session_update_loop_deadline(session, r_module->alarm);
         return quic_err_success;
     }
@@ -150,6 +149,7 @@ static quic_err_t quic_retransmission_module_loop(void *const module) {
 }
 
 quic_module_t quic_initial_retransmission_module = {
+    .name        = "initial_retransmission",
     .module_size = sizeof(quic_retransmission_module_t),
     .init        = quic_retransmission_module_init,
     .process     = NULL,
@@ -158,6 +158,7 @@ quic_module_t quic_initial_retransmission_module = {
 };
 
 quic_module_t quic_handshake_retransmission_module = {
+    .name        = "handshake_retransmission",
     .module_size = sizeof(quic_retransmission_module_t),
     .init        = quic_retransmission_module_init,
     .process     = NULL,
@@ -166,6 +167,7 @@ quic_module_t quic_handshake_retransmission_module = {
 };
 
 quic_module_t quic_app_retransmission_module = {
+    .name        = "app_retransmission",
     .module_size = sizeof(quic_retransmission_module_t),
     .init        = quic_retransmission_module_init,
     .process     = NULL,

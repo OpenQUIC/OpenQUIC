@@ -17,13 +17,14 @@ uint64_t quic_framer_append_stream_frame(quic_link_t *const frames, const uint64
     quic_stream_module_t *const stream_module = quic_session_module(quic_stream_module_t, session, quic_stream_module);
 
     uint64_t len = 0;
+    quic_framer_que_sid_t *que_sid = NULL;
     pthread_mutex_lock(&module->mtx);
 
     if (quic_rbt_is_nil(module->active_set)) {
         goto finished;
     }
 
-    quic_framer_que_sid_t *que_sid = (quic_framer_que_sid_t *) quic_link_next(&module->active_queue);
+    que_sid = (quic_framer_que_sid_t *) quic_link_next(&module->active_queue);
     quic_link_remove(que_sid);
 
     quic_stream_t *const stream = quic_stream_module_send_relation_stream(stream_module, que_sid->sid);
@@ -34,7 +35,7 @@ uint64_t quic_framer_append_stream_frame(quic_link_t *const frames, const uint64
     bool empty = false;
     quic_frame_stream_t *frame = quic_send_stream_generate(&stream->send, &empty, capa, fill);
     if (frame == NULL) {
-        goto remove;
+        goto finished;
     }
     frame->lost_obj = retransmission_module;
     frame->on_lost = quic_framer_stream_frame_on_lost;
@@ -45,10 +46,6 @@ uint64_t quic_framer_append_stream_frame(quic_link_t *const frames, const uint64
     if (empty) {
         goto remove;
     }
-    else {
-        quic_link_insert_before(&module->active_queue, que_sid);
-    }
-
     goto finished;
 
 remove:
@@ -63,6 +60,9 @@ remove:
     }
 
 finished:
+    if (que_sid != NULL) {
+        quic_link_insert_before(&module->active_queue, que_sid);
+    }
     pthread_mutex_unlock(&module->mtx);
     return len;
 }
@@ -105,6 +105,7 @@ static quic_err_t quic_framer_module_init(void *const module) {
 }
 
 quic_module_t quic_framer_module = {
+    .name        = "framer",
     .module_size = sizeof(quic_framer_module_t),
     .init        = quic_framer_module_init,
     .process     = NULL,

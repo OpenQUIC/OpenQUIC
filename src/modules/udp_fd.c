@@ -31,6 +31,7 @@ static quic_err_t quic_udp_fd_module_init(void *const module) {
 }
 
 quic_module_t quic_udp_fd_module = {
+    .name        = "udp_fd",
     .module_size = sizeof(quic_udp_fd_module_t),
     .init        = quic_udp_fd_module_init,
     .process     = NULL,

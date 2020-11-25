@@ -188,6 +188,7 @@ static quic_err_t quic_ack_generator_init(void *const module) {
 }
 
 quic_module_t quic_initial_ack_generator_module = {
+    .name        = "initial_ack_generator",
     .module_size = sizeof(quic_ack_generator_module_t),
     .init        = quic_ack_generator_init,
     .process     = NULL,
@@ -196,6 +197,7 @@ quic_module_t quic_initial_ack_generator_module = {
 };
 
 quic_module_t quic_handshake_ack_generator_module = {
+    .name        = "handshake_ack_generator",
     .module_size = sizeof(quic_ack_generator_module_t),
     .init        = quic_ack_generator_init,
     .process     = NULL,
@@ -204,6 +206,7 @@ quic_module_t quic_handshake_ack_generator_module = {
 };
 
 quic_module_t quic_app_ack_generator_module = {
+    .name        = "app_ack_generator",
     .module_size = sizeof(quic_ack_generator_module_t),
     .init        = quic_ack_generator_init,
     .process     = NULL,
