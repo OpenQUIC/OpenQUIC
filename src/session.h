@@ -81,9 +81,9 @@ struct quic_session_s {
 #define quic_session_reset_loop_deadline(session) \
     (session)->loop_deadline = 0;
 
-#define quic_session_update_loop_deadline(session, deadline)                  \
-    if (!(session)->loop_deadline || (deadline) < (session)->loop_deadline) { \
-        (session)->loop_deadline = (deadline);                                \
+#define quic_session_update_loop_deadline(session, deadline)                                       \
+    if ((!(session)->loop_deadline || (deadline) < (session)->loop_deadline) && (deadline) != 0) { \
+        (session)->loop_deadline = (deadline);                                                     \
     }
 
 quic_session_t *quic_session_create(const quic_config_t cfg);
