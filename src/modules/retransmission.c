@@ -142,7 +142,6 @@ static quic_err_t quic_retransmission_module_loop(void *const module, const uint
     if (r_module->unacked_len) {
         quic_retransmission_module_find_newly_lost(r_module);
     }
-
     quic_retransmission_update_alarm(r_module);
 
     return quic_err_success;
