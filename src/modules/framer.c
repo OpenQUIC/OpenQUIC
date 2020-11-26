@@ -40,7 +40,7 @@ uint64_t quic_framer_append_stream_frame(quic_link_t *const frames, const uint64
     frame->lost_obj = retransmission_module;
     frame->on_lost = quic_framer_stream_frame_on_lost;
 
-    len = frame->len;
+    len = quic_frame_size(frame);
     quic_link_insert_before(frames, frame);
 
     if (empty) {
