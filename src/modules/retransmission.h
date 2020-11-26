@@ -110,6 +110,7 @@ static inline quic_err_t quic_retransmission_on_lost(quic_retransmission_module_
 
 static inline quic_err_t quic_retransmission_sent_mem_drop(quic_retransmission_module_t *const module, quic_sent_packet_rbt_t *pkt, const uint8_t process_type) {
     quic_rbt_remove(&module->sent_mem, &pkt);
+
     while (!quic_link_empty(&pkt->frames)) {
         quic_frame_t *frame = (quic_frame_t *) quic_link_next(&pkt->frames);
         quic_link_remove(frame);
@@ -143,6 +144,8 @@ static inline quic_err_t quic_retransmission_append_to_drop_queue(quic_retransmi
     if (node == NULL) {
         return quic_err_internal_error;
     }
+    quic_link_init(node);
+
     node->node = (quic_rbt_t *) pkt;
     quic_link_insert_after(&module->droped_queue, node);
 
@@ -154,6 +157,7 @@ static inline quic_err_t quic_retransmission_process_newly_acked(quic_retransmis
     quic_congestion_module_t *const c_module = quic_session_module(quic_congestion_module_t, session, quic_congestion_module);
 
     quic_retransmission_append_to_drop_queue(module, pkt);
+    module->sent_pkt_count--;
 
     if (pkt->included_unacked) {
         module->unacked_len -= pkt->pkt_len;
@@ -168,6 +172,7 @@ static inline quic_err_t quic_retransmission_process_newly_lost(quic_retransmiss
     quic_congestion_module_t *const c_module = quic_session_module(quic_congestion_module_t, session, quic_congestion_module);
 
     quic_retransmission_append_to_drop_queue(module, pkt);
+    module->sent_pkt_count--;
 
     if (pkt->included_unacked) {
         module->unacked_len -= pkt->pkt_len;
