@@ -47,9 +47,10 @@ struct quic_congestion_module_s {
     }
 
 #define quic_congestion_next_send_time(module, unacked_bytes) \
-    if ((module)->next_send_time) {                           \
-        (module)->next_send_time((module), (unacked_bytes));  \
-    }
+    ((module)->next_send_time ? (module)->next_send_time((module), (unacked_bytes)) : 0)
+
+#define quic_congestion_allow_send(module, unacked_bytes) \
+    ((module)->allow_send ? (module)->allow_send((module), (unacked_bytes)) : false)
 
 extern quic_module_t quic_congestion_module;
 
