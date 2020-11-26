@@ -169,9 +169,24 @@ static quic_err_t quic_sender_module_init(void *const module) {
 static quic_err_t quic_sender_module_loop(void *const module, const uint64_t now) {
     quic_sender_module_t *const s_module = module;
     quic_session_t *const session = quic_module_of_session(s_module);
+    quic_retransmission_module_t *const app_r_module = quic_session_module(quic_retransmission_module_t, session, quic_app_retransmission_module);
+    quic_retransmission_module_t *const hs_r_module = quic_session_module(quic_retransmission_module_t, session, quic_handshake_retransmission_module);
+    quic_retransmission_module_t *const init_r_module = quic_session_module(quic_retransmission_module_t, session, quic_initial_retransmission_module);
+    quic_congestion_module_t *const c_module = quic_session_module(quic_congestion_module_t, session, quic_congestion_module);
 
     if (now < s_module->next_send_time) {
         quic_session_update_loop_deadline(session, s_module->next_send_time);
+        return quic_err_success;
+    }
+
+    uint64_t unacked_pkt_count = app_r_module->sent_pkt_count + hs_r_module->sent_pkt_count + init_r_module->sent_pkt_count;
+    if (unacked_pkt_count >= (25000 >> 2)) {
+        return quic_err_success;
+    }
+    // TODO probe pkt (on lost)
+    uint64_t unacked_bytes = app_r_module->unacked_len + hs_r_module->unacked_len + init_r_module->unacked_len;
+    if (!quic_congestion_allow_send(c_module, unacked_bytes) || unacked_pkt_count >= 20000) {
+        // TODO send ACK
         return quic_err_success;
     }
 
@@ -210,7 +225,7 @@ static inline quic_err_t quic_sender_send_packet(quic_sender_module_t *const mod
         quic_congestion_on_sent(c_module, sent_pkt->key, sent_pkt->pkt_len, sent_pkt->included_unacked);
 
         module->next_send_time = (module->next_send_time > sent_pkt->sent_time ? module->next_send_time : sent_pkt->sent_time)
-            + (c_module->next_send_time ? c_module->next_send_time(c_module, pkt->retransmission_module->unacked_len) : 0);
+            + quic_congestion_next_send_time(c_module, pkt->retransmission_module->unacked_len);
 
         quic_session_update_loop_deadline(session, module->next_send_time);
     }
