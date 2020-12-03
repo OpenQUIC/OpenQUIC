@@ -26,6 +26,8 @@ quic_session_t *quic_session_create(const quic_config_t cfg) {
     session->dst.buf = NULL;
     quic_rtt_init(&session->rtt);
 
+    session->key.ref = false;
+    session->key.buf = NULL;
     quic_buf_copy(&session->key, &cfg.src);
     session->cfg = cfg;
     session->loop_deadline = 0;
@@ -48,9 +50,9 @@ quic_session_t *quic_session_create(const quic_config_t cfg) {
 static void *quic_session_background(void *const session_) {
     liteco_runtime_t rt;
     liteco_runtime_init(&rt);
-    uint8_t stack[4096];
+    uint8_t stack[LITECO_DEFAULT_STACK_SIZE] = { 0 };
 
-    liteco_coroutine_t co;
+    liteco_coroutine_t co = { };
     liteco_create(&co, stack, sizeof(stack), quic_session_background_co, session_, NULL);
     liteco_runtime_join(&rt, &co);
 
