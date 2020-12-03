@@ -56,6 +56,7 @@ remove:
         quic_rbt_remove(&module->active_set, &rm_set_node);
 
         free(que_sid);
+        que_sid = NULL;
         free(rm_set_node);
     }
 
