@@ -21,7 +21,7 @@
     quic_rbt_t *rb_p;        \
     quic_rbt_t *rb_r;        \
     quic_rbt_t *rb_l;        \
-    quic_rbt_t *mirris_link; \
+    quic_rbt_t *morris_link; \
     uint8_t rb_color;
 
 #define QUIC_RBT_EQ 0
@@ -43,7 +43,7 @@ extern const quic_rbt_t rbt_nil;
     (node)->rb_p = quic_rbt_nil;        \
     (node)->rb_r = quic_rbt_nil;        \
     (node)->rb_l = quic_rbt_nil;        \
-    (node)->mirris_link = quic_rbt_nil; \
+    (node)->morris_link = quic_rbt_nil; \
     (node)->rb_color = QUIC_RBT_RED;    \
 }
 
@@ -85,13 +85,13 @@ static inline bool quic_rbt_iterator_is_end(quic_rbt_iterator_t *const iter) {
 }
 
 static void quic_rbt_iterator_next(quic_rbt_iterator_t *const iter) {
-#define __right(node) (quic_rbt_is_nil((node)->rb_r) ? (node)->mirris_link : (node)->rb_r)
+#define __right(node) (quic_rbt_is_nil((node)->rb_r) ? (node)->morris_link : (node)->rb_r)
 #define __left(node) (node)->rb_l
     if (iter->interrupt_1) {
-        goto continue_travel_1;
+        goto travel_interrupt_1;
     }
     if (iter->interrupt_2) {
-        goto continue_travel_2;
+        goto travel_interrupt_2;
     }
 
     while (!quic_rbt_is_nil(iter->cur)) {
@@ -100,7 +100,7 @@ static void quic_rbt_iterator_next(quic_rbt_iterator_t *const iter) {
             iter->interrupt_1 = true;
             return;
 
-continue_travel_1:
+travel_interrupt_1:
             iter->interrupt_1 = false;
             iter->cur = __right(iter->cur);
         }
@@ -111,17 +111,17 @@ continue_travel_1:
             }
 
             if (quic_rbt_is_nil(__right(iter->mr))) {
-                iter->mr->mirris_link = iter->cur;
+                iter->mr->morris_link = iter->cur;
                 iter->cur = __left(iter->cur);
             }
             else {
                 iter->interrupt_2 = true;
                 return;
 
-continue_travel_2:
+travel_interrupt_2:
                 iter->interrupt_2 = false;
                 iter->cur = __right(iter->mr);
-                iter->mr->mirris_link = quic_rbt_nil;
+                iter->mr->morris_link = quic_rbt_nil;
                 iter->cur = __right(iter->cur);
             }
         }
