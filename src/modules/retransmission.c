@@ -50,6 +50,8 @@ quic_err_t quic_retransmission_module_find_newly_acked(quic_retransmission_modul
 quic_err_t quic_retransmission_module_find_newly_lost(quic_retransmission_module_t *const module) {
     quic_session_t *const session = quic_module_of_session(module);
 
+    quic_sent_packet_rbt_t *pkt = NULL;
+
     module->loss_time = 0;
     uint64_t max_rtt = session->rtt.smoothed_rtt;
     double lost_delay = (9 * max_rtt) >> 3;
@@ -57,7 +59,6 @@ quic_err_t quic_retransmission_module_find_newly_lost(quic_retransmission_module
     uint64_t lost_send_time = quic_now() - lost_delay;
 
     {
-        quic_sent_packet_rbt_t *pkt = NULL;
         quic_rbt_foreach(pkt, module->sent_mem) {
             if (pkt->sent_time < lost_send_time) {
                 quic_retransmission_process_newly_lost(module, pkt);

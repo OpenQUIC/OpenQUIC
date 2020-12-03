@@ -120,14 +120,18 @@ static inline quic_err_t quic_retransmission_sent_mem_drop(quic_retransmission_m
             if (!frame->on_acked) {
                 free(frame);
             }
-            quic_frame_on_acked(frame);
+            else {
+                quic_frame_on_acked(frame);
+            }
             break;
 
         case quic_retransmission_sent_mem_drop_lost:
             if (!frame->on_lost) {
                 free(frame);
             }
-            quic_frame_on_lost(frame);
+            else {
+                quic_frame_on_lost(frame);
+            }
             break;
 
         default:
