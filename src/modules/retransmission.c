@@ -16,6 +16,7 @@ static quic_err_t quic_retransmission_module_init(void *const module);
 static quic_err_t quic_retransmission_module_loop(void *const module, const uint64_t now);
 
 static quic_err_t quic_retransmission_sent_mem_drop_from_queue(quic_retransmission_module_t *const module, const uint8_t process_type);
+static quic_err_t quic_retransmission_sent_mem_drop(quic_retransmission_module_t *const module, quic_sent_packet_rbt_t *pkt, const uint8_t process_type);
 
 quic_err_t quic_retransmission_module_find_newly_acked(quic_retransmission_module_t *const module, const quic_frame_ack_t *const frame) {
     quic_sent_packet_rbt_t *pkt = NULL;
@@ -54,7 +55,7 @@ quic_err_t quic_retransmission_module_find_newly_lost(quic_retransmission_module
 
     module->loss_time = 0;
     uint64_t max_rtt = session->rtt.smoothed_rtt;
-    double lost_delay = (9 * max_rtt) >> 3;
+    uint64_t lost_delay = (9 * max_rtt) >> 3;
     lost_delay = lost_delay > 1000 ? lost_delay : 1000;
     uint64_t lost_send_time = quic_now() - lost_delay;
 
@@ -101,6 +102,41 @@ static quic_err_t quic_retransmission_sent_mem_drop_from_queue(quic_retransmissi
 
         quic_retransmission_sent_mem_drop(module, pkt, process_type);
     }
+
+    return quic_err_success;
+}
+
+static quic_err_t quic_retransmission_sent_mem_drop(quic_retransmission_module_t *const module, quic_sent_packet_rbt_t *pkt, const uint8_t process_type) {
+    quic_rbt_remove(&module->sent_mem, &pkt);
+
+    while (!quic_link_empty(&pkt->frames)) {
+        quic_frame_t *frame = (quic_frame_t *) quic_link_next(&pkt->frames);
+        quic_link_remove(frame);
+
+        switch (process_type) {
+        case quic_retransmission_sent_mem_drop_acked:
+            if (!frame->on_acked) {
+                free(frame);
+            }
+            else {
+                quic_frame_on_acked(frame);
+            }
+            break;
+
+        case quic_retransmission_sent_mem_drop_lost:
+            if (!frame->on_lost) {
+                free(frame);
+            }
+            else {
+                quic_frame_on_lost(frame);
+            }
+            break;
+
+        default:
+            free(frame);
+        }
+    }
+    free(pkt);
 
     return quic_err_success;
 }

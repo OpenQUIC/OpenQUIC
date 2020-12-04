@@ -11,6 +11,7 @@
 
 #include "module.h"
 #include "modules/retransmission.h"
+#include "modules/sender.h"
 #include "format/frame.h"
 #include "utils/rbt.h"
 #include "utils/link.h"
@@ -48,6 +49,7 @@ struct quic_framer_module_s {
     pthread_mutex_t mtx;
 };
 
+extern quic_module_t quic_framer_module;
 
 static inline quic_err_t quic_framer_ctrl(quic_framer_module_t *const module, quic_frame_t *const frame) {
     quic_link_insert_before(&module->ctrls, frame);
@@ -55,11 +57,14 @@ static inline quic_err_t quic_framer_ctrl(quic_framer_module_t *const module, qu
 }
 
 uint64_t quic_framer_append_stream_frame(quic_link_t *const frames, const uint64_t capa, const bool fill, quic_framer_module_t *const module, quic_retransmission_module_t *const retransmission_module);
-
 uint64_t quic_framer_append_ctrl_frame(quic_link_t *const frames, const uint64_t capa, quic_framer_module_t *const module);
 
-extern quic_module_t quic_framer_module;
-extern quic_module_t quic_sender_module;
+static inline bool quic_framer_empty(quic_framer_module_t *const module) {
+    pthread_mutex_lock(&module->mtx);
+    bool result = quic_link_empty(&module->active_queue) && quic_link_empty(&module->ctrls);
+    pthread_mutex_unlock(&module->mtx);
+    return result;
+}
 
 static inline quic_err_t quic_framer_add_active(quic_framer_module_t *const module, const uint64_t sid) {
     quic_session_t *const session = quic_module_of_session(module);

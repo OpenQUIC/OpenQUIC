@@ -63,6 +63,10 @@ quic_err_t quic_retransmission_module_find_newly_acked(quic_retransmission_modul
 quic_err_t quic_retransmission_module_find_newly_lost(quic_retransmission_module_t *const module);
 uint64_t quic_retransmission_append_frame(quic_link_t *const frames, const uint64_t capa, quic_retransmission_module_t *const module);
 
+static inline bool quic_retransmission_empty(quic_retransmission_module_t *const module) {
+    return quic_link_empty(&module->retransmission_queue);
+}
+
 static inline quic_err_t quic_retransmission_module_retransmission(quic_retransmission_module_t *const module, quic_frame_t *const frame) {
     quic_link_insert_before(&module->retransmission_queue, frame);
     return quic_err_success;
@@ -108,40 +112,6 @@ static inline quic_err_t quic_retransmission_on_lost(quic_retransmission_module_
 #define quic_retransmission_sent_mem_drop_acked 0x01
 #define quic_retransmission_sent_mem_drop_lost 0x02
 
-static inline quic_err_t quic_retransmission_sent_mem_drop(quic_retransmission_module_t *const module, quic_sent_packet_rbt_t *pkt, const uint8_t process_type) {
-    quic_rbt_remove(&module->sent_mem, &pkt);
-
-    while (!quic_link_empty(&pkt->frames)) {
-        quic_frame_t *frame = (quic_frame_t *) quic_link_next(&pkt->frames);
-        quic_link_remove(frame);
-
-        switch (process_type) {
-        case quic_retransmission_sent_mem_drop_acked:
-            if (!frame->on_acked) {
-                free(frame);
-            }
-            else {
-                quic_frame_on_acked(frame);
-            }
-            break;
-
-        case quic_retransmission_sent_mem_drop_lost:
-            if (!frame->on_lost) {
-                free(frame);
-            }
-            else {
-                quic_frame_on_lost(frame);
-            }
-            break;
-
-        default:
-            free(frame);
-        }
-    }
-    free(pkt);
-
-    return quic_err_success;
-}
 
 static inline quic_err_t quic_retransmission_append_to_drop_queue(quic_retransmission_module_t *const module, quic_sent_packet_rbt_t *const pkt) {
     quic_rbt_foreach_qnode_t *node = malloc(sizeof(quic_rbt_foreach_qnode_t));
