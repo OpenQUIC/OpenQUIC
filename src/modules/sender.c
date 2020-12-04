@@ -97,13 +97,18 @@ static quic_send_packet_t *quic_sender_pack_app_packet(quic_sender_module_t *con
     quic_stream_module_t *const stream_module = quic_session_module(quic_stream_module_t, session, quic_stream_module);
 
     quic_packet_number_generator_module_t *const numgen = quic_session_module(quic_packet_number_generator_module_t, session, quic_app_packet_number_generator_module);
-    quic_framer_module_t *const framer = quic_session_module(quic_framer_module_t, session, quic_framer_module);
+    quic_framer_module_t *const f_module = quic_session_module(quic_framer_module_t, session, quic_framer_module);
     quic_ack_generator_module_t *const ag_module = quic_session_module(quic_ack_generator_module_t, session, quic_app_ack_generator_module);
+    quic_retransmission_module_t *const r_module = quic_session_module(quic_retransmission_module_t, session, quic_app_retransmission_module);
 
     quic_frame_t *frame = NULL;
 
     // generate max stream data
     quic_stream_module_process_rwnd(stream_module);
+
+    if (quic_framer_empty(f_module) && quic_retransmission_empty(r_module) && !quic_ack_generator_should_send(ag_module)) {
+        return NULL;
+    }
 
     // init send_pkt
     quic_send_packet_t *pkt = NULL;
@@ -133,7 +138,7 @@ static quic_send_packet_t *quic_sender_pack_app_packet(quic_sender_module_t *con
 
     // serialize ctrl frames
     for ( ;; ) {
-        frame_len = quic_framer_append_ctrl_frame(&pkt->frames, max_bytes, framer);
+        frame_len = quic_framer_append_ctrl_frame(&pkt->frames, max_bytes, f_module);
         max_bytes -= frame_len;
         if (frame_len == 0) {
             break;
@@ -142,7 +147,7 @@ static quic_send_packet_t *quic_sender_pack_app_packet(quic_sender_module_t *con
     }
     // serialize stream frames
     for ( ;; ) {
-        frame_len = quic_framer_append_stream_frame(&pkt->frames, max_bytes, false, framer, pkt->retransmission_module);
+        frame_len = quic_framer_append_stream_frame(&pkt->frames, max_bytes, false, f_module, pkt->retransmission_module);
         max_bytes -= frame_len;
         if (frame_len == 0) {
             break;
@@ -168,16 +173,20 @@ static quic_err_t quic_sender_module_init(void *const module) {
 
 static quic_err_t quic_sender_module_loop(void *const module, const uint64_t now) {
     quic_sender_module_t *const s_module = module;
+
     quic_session_t *const session = quic_module_of_session(s_module);
+
+    if (now < s_module->next_send_time && s_module->next_send_time != 0) {
+        quic_session_update_loop_deadline(session, s_module->next_send_time);
+        return quic_err_success;
+    }
+    s_module->next_send_time = 0;
+
     quic_retransmission_module_t *const app_r_module = quic_session_module(quic_retransmission_module_t, session, quic_app_retransmission_module);
     quic_retransmission_module_t *const hs_r_module = quic_session_module(quic_retransmission_module_t, session, quic_handshake_retransmission_module);
     quic_retransmission_module_t *const init_r_module = quic_session_module(quic_retransmission_module_t, session, quic_initial_retransmission_module);
     quic_congestion_module_t *const c_module = quic_session_module(quic_congestion_module_t, session, quic_congestion_module);
 
-    if (now < s_module->next_send_time) {
-        quic_session_update_loop_deadline(session, s_module->next_send_time);
-        return quic_err_success;
-    }
 
     uint64_t unacked_pkt_count = app_r_module->sent_pkt_count + hs_r_module->sent_pkt_count + init_r_module->sent_pkt_count;
     if (unacked_pkt_count >= (25000 >> 2)) {
@@ -192,11 +201,13 @@ static quic_err_t quic_sender_module_loop(void *const module, const uint64_t now
 
     quic_send_packet_t *pkt = NULL;
     pkt = quic_sender_pack_app_packet(s_module);
+    if (pkt == NULL) {
+        return quic_err_success;
+    }
 
     quic_sender_send_packet(s_module, pkt);
     free(pkt);
 
-    quic_session_update_loop_deadline(session, s_module->next_send_time);
     return quic_err_success;
 }
 

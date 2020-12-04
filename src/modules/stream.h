@@ -316,7 +316,7 @@ struct quic_stream_module_s {
 
 static inline quic_err_t quic_stream_module_update_rwnd(quic_stream_module_t *const module, const uint64_t sid) {
     pthread_mutex_lock(&module->rwnd_updated_mtx);
-    if (quic_rbt_is_nil(quic_stream_rwnd_updated_sid_find(module->rwnd_updated, sid))) {
+    if (quic_rbt_is_nil(quic_stream_rwnd_updated_sid_find(module->rwnd_updated, &sid))) {
         quic_stream_rwnd_updated_sid_t *updated_sid = malloc(sizeof(quic_stream_rwnd_updated_sid_t));
         quic_rbt_init(updated_sid);
         updated_sid->key = sid;
@@ -511,6 +511,11 @@ static inline quic_err_t quic_recv_stream_handle_frame(quic_recv_stream_t *const
 
             quic_module_activate(p_str->session, quic_stream_module);
         }
+        return quic_err_success;
+    }
+
+    if (frame->len == 0) {
+        pthread_mutex_unlock(&str->mtx);
         return quic_err_success;
     }
 

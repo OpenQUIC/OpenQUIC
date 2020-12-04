@@ -78,9 +78,7 @@ static inline quic_err_t quic_recver_handle_packet(quic_recver_module_t *const m
     if (ag_module) {
         quic_ack_generator_module_received(ag_module,
                                            ((quic_payload_t *) &payload)->p_num,
-                                           module->curr_packet->recv_time,
-                                           &session->rtt,
-                                           module->curr_ack_eliciting);
+                                           module->curr_packet->recv_time);
     }
 
     return quic_err_success;

@@ -130,7 +130,7 @@ static void quic_stream_flowctrl_instance_read(void *const instance, const uint6
     }
 
     flowctrl->read_off += readed_bytes;
-    if (!flowctrl->fin_flag && (flowctrl->rwnd - flowctrl->read_off <= ((flowctrl->rwnd_size * 3) >> 2))) {
+    if (!flowctrl->fin_flag && (flowctrl->read_off >= flowctrl->rwnd || flowctrl->rwnd - flowctrl->read_off <= ((flowctrl->rwnd_size * 3) >> 2))) {
         quic_stream_flowctrl_adjust_rwnd(flowctrl);
         quic_stream_module_update_rwnd(s_module, sid);
     }
@@ -160,9 +160,9 @@ static inline void quic_stream_flowctrl_adjust_rwnd(quic_stream_flowctrl_t *cons
     }
 
     uint64_t now = quic_now();
-    if (now - flowctrl->epoch_time < (session->rtt.smoothed_rtt >> 2) * in_epoch_readed_bytes / flowctrl->rwnd_size) {
+    if (now - flowctrl->epoch_time < (session->rtt.smoothed_rtt << 2) * in_epoch_readed_bytes / flowctrl->rwnd_size) {
         uint64_t prev_rwnd_size = flowctrl->rwnd_size;
-        flowctrl->rwnd_size = (flowctrl->rwnd_size >> 1) > session->cfg.stream_flowctrl_max_rwnd_size ? session->cfg.stream_flowctrl_max_rwnd_size : (flowctrl->rwnd_size >> 1);
+        flowctrl->rwnd_size = (flowctrl->rwnd_size << 1) > session->cfg.stream_flowctrl_max_rwnd_size ? session->cfg.stream_flowctrl_max_rwnd_size : (flowctrl->rwnd_size << 1);
 
         if (prev_rwnd_size < flowctrl->rwnd_size) {
             quic_conn_flowctrl_ensure_min_rwnd_size(cf_module, flowctrl->rwnd_size * 3 >> 2);

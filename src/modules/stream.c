@@ -48,7 +48,7 @@ static inline uint64_t quic_stream_frame_capacity(const uint64_t max_bytes,
                                                   const uint64_t sid, const uint64_t off, const bool fill, const uint64_t payload_size);
 
 uint64_t quic_send_stream_write(quic_send_stream_t *const str, const void *data, const uint64_t len) {
-    uint8_t co_s[4096];
+    uint8_t co_s[LITECO_DEFAULT_STACK_SIZE] = { 0 };
     liteco_coroutine_t co;
     quic_send_stream_write_args_t args = { .str = str, .len = len, .data = data, .writed_len = 0 };
     __stream_runtime_init();
@@ -102,6 +102,7 @@ static int quic_send_stream_write_co(void *const args) {
         }
 
         liteco_recv(NULL, NULL, &__stream_runtime, str->deadline, &str->sent_segment_notifier);
+
         pthread_mutex_lock(&str->mtx);
 
         write_args->writed_len = len - str->reader_len;
@@ -128,6 +129,15 @@ quic_frame_stream_t *quic_send_stream_generate(quic_send_stream_t *const str, bo
     if (str->reader_len < payload_size) {
         payload_size = str->reader_len;
     }
+    if (payload_size > str->reader_len) {
+        payload_size = str->reader_len;
+    }
+
+    uint64_t payload_capa = quic_stream_frame_capacity(bytes, p_str->key, str->off, fill, payload_size);
+    if (payload_capa < payload_size) {
+        payload_size = payload_capa;
+    }
+
     if (payload_size == 0 && !str->closed) {
         uint64_t max_data = 0;
         if (quic_stream_flowctrl_newly_blocked(flowctrl_module, &max_data, quic_stream_extend_flowctrl(p_str))) {
@@ -143,11 +153,6 @@ quic_frame_stream_t *quic_send_stream_generate(quic_send_stream_t *const str, bo
 
         pthread_mutex_unlock(&str->mtx);
         return NULL;
-    }
-
-    uint64_t payload_capa = quic_stream_frame_capacity(bytes, p_str->key, str->off, fill, payload_size);
-    if (payload_capa < payload_size) {
-        payload_size = payload_capa;
     }
 
     quic_frame_stream_t *frame = malloc(sizeof(quic_frame_stream_t) + payload_size);
@@ -168,6 +173,7 @@ quic_frame_stream_t *quic_send_stream_generate(quic_send_stream_t *const str, bo
     frame->sid = p_str->key;
     frame->off = str->off;
     frame->len = payload_size;
+    str->off += payload_size;
 
     if (str->reader_len == 0) {
         *empty = true;
@@ -226,7 +232,7 @@ static inline void __stream_runtime_init() {
 }
 
 uint64_t quic_recv_stream_read(quic_recv_stream_t *const str, void *const data, const uint64_t len) {
-    uint8_t co_s[4096];
+    uint8_t co_s[LITECO_DEFAULT_STACK_SIZE] = { 0 };
     liteco_coroutine_t co;
     quic_recv_stream_read_args_t args = { .str = str, .len = len, .data = data, .readed_len = 0 };
     __stream_runtime_init();
@@ -279,10 +285,11 @@ static int quic_recv_stream_read_co(void *const args) {
             break;
         }
 
-        pthread_mutex_unlock(&str->mtx);
-        liteco_recv(NULL, NULL, &__stream_runtime, timeout, &str->handled_notifier);
-        pthread_mutex_lock(&str->mtx);
-
+        if (quic_sorter_readable(&str->sorter) == 0) {
+            pthread_mutex_unlock(&str->mtx);
+            liteco_recv(NULL, NULL, &__stream_runtime, timeout, &str->handled_notifier);
+            pthread_mutex_lock(&str->mtx);
+        }
         uint64_t once_readed_len = quic_sorter_read(&str->sorter, len, data);
         if (once_readed_len == 0) {
             break;
@@ -327,7 +334,7 @@ struct quic_inbidi_streams_accept_s {
 };
 
 quic_stream_t *quic_stream_inuni_accept(quic_inuni_streams_t *const strs) {
-    uint8_t co_s[4096];
+    uint8_t co_s[LITECO_DEFAULT_STACK_SIZE] = { 0 };
     liteco_coroutine_t co;
     quic_inuni_streams_accept_t args = { .strs = strs, .str = NULL };
     __streams_runtime_init();
@@ -356,7 +363,7 @@ static int quic_stream_inuni_streams_accept_co(void *const args) {
 }
 
 quic_stream_t *quic_stream_inbidi_accept(quic_inbidi_streams_t *const strs) {
-    uint8_t co_s[4096];
+    uint8_t co_s[LITECO_DEFAULT_STACK_SIZE] = { 0 };
     liteco_coroutine_t co;
     quic_inbidi_streams_accept_t args = { .strs = strs, .str = NULL };
     __streams_runtime_init();
