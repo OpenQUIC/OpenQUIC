@@ -114,7 +114,7 @@ static quic_send_packet_t *quic_sender_pack_app_packet(quic_sender_module_t *con
     quic_send_packet_t *pkt = NULL;
     quic_send_packet_init(pkt, sender->mtu);
     pkt->retransmission_module = quic_session_module(quic_retransmission_module_t, session, quic_app_retransmission_module);
-    pkt->num = numgen->next++;
+    pkt->num = numgen->next;
 
     // generate short header
     quic_sender_generate_short_header(session, pkt->num, &pkt->buf);
@@ -155,6 +155,12 @@ static quic_send_packet_t *quic_sender_pack_app_packet(quic_sender_module_t *con
         pkt->included_unacked = true;
     }
 
+    if (quic_link_empty(&pkt->frames)) {
+        free(pkt);
+        return NULL;
+    }
+
+    numgen->next++;
     quic_link_foreach(frame, &pkt->frames) {
         quic_frame_format(&pkt->buf, frame);
     }
