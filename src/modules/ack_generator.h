@@ -50,7 +50,7 @@ extern quic_module_t quic_initial_ack_generator_module;
 extern quic_module_t quic_handshake_ack_generator_module;
 extern quic_module_t quic_app_ack_generator_module;
 
-quic_err_t quic_ack_generator_insert_ranges(quic_ack_generator_module_t *const module, const uint64_t num);
+bool quic_ack_generator_insert_ranges(quic_ack_generator_module_t *const module, const uint64_t num);
 
 quic_err_t quic_ack_generator_ignore(quic_ack_generator_module_t *const module);
 
@@ -63,12 +63,14 @@ static inline bool quic_ack_generator_contains_lost(quic_ack_generator_module_t 
         || ((quic_ack_generator_range_t *) quic_link_next(&module->ranges))->start > module->ignore_threhold;
 }
 
-static inline quic_err_t quic_ack_generator_module_received(module, num, recv_time, rtt, ack_eliciting)
+static inline bool quic_ack_generator_should_send(quic_ack_generator_module_t *const module) {
+    return module->should_send;
+}
+
+static inline quic_err_t quic_ack_generator_module_received(module, num, recv_time)
     quic_ack_generator_module_t *const module; 
     const uint64_t num;
-    const uint64_t recv_time; 
-    quic_rtt_t *const rtt;
-    const bool ack_eliciting; {
+    const uint64_t recv_time; {
 
     if (num < module->ignore_threhold) {
         return quic_err_success;
@@ -81,47 +83,11 @@ static inline quic_err_t quic_ack_generator_module_received(module, num, recv_ti
         module->lg_obtime = recv_time;
     }
 
-    quic_ack_generator_insert_ranges(module, num);
-
-    module->ss_pkt++;
-    if (!module->is_sent) {
+    if (quic_ack_generator_insert_ranges(module, num)) {
         module->should_send = true;
-        return quic_err_success;
     }
-
     if (lost) {
         module->should_send = true;
-    }
-
-    if (!module->should_send && ack_eliciting) {
-        module->ss_ack_pkt++;
-        if (num > 100) {
-            if (module->ss_ack_pkt >= 10) {
-                module->should_send = true;
-            }
-            else if (module->alarm == 0) {
-                uint64_t delay = rtt->min_rtt >> 2;
-                delay = module->max_delay < delay ? module->max_delay : delay;
-                module->alarm = recv_time + delay;
-            }
-        }
-        else if (module->ss_ack_pkt >= 2) {
-            module->should_send = true;
-        }
-        else {
-            module->alarm = recv_time + module->max_delay;
-        }
-
-        if (quic_ack_generator_contains_lost(module)) {
-            uint64_t alarm = recv_time + (rtt->min_rtt >> 3);
-            if (module->alarm == 0 || alarm < module->alarm) {
-                module->alarm = alarm;
-            }
-        }
-    }
-
-    if (module->should_send) {
-        module->alarm = 0;
     }
     return quic_err_success;
 }

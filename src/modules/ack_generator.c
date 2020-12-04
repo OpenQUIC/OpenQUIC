@@ -12,12 +12,12 @@
 
 static quic_err_t quic_ack_generator_init(void *const module);
 
-quic_err_t quic_ack_generator_insert_ranges(quic_ack_generator_module_t *const module, const uint64_t num) {
+bool quic_ack_generator_insert_ranges(quic_ack_generator_module_t *const module, const uint64_t num) {
     quic_ack_generator_range_t *range = NULL;
 
     quic_link_foreach(range, &module->ranges) {
         if (range->start <= num && num <= range->end) {
-            return quic_err_success;
+            return false;
         }
 
         bool extends = false;
@@ -46,13 +46,13 @@ quic_err_t quic_ack_generator_insert_ranges(quic_ack_generator_module_t *const m
                 module->ranges_count--;
             }
 
-            return quic_err_success;
+            return true;
         }
 
         if (num < range->start) {
             quic_ack_generator_range_t *new_range = malloc(sizeof(quic_ack_generator_range_t));
             if (new_range == NULL) {
-                return quic_err_internal_error;
+                return false;
             }
             quic_link_init(new_range);
             new_range->start = new_range->end = num;
@@ -60,12 +60,12 @@ quic_err_t quic_ack_generator_insert_ranges(quic_ack_generator_module_t *const m
             quic_link_insert_before(range, new_range);
             module->ranges_count++;
 
-            return quic_err_success;
+            return true;
         }
     }
 
     if ((range = malloc(sizeof(quic_ack_generator_range_t))) == NULL) {
-        return quic_err_internal_error;
+        return false;
     }
     quic_link_init(range);
     range->start = range->end = num;
@@ -73,7 +73,7 @@ quic_err_t quic_ack_generator_insert_ranges(quic_ack_generator_module_t *const m
     quic_link_insert_before(&module->ranges, range);
     module->ranges_count++;
 
-    return quic_err_success;
+    return true;
 }
 
 quic_err_t quic_ack_generator_ignore(quic_ack_generator_module_t *const module) {
