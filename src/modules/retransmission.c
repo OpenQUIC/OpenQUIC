@@ -12,16 +12,50 @@
 #include "utils/time.h"
 #include "session.h"
 
+typedef struct quic_dropped_pkt_s quic_dropped_pkt_t;
+struct quic_dropped_pkt_s {
+    QUIC_LINK_FIELDS
+
+    quic_sent_packet_rbt_t *pkt;
+};
+
 static quic_err_t quic_retransmission_module_init(void *const module);
 static quic_err_t quic_retransmission_module_loop(void *const module, const uint64_t now);
 
-static quic_err_t quic_retransmission_sent_mem_drop_from_queue(quic_retransmission_module_t *const module, const uint8_t process_type);
-static quic_err_t quic_retransmission_sent_mem_drop(quic_retransmission_module_t *const module, quic_sent_packet_rbt_t *pkt, const uint8_t process_type);
+static quic_err_t quic_retransmission_drop_execute(quic_link_t *const link, quic_rbt_t **const root);
+
+static inline quic_err_t quic_retransmission_drop(quic_link_t *const link, quic_sent_packet_rbt_t *const pkt) {
+    quic_dropped_pkt_t *const dropped = malloc(sizeof(quic_dropped_pkt_t));
+    if (dropped) {
+        quic_link_init(dropped);
+        dropped->pkt = pkt;
+        quic_link_insert_after(link, dropped);
+    }
+    return quic_err_success;
+}
+
+static quic_err_t quic_retransmission_drop_execute(quic_link_t *const list, quic_rbt_t **const root) {
+    while (!quic_link_empty(list)) {
+        quic_dropped_pkt_t *node = (quic_dropped_pkt_t *) quic_link_next(list);
+        quic_sent_packet_rbt_t *pkt = node->pkt;
+        quic_link_remove(node);
+        free(node);
+
+        quic_rbt_remove(root, &pkt);
+        free(pkt);
+    }
+
+    return quic_err_success;
+}
 
 quic_err_t quic_retransmission_module_find_newly_acked(quic_retransmission_module_t *const module, const quic_frame_ack_t *const frame) {
-    quic_sent_packet_rbt_t *pkt = NULL;
+    quic_session_t *const session = quic_module_of_session(module);
+    quic_congestion_module_t *const c_module = quic_session_module(quic_congestion_module_t, session, quic_congestion_module);
 
-    quic_link_init(&module->droped_queue);
+    quic_sent_packet_rbt_t *pkt = NULL;
+    quic_link_t acked_list;
+
+    quic_link_init(&acked_list);
 
     {
         quic_rbt_foreach(pkt, module->sent_mem) {
@@ -32,7 +66,25 @@ quic_err_t quic_retransmission_module_find_newly_acked(quic_retransmission_modul
             uint32_t i = 0;
             do {
                 if (start <= pkt->key && pkt->key <= end) {
-                    quic_retransmission_process_newly_acked(module, pkt, frame->recv_time);
+                    quic_retransmission_drop(&acked_list, pkt);
+
+                    module->sent_pkt_count--;
+                    if (pkt->included_unacked) {
+                        module->unacked_len -= pkt->pkt_len;
+                        quic_congestion_on_acked(c_module, pkt->key, pkt->pkt_len, module->unacked_len, frame->recv_time);
+                    }
+
+                    while (!quic_link_empty(&pkt->frames)) {
+                        quic_frame_t *acked_frame = (quic_frame_t *) quic_link_next(&pkt->frames);
+                        quic_link_remove(acked_frame);
+
+                        if (acked_frame->on_acked) {
+                            quic_frame_on_acked(acked_frame);
+                        }
+                        else {
+                            free(acked_frame);
+                        }
+                    }
                 }
 
                 if (lost_flag) {
@@ -42,16 +94,18 @@ quic_err_t quic_retransmission_module_find_newly_acked(quic_retransmission_modul
             } while (++i < frame->ranges.count);
         }
     }
-
-    quic_retransmission_sent_mem_drop_from_queue(module, quic_retransmission_sent_mem_drop_acked);
-
+    quic_retransmission_drop_execute(&acked_list, (quic_rbt_t **) &module->sent_mem);
     return quic_err_success;
 }
 
 quic_err_t quic_retransmission_module_find_newly_lost(quic_retransmission_module_t *const module) {
     quic_session_t *const session = quic_module_of_session(module);
+    quic_congestion_module_t *const c_module = quic_session_module(quic_congestion_module_t, session, quic_congestion_module);
 
+    quic_link_t lost_list;
     quic_sent_packet_rbt_t *pkt = NULL;
+
+    quic_link_init(&lost_list);
 
     module->loss_time = 0;
     uint64_t max_rtt = session->rtt.smoothed_rtt;
@@ -62,16 +116,32 @@ quic_err_t quic_retransmission_module_find_newly_lost(quic_retransmission_module
     {
         quic_rbt_foreach(pkt, module->sent_mem) {
             if (pkt->sent_time < lost_send_time) {
-                quic_retransmission_process_newly_lost(module, pkt);
+                quic_retransmission_drop(&lost_list, pkt);
+
+                module->sent_pkt_count--;
+                if (pkt->included_unacked) {
+                    module->unacked_len -= pkt->pkt_len;
+                    quic_congestion_on_lost(c_module, pkt->key, pkt->pkt_len, module->unacked_len);
+                }
+
+                while (!quic_link_empty(&pkt->frames)) {
+                    quic_frame_t *lost_frame = (quic_frame_t *) quic_link_next(&pkt->frames);
+                    quic_link_remove(lost_frame);
+
+                    if (lost_frame->on_lost) {
+                        quic_frame_on_lost(lost_frame);
+                    }
+                    else {
+                        free(lost_frame);
+                    }
+                }
             }
             else if (!module->loss_time || pkt->sent_time + lost_delay < module->loss_time) {
                 module->loss_time = pkt->sent_time + lost_delay;
             }
         }
     }
-
-    quic_retransmission_sent_mem_drop_from_queue(module, quic_retransmission_sent_mem_drop_lost);
- 
+    quic_retransmission_drop_execute(&lost_list, (quic_rbt_t **) &module->sent_mem);
     return quic_err_success;
 }
 
@@ -93,54 +163,6 @@ uint64_t quic_retransmission_append_frame(quic_link_t *const frames, const uint6
     return len;
 }
 
-static quic_err_t quic_retransmission_sent_mem_drop_from_queue(quic_retransmission_module_t *const module, const uint8_t process_type) {
-    while (!quic_link_empty(&module->droped_queue)) {
-        quic_rbt_foreach_qnode_t *node = (quic_rbt_foreach_qnode_t *) quic_link_next(&module->droped_queue);
-        quic_sent_packet_rbt_t *pkt = (quic_sent_packet_rbt_t *) node->node;
-        quic_link_remove(node);
-        free(node);
-
-        quic_retransmission_sent_mem_drop(module, pkt, process_type);
-    }
-
-    return quic_err_success;
-}
-
-static quic_err_t quic_retransmission_sent_mem_drop(quic_retransmission_module_t *const module, quic_sent_packet_rbt_t *pkt, const uint8_t process_type) {
-    quic_rbt_remove(&module->sent_mem, &pkt);
-
-    while (!quic_link_empty(&pkt->frames)) {
-        quic_frame_t *frame = (quic_frame_t *) quic_link_next(&pkt->frames);
-        quic_link_remove(frame);
-
-        switch (process_type) {
-        case quic_retransmission_sent_mem_drop_acked:
-            if (!frame->on_acked) {
-                free(frame);
-            }
-            else {
-                quic_frame_on_acked(frame);
-            }
-            break;
-
-        case quic_retransmission_sent_mem_drop_lost:
-            if (!frame->on_lost) {
-                free(frame);
-            }
-            else {
-                quic_frame_on_lost(frame);
-            }
-            break;
-
-        default:
-            free(frame);
-        }
-    }
-    free(pkt);
-
-    return quic_err_success;
-}
-
 static quic_err_t quic_retransmission_module_init(void *const module) {
     quic_retransmission_module_t *const r_module = (quic_retransmission_module_t *) module;
 
@@ -154,8 +176,6 @@ static quic_err_t quic_retransmission_module_init(void *const module) {
     r_module->loss_time = 0;
     r_module->last_sent_ack_time = 0;
     r_module->largest_ack = 0;
-
-    quic_link_init(&r_module->droped_queue);
 
     r_module->alarm = 0;
 

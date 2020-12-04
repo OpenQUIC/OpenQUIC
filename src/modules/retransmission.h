@@ -48,8 +48,6 @@ struct quic_retransmission_module_s {
     uint64_t last_sent_ack_time;
     uint64_t largest_ack;
 
-    quic_link_t droped_queue;
-
     uint64_t alarm;
 
     quic_link_t retransmission_queue;
@@ -106,53 +104,6 @@ static inline quic_err_t quic_retransmission_on_lost(quic_retransmission_module_
     if (module->loss_time) {
         quic_retransmission_module_find_newly_lost(module);
     }
-    return quic_err_success;
-}
-
-#define quic_retransmission_sent_mem_drop_acked 0x01
-#define quic_retransmission_sent_mem_drop_lost 0x02
-
-
-static inline quic_err_t quic_retransmission_append_to_drop_queue(quic_retransmission_module_t *const module, quic_sent_packet_rbt_t *const pkt) {
-    quic_rbt_foreach_qnode_t *node = malloc(sizeof(quic_rbt_foreach_qnode_t));
-    if (node == NULL) {
-        return quic_err_internal_error;
-    }
-    quic_link_init(node);
-
-    node->node = (quic_rbt_t *) pkt;
-    quic_link_insert_after(&module->droped_queue, node);
-
-    return quic_err_success;
-}
-
-static inline quic_err_t quic_retransmission_process_newly_acked(quic_retransmission_module_t *const module, quic_sent_packet_rbt_t *const pkt, const uint64_t event_time) {
-    quic_session_t *const session = quic_module_of_session(module);
-    quic_congestion_module_t *const c_module = quic_session_module(quic_congestion_module_t, session, quic_congestion_module);
-
-    quic_retransmission_append_to_drop_queue(module, pkt);
-    module->sent_pkt_count--;
-
-    if (pkt->included_unacked) {
-        module->unacked_len -= pkt->pkt_len;
-        quic_congestion_on_acked(c_module, pkt->key, pkt->pkt_len, module->unacked_len, event_time);
-    }
-
-    return quic_err_success;
-}
-
-static inline quic_err_t quic_retransmission_process_newly_lost(quic_retransmission_module_t *const module, quic_sent_packet_rbt_t *const pkt) {
-    quic_session_t *const session = quic_module_of_session(module);
-    quic_congestion_module_t *const c_module = quic_session_module(quic_congestion_module_t, session, quic_congestion_module);
-
-    quic_retransmission_append_to_drop_queue(module, pkt);
-    module->sent_pkt_count--;
-
-    if (pkt->included_unacked) {
-        module->unacked_len -= pkt->pkt_len;
-        quic_congestion_on_lost(c_module, pkt->key, pkt->pkt_len, module->unacked_len);
-    }
-
     return quic_err_success;
 }
 
