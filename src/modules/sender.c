@@ -205,6 +205,11 @@ static quic_err_t quic_sender_module_loop(void *const module, const uint64_t now
         return quic_err_success;
     }
 
+    if (!quic_congestion_has_budget(c_module)) {
+        s_module->next_send_time = quic_congestion_next_send_time(c_module, unacked_pkt_count);
+        return quic_err_success;
+    }
+
     quic_send_packet_t *pkt = NULL;
     pkt = quic_sender_pack_app_packet(s_module);
     if (pkt == NULL) {
@@ -239,10 +244,7 @@ static inline quic_err_t quic_sender_send_packet(quic_sender_module_t *const mod
         sent_pkt->included_unacked = pkt->included_unacked;
 
         quic_retransmission_sent_mem_push(pkt->retransmission_module, sent_pkt);
-        quic_congestion_on_sent(c_module, sent_pkt->key, sent_pkt->pkt_len, sent_pkt->included_unacked);
-
-        module->next_send_time = (module->next_send_time > sent_pkt->sent_time ? module->next_send_time : sent_pkt->sent_time)
-            + quic_congestion_next_send_time(c_module, pkt->retransmission_module->unacked_len);
+        quic_congestion_on_sent(c_module, sent_pkt->sent_time, sent_pkt->key, sent_pkt->pkt_len, sent_pkt->included_unacked);
 
         quic_session_update_loop_deadline(session, module->next_send_time);
     }
