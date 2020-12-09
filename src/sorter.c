@@ -33,8 +33,7 @@ quic_err_t quic_sorter_init(quic_sorter_t *const sorter) {
 }
 
 quic_err_t quic_sorter_destory(quic_sorter_t *const sorter) {
-
-    while (quic_link_empty(&sorter->gaps)) {
+    while (!quic_link_empty(&sorter->gaps)) {
         quic_sorter_gap_t *gap = (quic_sorter_gap_t *) quic_link_next(&sorter->gaps);
         quic_link_remove(gap);
         free(gap);
