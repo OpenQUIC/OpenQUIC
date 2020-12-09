@@ -525,7 +525,8 @@ quic_module_t quic_congestion_module = {
         + sizeof(quic_congestion_base_t)
         + sizeof(quic_congestion_slowstart_t)
         + sizeof(quic_congestion_cubic_t)
-        + sizeof(quic_congestion_prr_t),
+        + sizeof(quic_congestion_prr_t)
+        + sizeof(quic_congestion_tbp_t),
     .init        = quic_congestion_module_init,
     .process     = NULL,
     .loop        = NULL,
