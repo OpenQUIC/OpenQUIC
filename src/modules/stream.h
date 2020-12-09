@@ -19,6 +19,7 @@
 #include "utils/errno.h"
 #include "utils/rbt.h"
 #include "utils/link.h"
+#include "utils/time.h"
 #include "liteco.h"
 #include <stdint.h>
 #include <pthread.h>
@@ -73,8 +74,6 @@ static inline quic_err_t quic_send_stream_init(quic_send_stream_t *const str) {
 static inline quic_err_t quic_send_stream_destory(quic_send_stream_t *const str) {
     liteco_channel_close(&str->sent_segment_notifier);
     pthread_mutex_destroy(&str->mtx);
-
-    free(str);
 
     return quic_err_success;
 }
@@ -135,8 +134,6 @@ static inline quic_err_t quic_recv_stream_destory(quic_recv_stream_t *const str)
     pthread_mutex_destroy(&str->mtx);
     quic_sorter_destory(&str->sorter);
 
-    free(str);
-
     return quic_err_success;
 }
 
@@ -148,6 +145,8 @@ struct quic_stream_s {
 
     quic_send_stream_t send;
     quic_recv_stream_t recv;
+
+    liteco_channel_t fin_notifier;
 
     quic_session_t *session;
     quic_stream_flowctrl_module_t *flowctrl_module;
@@ -199,6 +198,8 @@ static inline quic_stream_t *quic_stream_create(sid, session, extends_size)
     quic_send_stream_init(&str->send);
     quic_recv_stream_init(&str->recv);
 
+    liteco_channel_init(&str->fin_notifier);
+
     str->recv.deadline = session->cfg.stream_recv_timeout;
 
     return str;
@@ -209,7 +210,7 @@ static inline quic_err_t quic_stream_destory(quic_stream_t *const str, quic_sess
 
     quic_send_stream_destory(&str->send);
     quic_recv_stream_destory(&str->recv);
-    
+
     quic_stream_flowctrl_destory(flowctrl_module, quic_stream_extend_flowctrl(str));
 
     free(str);
@@ -300,6 +301,9 @@ struct quic_stream_rwnd_updated_sid_s {
 typedef struct quic_stream_destory_sid_s quic_stream_destory_sid_t;
 struct quic_stream_destory_sid_s {
     QUIC_RBT_UINT64_FIELDS
+
+    uint64_t destory_time;
+    liteco_channel_t *destoryed_notifier;
 };
 
 #define quic_stream_destory_sid_find(set, key) \
@@ -345,13 +349,15 @@ static inline quic_err_t quic_stream_module_update_rwnd(quic_stream_module_t *co
     return quic_err_success;
 }
 
-static inline quic_err_t quic_stream_destory_push(quic_stream_module_t *const module, const uint64_t sid) {
+static inline quic_err_t quic_stream_destory_push(quic_stream_module_t *const module, liteco_channel_t *const destoryed_notifier, const uint64_t sid) {
     pthread_mutex_lock(&module->destory_mtx);
     if (quic_rbt_is_nil(quic_stream_destory_sid_find(module->destory_set, &sid))) {
         quic_stream_destory_sid_t *d_sid = malloc(sizeof(quic_stream_destory_sid_t));
-        if (sid) {
+        if (d_sid) {
             quic_rbt_init(d_sid);
             d_sid->key = sid;
+            d_sid->destory_time = quic_now();
+            d_sid->destoryed_notifier = destoryed_notifier;
 
             quic_stream_destory_sid_insert(&module->destory_set, d_sid);
         }
@@ -536,6 +542,8 @@ static inline quic_err_t quic_recv_stream_handle_frame(quic_recv_stream_t *const
 
         str->final_off = t_off;
         str->fin_flag = true;
+
+        liteco_channel_close(&p_str->fin_notifier);
     }
 
     if (str->closed) {

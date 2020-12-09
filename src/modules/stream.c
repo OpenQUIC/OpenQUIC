@@ -47,6 +47,7 @@ struct quic_stream_destoryed_s {
 
 static int quic_send_stream_write_co(void *const args);
 static int quic_recv_stream_read_co(void *const args);
+static int quic_stream_close_sync_co(void *const args);
 static inline void __stream_runtime_init();
 
 static quic_err_t quic_send_stream_on_acked(void *const str_, const quic_frame_t *const frame_);
@@ -441,12 +442,38 @@ quic_stream_t *quic_session_accept_stream(quic_session_t *const session, const b
     return bidi ? quic_stream_inbidi_accept(&module->inbidi) : quic_stream_inuni_accept(&module->inuni);
 }
 
+static int quic_stream_close_sync_co(void *const args) {
+    liteco_channel_t *const channel = args;
+
+    liteco_recv(NULL, NULL, &__stream_runtime, 0, channel);
+
+    return 0;
+}
+
 quic_err_t quic_stream_close(quic_stream_t *const str) {
     quic_stream_module_t *const s_module = quic_session_module(quic_stream_module_t, str->session, quic_stream_module);
+    uint8_t co_s[1024] = { 0 };
+    liteco_coroutine_t co;
+    liteco_channel_t destoryed_notifier;
+    
+    __stream_runtime_init();
+    liteco_channel_init(&destoryed_notifier);
+
     quic_send_stream_close(&str->send);
     quic_recv_stream_close(&str->recv);
 
-    quic_stream_destory_push(s_module, str->key);
+    quic_stream_destory_push(s_module, &destoryed_notifier, str->key);
+
+    if (str->session->cfg.stream_sync_close) {
+        liteco_create(&co, co_s, sizeof(co_s), quic_stream_close_sync_co, &destoryed_notifier, NULL);
+        liteco_runtime_join(&__stream_runtime, &co);
+        while (co.status != LITECO_TERMINATE) {
+            if (liteco_runtime_execute(&__stream_runtime, &co) != LITECO_SUCCESS) {
+                break;
+            }
+        }
+    }
+
     return quic_err_success;
 }
 
@@ -488,7 +515,6 @@ static quic_err_t quic_send_stream_on_acked(void *const str_, const quic_frame_t
 }
 
 static quic_err_t quic_session_stream_module_loop(void *const module, const uint64_t now) {
-    (void) now;
     quic_stream_module_t *const stream_module = module;
     quic_session_t *const session = quic_module_of_session(module);
     quic_stream_destory_sid_t *d_sid = NULL;
@@ -516,7 +542,9 @@ static quic_err_t quic_session_stream_module_loop(void *const module, const uint
                     str = quic_streams_find(stream_module->inuni.streams, &d_sid->key);
                 }
             }
-            if (quic_rbt_is_nil(str) || !quic_stream_destroable(str)) {
+            if (quic_rbt_is_nil(str) || !(quic_stream_destroable(str)
+                                          || (session->cfg.stream_destory_timeout != 0
+                                              && session->cfg.stream_destory_timeout + d_sid->destory_time >= now))) {
                 continue;
             }
 
@@ -539,6 +567,8 @@ static quic_err_t quic_session_stream_module_loop(void *const module, const uint
         d_sid = quic_stream_destory_sid_find(stream_module->destory_set, &destoryed->sid);
         if (!quic_rbt_is_nil(d_sid)) {
             quic_rbt_remove(&stream_module->destory_set, &d_sid);
+            liteco_channel_close(d_sid->destoryed_notifier);
+
             free(d_sid);
         }
 
