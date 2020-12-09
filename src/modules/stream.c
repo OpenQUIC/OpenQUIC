@@ -38,6 +38,13 @@ struct quic_recv_stream_read_args_s {
     uint64_t readed_len;
 };
 
+typedef struct quic_stream_destoryed_s quic_stream_destoryed_t;
+struct quic_stream_destoryed_s {
+    QUIC_LINK_FIELDS
+
+    uint64_t sid;
+};
+
 static int quic_send_stream_write_co(void *const args);
 static int quic_recv_stream_read_co(void *const args);
 static inline void __stream_runtime_init();
@@ -259,7 +266,6 @@ static int quic_recv_stream_read_co(void *const args) {
 
     quic_recv_stream_t *const str = read_args->str;
     quic_stream_t *const p_str = quic_container_of_recv_stream(str);
-    quic_stream_module_t *const s_module = quic_session_module(quic_stream_module_t, p_str->session, quic_stream_module);
     quic_stream_flowctrl_module_t *sf_module = quic_session_module(quic_stream_flowctrl_module_t, p_str->session, quic_stream_flowctrl_module);
     void *data = read_args->data;
     uint64_t len = read_args->len;
@@ -276,9 +282,6 @@ static int quic_recv_stream_read_co(void *const args) {
             break;
         }
         if (str->fin_flag && str->final_off <= str->sorter.readed_size) {
-            liteco_channel_send(&s_module->completed_speaker, &p_str->key);
-
-            quic_module_activate(p_str->session, quic_stream_module);
             break;
         }
         if (timeout != 0 && timeout < quic_now()) {
@@ -399,12 +402,13 @@ static quic_err_t quic_stream_module_init(void *const module) {
     quic_outuni_streams_init(&stream_module->outuni);
     quic_outbidi_streams_init(&stream_module->outbidi);
 
-    liteco_channel_init(&stream_module->completed_speaker);
-
     stream_module->extends_size = 0;
 
     pthread_mutex_init(&stream_module->rwnd_updated_mtx, NULL);
     quic_rbt_tree_init(stream_module->rwnd_updated);
+
+    pthread_mutex_init(&stream_module->destory_mtx, NULL);
+    quic_rbt_tree_init(stream_module->destory_set);
 
     stream_module->init = NULL;
     stream_module->destory = NULL;
@@ -432,9 +436,16 @@ quic_stream_t *quic_session_accept_stream(quic_session_t *const session, const b
     return bidi ? quic_stream_inbidi_accept(&module->inbidi) : quic_stream_inuni_accept(&module->inuni);
 }
 
-static inline quic_err_t quic_streams_release_spec(quic_stream_module_t *const module, const uint64_t sid) {
-    quic_session_t *const session = quic_module_of_session(module);
+quic_err_t quic_stream_close(quic_stream_t *const str) {
+    quic_stream_module_t *const s_module = quic_session_module(quic_stream_module_t, str->session, quic_stream_module);
+    quic_send_stream_close(&str->send);
+    quic_recv_stream_close(&str->recv);
 
+    quic_stream_destory_push(s_module, str->key);
+    return quic_err_success;
+}
+
+static inline quic_err_t quic_streams_destory(quic_stream_module_t *const module, quic_session_t *const session, const uint64_t sid) {
     if (quic_stream_id_is_bidi(sid)) {
         if (quic_stream_id_same_principal(sid, session)) {
             quic_stream_outbidi_delete(&module->outbidi, &sid);
@@ -459,40 +470,72 @@ static quic_err_t quic_send_stream_on_acked(void *const str_, const quic_frame_t
     free((void *) frame_);
 
     quic_send_stream_t *const str = (quic_send_stream_t *) str_;
-    quic_stream_t *const p_str = quic_container_of_send_stream(str);
-    quic_stream_module_t *const module = quic_session_module(quic_stream_module_t, p_str->session, quic_stream_module);
 
     pthread_mutex_lock(&str->mtx);
     str->unacked_frames_count--;
-
-    if ((str->sent_fin || str->closed) && str->unacked_frames_count == 0) {
-        pthread_mutex_unlock(&str->mtx);
-
-        liteco_channel_send(&module->completed_speaker, &p_str->key);
-        quic_module_activate(p_str->session, quic_stream_module);
-    }
-    else {
-        pthread_mutex_unlock(&str->mtx);
-    }
-
+    pthread_mutex_unlock(&str->mtx);
 
     return quic_err_success;
 }
 
-static quic_err_t quic_session_stream_module_process(void *const module) {
+static quic_err_t quic_session_stream_module_loop(void *const module, const uint64_t now) {
+    (void) now;
     quic_stream_module_t *const stream_module = module;
-    const uint64_t *sid = NULL;
-    const liteco_channel_t *recv_channel = NULL;
+    quic_session_t *const session = quic_module_of_session(module);
+    quic_stream_destory_sid_t *d_sid = NULL;
+    quic_link_t destoryed_list;
 
-    liteco_recv((const void **) &sid, &recv_channel, __CURR_CO__->runtime, 0,
-                &stream_module->completed_speaker, &__CLOSED_CHAN__);
+    quic_link_init(&destoryed_list);
 
-    if (recv_channel == &__CLOSED_CHAN__) {
-        return quic_err_success;
+    pthread_mutex_lock(&stream_module->destory_mtx);
+    {
+        quic_rbt_foreach(d_sid, stream_module->destory_set) {
+            quic_stream_t *str = (quic_stream_t *) quic_rbt_nil;
+            if (quic_stream_id_is_bidi(d_sid->key)) {
+                if (quic_stream_id_same_principal(d_sid->key, session)) {
+                    str = quic_streams_find(stream_module->outbidi.streams, &d_sid->key);
+                }
+                else {
+                    str = quic_streams_find(stream_module->inbidi.streams, &d_sid->key);
+                }
+            }
+            else {
+                if (quic_stream_id_same_principal(d_sid->key, session)) {
+                    str = quic_streams_find(stream_module->outuni.streams, &d_sid->key);
+                }
+                else {
+                    str = quic_streams_find(stream_module->inuni.streams, &d_sid->key);
+                }
+            }
+            if (quic_rbt_is_nil(str) || !quic_stream_destroable(str)) {
+                continue;
+            }
+
+            quic_streams_destory(stream_module, session, d_sid->key);
+
+            quic_stream_destoryed_t *destoryed = malloc(sizeof(quic_stream_destoryed_t));
+            if (destoryed) {
+                quic_link_init(destoryed);
+                destoryed->sid = d_sid->key;
+
+                quic_link_insert_after(&destoryed_list, destoryed);
+            }
+        }
     }
-    else if (recv_channel == &stream_module->completed_speaker) {
-        quic_streams_release_spec(stream_module, *sid);
+
+    while (!quic_link_empty(&destoryed_list)) {
+        quic_stream_destoryed_t *destoryed = (quic_stream_destoryed_t *) quic_link_next(&destoryed_list);
+        quic_link_remove(destoryed);
+
+        d_sid = quic_stream_destory_sid_find(stream_module->destory_set, &destoryed->sid);
+        if (!quic_rbt_is_nil(d_sid)) {
+            quic_rbt_remove(&stream_module->destory_set, &d_sid);
+            free(d_sid);
+        }
+
+        free(destoryed);
     }
+    pthread_mutex_unlock(&stream_module->destory_mtx);
 
     return quic_err_success;
 }
@@ -532,8 +575,8 @@ quic_module_t quic_stream_module = {
     .name        = "stream",
     .module_size = sizeof(quic_stream_module_t),
     .init        = quic_stream_module_init,
-    .process     = quic_session_stream_module_process,
-    .loop        = NULL,
+    .process     = NULL,
+    .loop        = quic_session_stream_module_loop,
     .destory     = NULL,
 };
 
