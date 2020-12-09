@@ -270,6 +270,7 @@ static int quic_recv_stream_read_co(void *const args) {
     void *data = read_args->data;
     uint64_t len = read_args->len;
     uint64_t readed_len = 0;
+    bool readed = false;
 
     uint64_t timeout = str->deadline == 0 ? 0 : str->deadline + quic_now();
 
@@ -289,6 +290,9 @@ static int quic_recv_stream_read_co(void *const args) {
         }
 
         if (quic_sorter_readable(&str->sorter) == 0) {
+            if (readed) {
+                break;
+            }
             pthread_mutex_unlock(&str->mtx);
             liteco_recv(NULL, NULL, &__stream_runtime, timeout, &str->handled_notifier);
             pthread_mutex_lock(&str->mtx);
@@ -303,6 +307,7 @@ static int quic_recv_stream_read_co(void *const args) {
         data += once_readed_len;
 
         quic_stream_flowctrl_read(sf_module, quic_stream_extend_flowctrl(p_str), p_str->key, once_readed_len);
+        readed = true;
     }
     pthread_mutex_unlock(&str->mtx);
     read_args->readed_len = readed_len;
@@ -443,6 +448,10 @@ quic_err_t quic_stream_close(quic_stream_t *const str) {
 
     quic_stream_destory_push(s_module, str->key);
     return quic_err_success;
+}
+
+bool quic_stream_remote_closed(quic_stream_t *const str) {
+    return str->recv.fin_flag;
 }
 
 static inline quic_err_t quic_streams_destory(quic_stream_module_t *const module, quic_session_t *const session, const uint64_t sid) {

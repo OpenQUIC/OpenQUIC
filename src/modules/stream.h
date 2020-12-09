@@ -491,6 +491,7 @@ quic_stream_t *quic_stream_inbidi_accept(quic_inbidi_streams_t *const strs);
 __quic_extends quic_stream_t *quic_session_open_stream(quic_session_t *const session, const bool bidi);
 __quic_extends quic_stream_t *quic_session_accept_stream(quic_session_t *const session, const bool bidi);
 __quic_extends quic_err_t quic_stream_close(quic_stream_t *const str);
+__quic_extends bool quic_stream_remote_closed(quic_stream_t *const str);
 
 static inline quic_stream_t *quic_stream_module_recv_relation_stream(quic_stream_module_t *const module, const uint64_t sid) {
     quic_session_t *const session = quic_module_of_session(module);
@@ -526,10 +527,13 @@ static inline quic_err_t quic_recv_stream_handle_frame(quic_recv_stream_t *const
     pthread_mutex_lock(&str->mtx);
     uint64_t t_off = frame->off + frame->len;
     bool fin = (frame->first_byte & quic_frame_stream_type_fin) == quic_frame_stream_type_fin;
+    bool newly_fin = false;
 
     quic_stream_flowctrl_update_rwnd(flowctrl_module, quic_stream_extend_flowctrl(p_str), t_off, fin);
 
     if (fin) {
+        newly_fin = !str->fin_flag;
+
         str->final_off = t_off;
         str->fin_flag = true;
     }
@@ -541,6 +545,10 @@ static inline quic_err_t quic_recv_stream_handle_frame(quic_recv_stream_t *const
 
     if (frame->len == 0) {
         pthread_mutex_unlock(&str->mtx);
+
+        if (fin && newly_fin) {
+            liteco_channel_notify(&str->handled_notifier);
+        }
         return quic_err_success;
     }
 
