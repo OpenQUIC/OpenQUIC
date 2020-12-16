@@ -39,6 +39,13 @@ struct quic_buf_s {
 #define quic_buf_cmp(a, b) \
     (((a)->capa - (b)->capa) || memcmp((a)->buf, (b)->buf, (a)->capa))
 
+#define quic_buf_init(b) { \
+    (b)->ref = false;      \
+    (b)->capa = 0;         \
+    (b)->buf = NULL;       \
+    quic_buf_setpl(b);     \
+}
+
 #define quic_buf_copy(target, exp) {                   \
     if (!(target)->ref && (target)->buf) {             \
         free((target)->buf);                           \
