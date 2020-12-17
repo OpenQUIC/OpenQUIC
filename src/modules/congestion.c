@@ -461,7 +461,6 @@ static inline uint64_t quic_congestion_tbp_next_send_time(quic_congestion_tbp_t 
         return 0;
     }
     uint64_t delta = ceil((14600 - tbp->budget) * 1000000 / quic_congestion_tbp_bandwidth(tbp));
-    printf("%ld\n", delta);
     return tbp->last_sent_time + (delta > 1000 ? delta : 1000);
 }
 

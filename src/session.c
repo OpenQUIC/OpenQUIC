@@ -36,7 +36,7 @@ quic_session_t *quic_session_create(const quic_config_t cfg) {
 
     uint32_t i;
     for (i = 0; quic_modules[i]; i++) {
-        quic_base_module_t *module = quic_session_module(quic_base_module_t, session, *quic_modules[i]);;
+        quic_base_module_t *module = quic_session_module(quic_base_module_t, session, *quic_modules[i]);
         module->module_declare = quic_modules[i];
 
         quic_module_init(module);

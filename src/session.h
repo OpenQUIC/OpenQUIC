@@ -52,6 +52,19 @@ struct quic_config_s {
     uint64_t conn_flowctrl_initial_rwnd;
     uint64_t conn_flowctrl_max_rwnd_size;
     uint64_t conn_flowctrl_initial_swnd;
+
+    const char *tls_ciphers;
+    const char *tls_curve_groups;
+
+    const char *tls_cert_chain_file;
+    const char *tls_key_file;
+    const char *tls_verify_client_ca;
+
+    const char **tls_ca;
+    const char **tls_capath;
+
+    bool stream_sync_close;
+    uint64_t stream_destory_timeout;
 };
 
 typedef struct quic_session_s quic_session_t;
