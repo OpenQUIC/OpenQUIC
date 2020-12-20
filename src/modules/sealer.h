@@ -89,18 +89,14 @@ static inline quic_err_t quic_sealer_handshake_process(quic_sealer_module_t *con
     int err = SSL_get_error(module->ssl, result);
     switch (err) {
     case SSL_ERROR_WANT_READ:
-        printf("want read\n");
         break;
     case SSL_ERROR_WANT_WRITE:
-        printf("want write\n");
         break;
 
     case SSL_ERROR_WANT_X509_LOOKUP:
-        printf("x509 lookup\n");
         break;
 
     case SSL_ERROR_SSL:
-        printf("ssl error\n");
         break;
     }
 

@@ -28,6 +28,7 @@ static int quic_sealer_module_write_handshake_data(SSL *ssl, enum ssl_encryption
 static int quic_sealer_module_flush_flight(SSL *ssl);
 static int quic_sealer_module_send_alert(SSL *ssl, enum ssl_encryption_level_t level, uint8_t alert);
 static int quic_sealer_module_alpn_select_proto_cb(SSL *ssl, const uint8_t **out, uint8_t *outlen, const uint8_t *in, uint32_t inlen, void *arg);
+static enum ssl_verify_result_t quic_sealer_module_custom_verify(SSL *ssl, uint8_t *const alert);
 static inline int quic_sealer_module_set_chains_and_key(quic_sealer_module_t *const module, const char *const chain_file, const char *const key_file);
 
 static const uint16_t quic_signalg[] = {
@@ -110,8 +111,6 @@ static int quic_sealer_module_set_write_secret(SSL *ssl, enum ssl_encryption_lev
 static int quic_sealer_module_write_handshake_data(SSL *ssl, enum ssl_encryption_level_t level, const uint8_t *data, size_t len) {
     (void) level;
 
-    printf("write handshake\n");
-
     quic_sealer_module_t *const s_module = SSL_get_app_data(ssl);
     quic_session_t *const session = quic_module_of_session(s_module);
     quic_framer_module_t *const f_module = quic_session_module(quic_framer_module_t, session, quic_framer_module);
@@ -140,8 +139,6 @@ static int quic_sealer_module_send_alert(SSL *ssl, enum ssl_encryption_level_t l
 
     quic_sealer_module_t *const module = SSL_get_app_data(ssl);
     module->tls_alert = alert;
-
-    printf("alert %d\n", alert);
 
     return 1;
 }
@@ -191,6 +188,12 @@ static inline int quic_sealer_module_set_chains_and_key(quic_sealer_module_t *co
     return quic_err_success;
 }
 
+static enum ssl_verify_result_t quic_sealer_module_custom_verify(SSL *ssl, uint8_t *const alert) {
+    // TODO
+
+    return ssl_verify_ok;
+}
+
 static quic_err_t quic_sealer_module_init(void *const module) {
     quic_sealer_module_t *const s_module = module;
     quic_session_t *const session = quic_module_of_session(s_module);
@@ -200,6 +203,8 @@ static quic_err_t quic_sealer_module_init(void *const module) {
     if (session->cfg.is_cli) {
         s_module->ssl_ctx = SSL_CTX_new(TLS_with_buffers_method());
         SSL_CTX_set_session_cache_mode(s_module->ssl_ctx, SSL_SESS_CACHE_CLIENT | SSL_SESS_CACHE_NO_INTERNAL_STORE);
+        SSL_CTX_set_allow_unknown_alpn_protos(s_module->ssl_ctx, 1);
+        SSL_CTX_set_custom_verify(s_module->ssl_ctx, 0, quic_sealer_module_custom_verify);
     }
     else {
         s_module->ssl_ctx = SSL_CTX_new(TLS_with_buffers_method());
@@ -254,7 +259,8 @@ static quic_err_t quic_sealer_module_init(void *const module) {
         SSL_set_alpn_protos(s_module->ssl, H3_ALPN, sizeof(H3_ALPN) - 1);
 
         // TODO transport parameters
-        SSL_set_quic_transport_params(s_module->ssl, H3_ALPN, sizeof(H3_ALPN) - 1);
+        static const uint8_t transport_parameter[] = "CLIENT";
+        SSL_set_quic_transport_params(s_module->ssl, transport_parameter, sizeof(transport_parameter));
 
         SSL_set_connect_state(s_module->ssl);
         quic_sealer_handshake_process(s_module);
@@ -263,8 +269,8 @@ static quic_err_t quic_sealer_module_init(void *const module) {
         SSL_set_accept_state(s_module->ssl);
 
         // TODO transport parameters
-        static const uint8_t H3_ALPN[] = "\x5h3-29\x5h3-30\x5h3-31\x5h3-32";
-        SSL_set_quic_transport_params(s_module->ssl, H3_ALPN, sizeof(H3_ALPN) - 1);
+        static const uint8_t transport_parameter[] = "SERVER";
+        SSL_set_quic_transport_params(s_module->ssl, transport_parameter, sizeof(transport_parameter));
     }
 
     s_module->tls_alert = 0;
@@ -291,12 +297,6 @@ quic_module_t quic_sealer_module = {
 quic_err_t quic_session_handle_crypto_frame(quic_session_t *const session, const quic_frame_t *const frame) {
     quic_frame_crypto_t *const c_frame = (quic_frame_crypto_t *) frame;
     quic_sealer_module_t *const s_module = quic_session_module(quic_sealer_module_t, session, quic_sealer_module);
-
-    size_t i;
-    for (i = 0; i < c_frame->len; i++) {
-        printf("%02x ", c_frame->data[i]);
-    }
-    printf("\n");
 
     SSL_provide_quic_data(s_module->ssl, s_module->r_level, c_frame->data, c_frame->len);
 
