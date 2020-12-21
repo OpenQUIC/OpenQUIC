@@ -130,6 +130,8 @@ static quic_err_t quic_recver_process_packet_payload(quic_session_t *const sess,
         if (frame->first_byte != quic_frame_ack_type && frame->first_byte == quic_frame_ack_ecn_type) {
             module->curr_ack_eliciting = true;
         }
+
+        free(frame);
     }
 
     return quic_err_success;
