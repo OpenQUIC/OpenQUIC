@@ -13,10 +13,12 @@
 #include <openssl/x509.h>
 #include <openssl/pem.h>
 #include <openssl/bio.h>
+#include <openssl/hkdf.h>
+#include <byteswap.h>
 
 #define QUIC_DEFAULT_TLE_CIPHERS                     \
     "TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384:" \
-    "TLS_CHACHA20_POLY1305_SHA256:TLS_AES_128_CCM_SHA256"
+    "TLS_CHACHA20_POLY1305_SHA256"
 
 #define QUIC_DEFAULT_CURVE_GROUPS "X25519"
 
@@ -30,6 +32,8 @@ static int quic_sealer_module_send_alert(SSL *ssl, enum ssl_encryption_level_t l
 static int quic_sealer_module_alpn_select_proto_cb(SSL *ssl, const uint8_t **out, uint8_t *outlen, const uint8_t *in, uint32_t inlen, void *arg);
 static enum ssl_verify_result_t quic_sealer_module_custom_verify(SSL *ssl, uint8_t *const alert);
 static inline int quic_sealer_module_set_chains_and_key(quic_sealer_module_t *const module, const char *const chain_file, const char *const key_file);
+static inline quic_err_t quic_sealer_module_set_key_iv(quic_buf_t *const key, quic_buf_t *const iv, const SSL_CIPHER *cipher, const uint8_t *secret, size_t secret_len);
+static inline quic_err_t quic_sealer_module_hkdf_expand_label(uint8_t *out, const size_t outlen, const EVP_MD *prf, const uint8_t *secret, size_t secret_len, const uint8_t *label, size_t label_size);
 
 static const uint16_t quic_signalg[] = {
     SSL_SIGN_ED25519,
@@ -44,8 +48,42 @@ static SSL_QUIC_METHOD ssl_quic_method = {
     quic_sealer_module_write_handshake_data,
     quic_sealer_module_flush_flight,
     quic_sealer_module_send_alert
-};
+}; 
 
+static inline quic_err_t quic_sealer_module_hkdf_expand_label(uint8_t *out, const size_t outlen, const EVP_MD *prf, const uint8_t *secret, size_t secret_len, const uint8_t *label, size_t label_size) {
+    uint8_t hkdf_label[19] = { };
+    size_t hkdf_label_size = 2 + 1 + 6 + label_size + 1;
+
+    *(uint16_t *) hkdf_label = bswap_16((uint16_t) outlen);
+    *(uint8_t *) (hkdf_label + 2) = 6 + label_size + 1;
+    memcpy(hkdf_label + 3, "tls13 ", 6);
+    memcpy(hkdf_label + 3 + 6, label, label_size);
+    hkdf_label[3 + 6 + label_size] = 0;
+
+    if (!HKDF_expand(out, outlen, prf, secret, secret_len, hkdf_label, hkdf_label_size)) {
+        return quic_err_internal_error;
+    }
+
+    return quic_err_success;
+}
+
+static inline quic_err_t quic_sealer_module_set_key_iv(quic_buf_t *const key, quic_buf_t *const iv, const SSL_CIPHER *cipher, const uint8_t *secret, size_t secret_len) {
+    static const uint8_t key_label[] = "quic key";
+    static const uint8_t iv_label[] = "quic iv";
+
+    const EVP_MD *prf = EVP_get_digestbynid(SSL_CIPHER_get_prf_nid(cipher));
+    quic_sealer_module_hkdf_expand_label(key->buf, key->capa, prf, secret, secret_len, key_label, sizeof(key_label) - 1);
+    quic_sealer_module_hkdf_expand_label(iv->buf, iv->capa, prf, secret, secret_len, key_label, sizeof(iv_label) - 1);
+
+    return quic_err_success;
+}
+
+#define quic_sealer_alloc_buf(_buf, size) { \
+    (_buf).capa = size;                     \
+    if (!((_buf).buf = malloc(size))) {     \
+        return quic_err_internal_error;     \
+    }                                       \
+}
 static int quic_sealer_module_set_read_secret(SSL *ssl, enum ssl_encryption_level_t level, const SSL_CIPHER *cipher, const uint8_t *secret, size_t secret_len) {
     quic_sealer_module_t *const s_module = SSL_get_app_data(ssl);
     quic_sealer_t *sealer = NULL;
@@ -67,12 +105,39 @@ static int quic_sealer_module_set_read_secret(SSL *ssl, enum ssl_encryption_leve
     if (sealer == NULL) {
         return 0;
     }
-    sealer->r_cipher = cipher;
     sealer->r_sec.buf = malloc(secret_len);
     sealer->r_sec.capa = secret_len;
     memcpy(sealer->r_sec.buf, secret, secret_len);
     quic_buf_setpl(&sealer->r_sec);
     s_module->r_level = level;
+
+    switch (SSL_CIPHER_get_id(cipher)) {
+    case TLS1_CK_AES_128_GCM_SHA256:
+        sealer->r_aead = EVP_aead_aes_128_gcm;
+        quic_sealer_alloc_buf(sealer->r_key, 16);
+        quic_sealer_alloc_buf(sealer->r_iv, 12);
+        sealer->r_aead_tag_size = 16;
+
+        break;
+
+    case TLS1_CK_AES_256_GCM_SHA384:
+        sealer->r_aead = EVP_aead_aes_256_gcm;
+        quic_sealer_alloc_buf(sealer->r_key, 32);
+        quic_sealer_alloc_buf(sealer->r_iv, 12);
+        sealer->r_aead_tag_size = 16;
+
+        break;
+
+    case TLS1_CK_CHACHA20_POLY1305_SHA256:
+        sealer->r_aead = EVP_aead_chacha20_poly1305;
+        quic_sealer_alloc_buf(sealer->r_key, 32);
+        quic_sealer_alloc_buf(sealer->r_iv, 12);
+        sealer->r_aead_tag_size = 16;
+
+        break;
+    }
+
+    quic_sealer_module_set_key_iv(&sealer->r_key, &sealer->r_iv, cipher, secret, secret_len);
 
     return 1;
 }
@@ -98,15 +163,44 @@ static int quic_sealer_module_set_write_secret(SSL *ssl, enum ssl_encryption_lev
     if (sealer == NULL) {
         return 0;
     }
-    sealer->w_cipher = cipher;
     sealer->w_sec.buf = malloc(secret_len);
     sealer->w_sec.capa = secret_len;
     memcpy(sealer->w_sec.buf, secret, secret_len);
     quic_buf_setpl(&sealer->w_sec);
     s_module->w_level = level;
 
+    switch (SSL_CIPHER_get_id(cipher)) {
+    case TLS1_CK_AES_128_GCM_SHA256:
+        sealer->w_aead = EVP_aead_aes_128_gcm;
+        quic_sealer_alloc_buf(sealer->w_key, 16);
+        quic_sealer_alloc_buf(sealer->w_iv, 12);
+        sealer->w_aead_tag_size = 16;
+
+        break;
+
+    case TLS1_CK_AES_256_GCM_SHA384:
+        sealer->w_aead = EVP_aead_aes_256_gcm;
+        quic_sealer_alloc_buf(sealer->w_key, 32);
+        quic_sealer_alloc_buf(sealer->w_iv, 12);
+        sealer->w_aead_tag_size = 16;
+
+        break;
+
+    case TLS1_CK_CHACHA20_POLY1305_SHA256:
+        sealer->w_aead = EVP_aead_chacha20_poly1305;
+        quic_sealer_alloc_buf(sealer->w_key, 32);
+        quic_sealer_alloc_buf(sealer->w_iv, 12);
+        sealer->w_aead_tag_size = 16;
+
+        break;
+    }
+
+    quic_sealer_module_set_key_iv(&sealer->w_key, &sealer->w_iv, cipher, secret, secret_len);
+
     return 1;
 }
+
+#undef quic_sealer_alloc_buf
 
 static int quic_sealer_module_write_handshake_data(SSL *ssl, enum ssl_encryption_level_t level, const uint8_t *data, size_t len) {
     (void) level;
