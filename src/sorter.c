@@ -11,7 +11,7 @@
 #include <malloc.h>
 
 static quic_err_t quic_sorter_write_cluster(quic_sorter_t *const sorter, uint64_t off, uint64_t len, const void *data);
-static uint64_t quic_sorter_read_cluster(quic_sorter_t *const sorter, uint64_t len, void *data);
+static uint64_t quic_sorter_read_cluster(quic_sorter_t *const sorter, bool consume, uint64_t len, void *data);
 
 quic_err_t quic_sorter_init(quic_sorter_t *const sorter) {
     quic_rbt_tree_init(sorter->clusters);
@@ -128,10 +128,18 @@ uint64_t quic_sorter_read(quic_sorter_t *const sorter, uint64_t len, void *data)
     if (quic_sorter_readable(sorter) < len) {
         len = quic_sorter_readable(sorter);
     }
-    uint64_t readed = quic_sorter_read_cluster(sorter, len, data);
+    uint64_t readed = quic_sorter_read_cluster(sorter, true, len, data);
 
     sorter->readed_size += readed;
     return readed;
+}
+
+uint64_t quic_sorter_peek(quic_sorter_t *const sorter, uint64_t len, void *data) {
+    if (quic_sorter_readable(sorter) < len) {
+        len = quic_sorter_readable(sorter);
+    }
+
+    return quic_sorter_read_cluster(sorter, false, len, data);
 }
 
 static quic_err_t quic_sorter_write_cluster(quic_sorter_t *const sorter, uint64_t off, uint64_t len, const void *data) {
@@ -162,7 +170,7 @@ static quic_err_t quic_sorter_write_cluster(quic_sorter_t *const sorter, uint64_
     return quic_err_success;
 }
 
-static uint64_t quic_sorter_read_cluster(quic_sorter_t *const sorter, uint64_t len, void *data) {
+static uint64_t quic_sorter_read_cluster(quic_sorter_t *const sorter, bool consume, uint64_t len, void *data) {
     uint64_t off = sorter->readed_size;
     uint64_t readed = 0;
 
@@ -184,7 +192,7 @@ static uint64_t quic_sorter_read_cluster(quic_sorter_t *const sorter, uint64_t l
         data += cluster_len;
         readed += cluster_len;
 
-        if (cluster_key != off / QUIC_SORTER_CLUSTER_SIZE) {
+        if (consume && cluster_key != off / QUIC_SORTER_CLUSTER_SIZE) {
             quic_rbt_remove(&sorter->clusters, &cluster);
             free(cluster);
         }
@@ -192,3 +200,4 @@ static uint64_t quic_sorter_read_cluster(quic_sorter_t *const sorter, uint64_t l
 
     return readed;
 }
+
