@@ -63,6 +63,10 @@ quic_err_t quic_sorter_write(quic_sorter_t *const sorter, uint64_t off, uint64_t
 uint64_t quic_sorter_read(quic_sorter_t *const sorter, uint64_t len, void *data);
 uint64_t quic_sorter_peek(quic_sorter_t *const sorter, uint64_t len, void *data);
 
+static inline quic_err_t quic_sorter_append(quic_sorter_t *const sorter, uint64_t len, const void *data) {
+    return quic_sorter_write(sorter, sorter->avail_size, len, data);
+}
+
 #define quic_sorter_readable(sorter) \
     ((sorter)->avail_size - (sorter)->readed_size)
 
