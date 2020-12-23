@@ -37,7 +37,7 @@ struct quic_header_s {
     ((header)->first_byte & 0x80)
 
 #define quic_packet_type(header)    \
-    (((header)->first_byte & 0x30))
+    (((header)->first_byte & 0xf0))
 
 #define quic_packet_initial_type    0xc0
 #define quic_packet_0rtt_type       0xd0
