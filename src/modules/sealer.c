@@ -6,8 +6,8 @@
  *
  */
 
+#include "format/header.h"
 #include "modules/sealer.h"
-#include "modules/framer.h"
 #include "session.h"
 #include <openssl/ssl.h>
 #include <openssl/x509.h>
@@ -213,21 +213,17 @@ static int quic_sealer_module_set_write_secret(SSL *ssl, enum ssl_encryption_lev
 #undef quic_sealer_alloc_buf
 
 static int quic_sealer_module_write_handshake_data(SSL *ssl, enum ssl_encryption_level_t level, const uint8_t *data, size_t len) {
-    (void) level;
-
     quic_sealer_module_t *const s_module = SSL_get_app_data(ssl);
-    quic_session_t *const session = quic_module_of_session(s_module);
-    quic_framer_module_t *const f_module = quic_session_module(quic_framer_module_t, session, quic_framer_module);
 
-    quic_frame_crypto_t *c_frame = malloc(sizeof(quic_frame_crypto_t) + len);
-    if (c_frame) {
-        quic_frame_init(c_frame, quic_frame_crypto_type);
-        memcpy(c_frame->data, data, len);
-        c_frame->len = len;
-        c_frame->off = s_module->off;
-        s_module->off += len;
-
-        quic_framer_ctrl(f_module, (quic_frame_t *) c_frame);
+    switch (level) {
+    case ssl_encryption_initial:
+        quic_sorter_append(&s_module->initial_w_sorter, len, data);
+        break;
+    case ssl_encryption_handshake:
+        quic_sorter_append(&s_module->handshake_w_sorter, len, data);
+        break;
+    default:
+        break;
     }
 
     return 1;
@@ -294,6 +290,8 @@ static inline int quic_sealer_module_set_chains_and_key(quic_sealer_module_t *co
 
 static enum ssl_verify_result_t quic_sealer_module_custom_verify(SSL *ssl, uint8_t *const alert) {
     // TODO
+    (void) ssl;
+    (void) alert;
 
     return ssl_verify_ok;
 }
@@ -304,6 +302,18 @@ static quic_err_t quic_sealer_module_init(void *const module) {
 
     s_module->tls_alert = 0;
     s_module->off = 0;
+    s_module->level = ssl_encryption_initial;
+
+    s_module->r_level = ssl_encryption_initial;
+    s_module->w_level = ssl_encryption_initial;
+    quic_sealer_init(&s_module->app_sealer);
+    quic_sealer_init(&s_module->handshake_sealer);
+    quic_sealer_init(&s_module->initial_sealer);
+
+    quic_sorter_init(&s_module->initial_r_sorter);
+    quic_sorter_init(&s_module->initial_w_sorter);
+    quic_sorter_init(&s_module->handshake_r_sorter);
+    quic_sorter_init(&s_module->handshake_w_sorter);
 
     CRYPTO_library_init();
 
@@ -380,14 +390,6 @@ static quic_err_t quic_sealer_module_init(void *const module) {
         SSL_set_quic_transport_params(s_module->ssl, transport_parameter, sizeof(transport_parameter));
     }
 
-    s_module->r_level = ssl_encryption_initial;
-    s_module->w_level = ssl_encryption_initial;
-    quic_sealer_init(&s_module->app_sealer);
-    quic_sealer_init(&s_module->handshake_sealer);
-    quic_sealer_init(&s_module->initial_sealer);
-
-    quic_sorter_init(&s_module->sorter);
-
     return quic_err_success;
 }
 
@@ -403,19 +405,33 @@ quic_module_t quic_sealer_module = {
 quic_err_t quic_session_handle_crypto_frame(quic_session_t *const session, const quic_frame_t *const frame) {
     quic_frame_crypto_t *const c_frame = (quic_frame_crypto_t *) frame;
     quic_sealer_module_t *const s_module = quic_session_module(quic_sealer_module_t, session, quic_sealer_module);
+    quic_sorter_t *sorter = NULL;
 
-    quic_sorter_write(&s_module->sorter, c_frame->off, c_frame->len, c_frame->data);
+    switch (c_frame->packet_type & 0xf0) {
+    case quic_packet_initial_type:
+        sorter = &s_module->initial_r_sorter;
+        break;
+
+    case quic_packet_handshake_type:
+        sorter = &s_module->handshake_r_sorter;
+        break;
+
+    default:
+        return quic_err_internal_error;
+    }
+
+    quic_sorter_write(sorter, c_frame->off, c_frame->len, c_frame->data);
 
     for ( ;; ) {
         uint32_t fragment_size = 0;
-        if (quic_sorter_readable(&s_module->sorter) < 4) {
+        if (quic_sorter_readable(sorter) < 4) {
             return quic_err_success;
         }
-        quic_sorter_peek(&s_module->sorter, 4, &fragment_size);
+        quic_sorter_peek(sorter, 4, &fragment_size);
         fragment_size = bswap_32(fragment_size & 0xFFFFFF00);
         fragment_size += 4;
 
-        if (quic_sorter_readable(&s_module->sorter) < fragment_size) {
+        if (quic_sorter_readable(sorter) < fragment_size) {
             return quic_err_success;
         }
 
@@ -423,13 +439,25 @@ quic_err_t quic_session_handle_crypto_frame(quic_session_t *const session, const
         if (fragment == NULL) {
             return quic_err_internal_error;
         }
-        quic_sorter_read(&s_module->sorter, fragment_size, fragment);
+        quic_sorter_read(sorter, fragment_size, fragment);
 
         SSL_provide_quic_data(s_module->ssl, s_module->r_level, fragment, fragment_size);
         free(fragment);
 
         quic_sealer_handshake_process(s_module);
     }
+
+    return quic_err_success;
+}
+
+quic_err_t quic_session_handle_handshake_done_frame(quic_session_t *const session, const quic_frame_t *const frame) {
+    (void) frame;
+    quic_sealer_module_t *const s_module = quic_session_module(quic_sealer_module_t, session, quic_sealer_module);
+
+    if (!session->cfg.is_cli) {
+        return quic_err_internal_error;
+    }
+    quic_sealer_set_level(s_module, ssl_encryption_application);
 
     return quic_err_success;
 }
