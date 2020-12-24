@@ -66,6 +66,13 @@ static inline bool quic_framer_empty(quic_framer_module_t *const module) {
     return result;
 }
 
+static inline bool quic_framer_ctrl_empty(quic_framer_module_t *const module) {
+    pthread_mutex_lock(&module->mtx);
+    bool result = quic_link_empty(&module->ctrls);
+    pthread_mutex_unlock(&module->mtx);
+    return result;
+}
+
 static inline quic_err_t quic_framer_add_active(quic_framer_module_t *const module, const uint64_t sid) {
     quic_session_t *const session = quic_module_of_session(module);
 
