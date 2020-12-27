@@ -70,4 +70,8 @@ static inline quic_err_t quic_sorter_append(quic_sorter_t *const sorter, uint64_
 #define quic_sorter_readable(sorter) \
     ((sorter)->avail_size - (sorter)->readed_size)
 
+static inline bool quic_sorter_empty(quic_sorter_t *const sorter) {
+    return quic_sorter_readable(sorter) == 0;
+}
+
 #endif
