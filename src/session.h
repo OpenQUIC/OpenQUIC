@@ -39,6 +39,8 @@ struct quic_config_s {
 
     uint64_t stream_recv_timeout;
 
+    uint64_t mtu;
+
     bool disable_prr;
     uint64_t initial_cwnd;
     uint64_t max_cwnd;
