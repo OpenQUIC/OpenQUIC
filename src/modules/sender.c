@@ -363,8 +363,9 @@ static quic_send_packet_t *quic_sender_pack_app_packet(quic_sender_module_t *con
 
 static quic_err_t quic_sender_module_init(void *const module) {
     quic_sender_module_t *const s_module = module;
+    quic_session_t *const session = quic_module_of_session(s_module);
 
-    s_module->mtu = 1460;
+    s_module->mtu = session->cfg.mtu;
     s_module->next_send_time = 0;
 
     return quic_err_success;
