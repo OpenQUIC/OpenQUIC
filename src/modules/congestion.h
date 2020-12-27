@@ -25,6 +25,11 @@ struct quic_congestion_module_s {
 
     bool (*has_budget) (quic_congestion_module_t *const module);
 
+    uint64_t (*id) (quic_congestion_module_t *const module);
+    quic_err_t (*store) (quic_congestion_module_t *const module);
+    quic_err_t (*restore) (quic_congestion_module_t *const module, uint64_t id);
+    quic_err_t (*new_instance) (quic_congestion_module_t *const module);
+
     uint8_t instance[0];
 };
 
@@ -56,6 +61,18 @@ struct quic_congestion_module_s {
 
 #define quic_congestion_has_budget(module) \
     ((module)->has_budget ? (module)->has_budget((module)) : false)
+
+#define quic_congestion_id(module) \
+    ((module)->id ? (module)->id((module)) : 0);
+
+#define quic_congestion_store(module) \
+    ((module)->store ? (module)->store((module)) : quic_err_not_implemented)
+
+#define quic_congestion_restore(module, id) \
+    ((module)->restore ? (module)->restore((module), id) : quic_err_not_implemented)
+
+#define quic_congestion_new_instance(module) \
+    ((module)->new_instance ? (module)->new_instance((module)) : quic_err_not_implemented)
 
 extern quic_module_t quic_congestion_module;
 
