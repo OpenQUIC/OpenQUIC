@@ -25,7 +25,7 @@ static quic_err_t quic_udp_fd_module_init(void *const module) {
         return quic_err_internal_error;
     }
 
-    uf_module->mtu = 1460;
+    uf_module->mtu = session->cfg.mtu;
 
     return quic_err_success;
 }
