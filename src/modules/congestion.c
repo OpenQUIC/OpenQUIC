@@ -79,22 +79,15 @@ struct quic_congestion_status_store_s {
 };
 
 #define quic_congestion_status_store_insert(store, status) \
-    quic_rbt_insert((store), (status), quic_rbt_uint64_comparer);
+    quic_rbt_insert((store), (status), quic_rbt_uint64_comparer)
 
-#define quic_congestion_status_store_find(store, status) \
-    ((quic_congestion_status_store_t *) quic_rbt_find((store), (status), quic_rbt_uint64_key_comparer))
+#define quic_congestion_status_store_find(store, key) \
+    ((quic_congestion_status_store_t *) quic_rbt_find((store), (key), quic_rbt_uint64_key_comparer))
 
 typedef struct quic_congestion_instance_s quic_congestion_instance_t;
 struct quic_congestion_instance_s {
-    quic_congestion_base_t base;
-    quic_congestion_slowstart_t slowstart;
-    quic_congestion_cubic_t cubic;
-    quic_congestion_prr_t prr;
-    quic_congestion_tbp_t tbp;
-    uint64_t id;
-
-    uint64_t id_counter;
     quic_congestion_status_store_t *store;
+    quic_congestion_status_store_t *active_instance;
 };
 
 #define quic_congestion_instance(module) ((quic_congestion_instance_t *) (module)->instance)
@@ -112,28 +105,27 @@ static bool quic_congestion_module_allow_send(quic_congestion_module_t *const mo
 static uint64_t quic_congestion_module_next_send_time(quic_congestion_module_t *const module, const uint64_t unacked_bytes);
 static bool quic_congestion_module_has_budget(quic_congestion_module_t *const module);
 static uint64_t quic_congestion_module_id(quic_congestion_module_t *const module);
-static quic_err_t quic_congestion_module_store(quic_congestion_module_t *const module);
 static quic_err_t quic_congestion_module_restore(quic_congestion_module_t *const module, const uint64_t id);
-static quic_err_t quic_congestion_module_new_instance(quic_congestion_module_t *const module);
+static quic_err_t quic_congestion_module_new_instance(quic_congestion_module_t *const module, const uint64_t id);
 
 static inline quic_err_t quic_congestion_module_increase_cwnd(quic_congestion_module_t *const module, const uint64_t acked_bytes, const uint64_t unacked_bytes, const uint64_t event_time);
 static inline bool quic_congestion_module_cwnd_limited(quic_congestion_module_t *const module, const uint64_t unacked_bytes);
 
-static inline quic_err_t quic_congestion_base_init(quic_congestion_module_t *const module);
+static inline quic_err_t quic_congestion_base_init(quic_congestion_module_t *const module, quic_congestion_status_store_t *const status);
 static inline bool quic_congestion_in_recovery(quic_congestion_base_t *const module); 
 
-static inline quic_err_t quic_congestion_slowstart_init(quic_congestion_module_t *const module);
+static inline quic_err_t quic_congestion_slowstart_init(quic_congestion_module_t *const module, quic_congestion_status_store_t *const status);
 
-static inline quic_err_t quic_congestion_cubic_init(quic_congestion_module_t *const module);
+static inline quic_err_t quic_congestion_cubic_init(quic_congestion_module_t *const module, quic_congestion_status_store_t *const status);
 static inline uint64_t quic_congestion_cubic_on_acked(quic_congestion_cubic_t *const module, const uint64_t acked_bytes, const uint64_t cwnd, const uint64_t delay_min, const uint64_t event_time);
 static inline uint64_t quic_congestion_cubic_on_lost(quic_congestion_cubic_t *const module, const uint64_t cwnd);
 
-static inline quic_err_t quic_congestion_prr_init(quic_congestion_module_t *const module);
+static inline quic_err_t quic_congestion_prr_init(quic_congestion_module_t *const module, quic_congestion_status_store_t *const status);
 static inline quic_err_t quic_congestion_prr_on_lost(quic_congestion_prr_t *const module, const uint64_t unacked_bytes);
 static inline bool quic_congestion_prr_allow_send(quic_congestion_prr_t *const module, const uint64_t cwnd, const uint64_t unacked_bytes, const uint64_t slowstart_threshold);
 
 static inline uint64_t quic_congestion_tbp_max_burst_size(quic_congestion_module_t *const module);
-static inline quic_err_t quic_congestion_tbp_init(quic_congestion_module_t *const module);
+static inline quic_err_t quic_congestion_tbp_init(quic_congestion_module_t *const module, quic_congestion_status_store_t *const status);
 static inline uint64_t quic_congestion_tbp_bandwidth(quic_congestion_module_t *const tbp);
 static inline quic_err_t quic_congestion_tbp_sent_packet(quic_congestion_module_t *const module, const uint64_t sent_time, const uint64_t bytes);
 static inline uint64_t quic_congestion_tbp_budget(quic_congestion_module_t *const module, const uint64_t sent_time);
@@ -153,7 +145,6 @@ static quic_err_t quic_congestion_module_init(void *const module) {
     c_module->has_budget = quic_congestion_module_has_budget;
 
     c_module->id = quic_congestion_module_id;
-    c_module->store = quic_congestion_module_store;
     c_module->restore = quic_congestion_module_restore;
     c_module->new_instance = quic_congestion_module_new_instance;
 
@@ -163,31 +154,31 @@ static quic_err_t quic_congestion_module_init(void *const module) {
 }
 
 static inline quic_err_t quic_congestion_instance_init(quic_congestion_module_t *const module) {
-    quic_congestion_instance(module)->id = 0;
-    quic_congestion_instance(module)->id_counter = 0;
     quic_rbt_tree_init(quic_congestion_instance(module)->store);
+    quic_rbt_tree_init(quic_congestion_instance(module)->active_instance);
 
-    quic_congestion_module_new_instance(module);
+    uint64_t default_key = 0;
+    quic_congestion_module_new_instance(module, default_key);
+    quic_congestion_instance(module)->active_instance = quic_congestion_status_store_find(quic_congestion_instance(module)->store, &default_key);
 
     return quic_err_success;
 }
 
-static quic_err_t quic_congestion_base_init(quic_congestion_module_t *const module) {
-    quic_congestion_base_t *const base = &quic_congestion_instance(module)->base;
+static quic_err_t quic_congestion_base_init(quic_congestion_module_t *const module, quic_congestion_status_store_t *const status) {
     quic_session_t *const session = quic_module_of_session(module);
 
-    base->cwnd = session->cfg.initial_cwnd;
+    status->base.cwnd = session->cfg.initial_cwnd;
 
-    base->acked = false;
-    base->largest_acked_num = 0;
-    base->largest_sent_num = 0;
+    status->base.acked = false;
+    status->base.largest_acked_num = 0;
+    status->base.largest_sent_num = 0;
 
-    base->lost = false;
-    base->at_loss_in_slowstart = false;
-    base->at_loss_largest_sent_num = 0;
+    status->base.lost = false;
+    status->base.at_loss_in_slowstart = false;
+    status->base.at_loss_largest_sent_num = 0;
 
-    base->lost_pkt_count = 0;
-    base->lost_bytes = 0;
+    status->base.lost_pkt_count = 0;
+    status->base.lost_bytes = 0;
 
     return quic_err_success;
 }
@@ -196,32 +187,31 @@ static inline bool quic_congestion_in_recovery(quic_congestion_base_t *const mod
     return module->acked && module->lost && module->largest_acked_num <= module->at_loss_largest_sent_num;
 }
 
-static quic_err_t quic_congestion_slowstart_init(quic_congestion_module_t *const module) {
-    quic_congestion_slowstart_t *const slowstart = &quic_congestion_instance(module)->slowstart;
+static quic_err_t quic_congestion_slowstart_init(quic_congestion_module_t *const module, quic_congestion_status_store_t *const status) {
     quic_session_t *const session = quic_module_of_session(module);
 
-    slowstart->threshold = session->cfg.max_cwnd;
-    slowstart->end_num = 0;
-    slowstart->last_sent_num = 0;
-    slowstart->started = false;
+    status->slowstart.threshold = session->cfg.max_cwnd;
+    status->slowstart.end_num = 0;
+    status->slowstart.last_sent_num = 0;
+    status->slowstart.started = false;
 
-    slowstart->min_rtt = 0;
-    slowstart->rtt_sample_count = 0;
+    status->slowstart.min_rtt = 0;
+    status->slowstart.rtt_sample_count = 0;
 
-    slowstart->found_threshold = false;
+    status->slowstart.found_threshold = false;
 
-    slowstart->min_exit_cwnd = 0;
+    status->slowstart.min_exit_cwnd = 0;
 
     return quic_err_success;
 }
 
-static quic_err_t quic_congestion_prr_init(quic_congestion_module_t *const module) {
-    quic_congestion_prr_t *const prr = &quic_congestion_instance(module)->prr;
+static quic_err_t quic_congestion_prr_init(quic_congestion_module_t *const module, quic_congestion_status_store_t *const status) {
+    (void) module;
 
-    prr->acked_bytes = 0;
-    prr->acked_count = 0;
-    prr->unacked_bytes = 0;
-    prr->sent_bytes = 0;
+    status->prr.acked_bytes = 0;
+    status->prr.acked_count = 0;
+    status->prr.unacked_bytes = 0;
+    status->prr.sent_bytes = 0;
 
     return quic_err_success;
 }
@@ -246,15 +236,15 @@ static inline bool quic_congestion_prr_allow_send(quic_congestion_prr_t *const m
     return module->acked_bytes * slowstart_threshold > module->sent_bytes * module->unacked_bytes;
 }
 
-static inline quic_err_t quic_congestion_cubic_init(quic_congestion_module_t *const module) {
-    quic_congestion_cubic_t *const cubic = &quic_congestion_instance(module)->cubic;
+static inline quic_err_t quic_congestion_cubic_init(quic_congestion_module_t *const module, quic_congestion_status_store_t *const status) {
+    (void) module;
 
-    cubic->epoch = 0;
-    cubic->max_cwnd = 0;
-    cubic->reno_cwnd = 0;
-    cubic->origin_cwnd_point = 0;
-    cubic->origin_time_point = 0;
-    cubic->acked_bytes = 0;
+    status->cubic.epoch = 0;
+    status->cubic.max_cwnd = 0;
+    status->cubic.reno_cwnd = 0;
+    status->cubic.origin_cwnd_point = 0;
+    status->cubic.origin_time_point = 0;
+    status->cubic.acked_bytes = 0;
 
     return quic_err_success;
 }
@@ -310,20 +300,20 @@ static quic_err_t quic_congestion_module_on_sent(quic_congestion_module_t *const
         return quic_err_success;
     }
 
-    if (quic_congestion_in_recovery(&quic_congestion_instance(module)->base)) {
-        quic_congestion_instance(module)->prr.sent_bytes += sent_bytes;
+    if (quic_congestion_in_recovery(&quic_congestion_instance(module)->active_instance->base)) {
+        quic_congestion_instance(module)->active_instance->prr.sent_bytes += sent_bytes;
     }
 
-    quic_congestion_instance(module)->base.largest_sent_num = num;
-    quic_congestion_instance(module)->slowstart.last_sent_num = num;
+    quic_congestion_instance(module)->active_instance->base.largest_sent_num = num;
+    quic_congestion_instance(module)->active_instance->slowstart.last_sent_num = num;
 
     return quic_err_success;
 }
 
 static quic_err_t quic_congestion_module_on_lost(quic_congestion_module_t *const module, const uint64_t num, const uint64_t lost_bytes, const uint64_t unacked_bytes) {
     quic_session_t *const session = quic_module_of_session(module);
-    quic_congestion_base_t *const base = &quic_congestion_instance(module)->base;
-    quic_congestion_slowstart_t *const slowstart = &quic_congestion_instance(module)->slowstart;
+    quic_congestion_base_t *const base = &quic_congestion_instance(module)->active_instance->base;
+    quic_congestion_slowstart_t *const slowstart = &quic_congestion_instance(module)->active_instance->slowstart;
 
     if (base->lost && num <= base->at_loss_largest_sent_num) {
         if (base->at_loss_in_slowstart) {
@@ -344,7 +334,7 @@ static quic_err_t quic_congestion_module_on_lost(quic_congestion_module_t *const
     }
 
     if (!session->cfg.disable_prr) {
-        quic_congestion_prr_on_lost(&quic_congestion_instance(module)->prr, unacked_bytes);
+        quic_congestion_prr_on_lost(&quic_congestion_instance(module)->active_instance->prr, unacked_bytes);
     }
 
     if (session->cfg.slowstart_large_reduction && base->at_loss_in_slowstart) {
@@ -354,7 +344,7 @@ static quic_err_t quic_congestion_module_on_lost(quic_congestion_module_t *const
         base->cwnd -= 1460;
     }
     else {
-        base->cwnd = quic_congestion_cubic_on_lost(&quic_congestion_instance(module)->cubic, base->cwnd);
+        base->cwnd = quic_congestion_cubic_on_lost(&quic_congestion_instance(module)->active_instance->cubic, base->cwnd);
     }
     slowstart->threshold = base->cwnd;
 
@@ -368,20 +358,20 @@ static quic_err_t quic_congestion_module_on_lost(quic_congestion_module_t *const
 static bool quic_congestion_module_allow_send(quic_congestion_module_t *const module, const uint64_t unacked_bytes) {
     quic_session_t *const session = quic_module_of_session(module);
 
-    if (!session->cfg.disable_prr && quic_congestion_in_recovery(&quic_congestion_instance(module)->base)) {
-        return quic_congestion_prr_allow_send(&quic_congestion_instance(module)->prr,
-                                              quic_congestion_instance(module)->base.cwnd,
+    if (!session->cfg.disable_prr && quic_congestion_in_recovery(&quic_congestion_instance(module)->active_instance->base)) {
+        return quic_congestion_prr_allow_send(&quic_congestion_instance(module)->active_instance->prr,
+                                              quic_congestion_instance(module)->active_instance->base.cwnd,
                                               unacked_bytes,
-                                              quic_congestion_instance(module)->slowstart.threshold);
+                                              quic_congestion_instance(module)->active_instance->slowstart.threshold);
     }
-    return unacked_bytes < quic_congestion_instance(module)->base.cwnd;
+    return unacked_bytes < quic_congestion_instance(module)->active_instance->base.cwnd;
 }
 
 static quic_err_t quic_congestion_module_on_acked(quic_congestion_module_t *const module, const uint64_t num, const uint64_t acked_bytes, const uint64_t unacked_bytes, const uint64_t event_time) {
     quic_session_t *const session = quic_module_of_session(module);
-    quic_congestion_base_t *const base = &quic_congestion_instance(module)->base;
-    quic_congestion_prr_t *const prr = &quic_congestion_instance(module)->prr;
-    quic_congestion_slowstart_t *const slowstart = &quic_congestion_instance(module)->slowstart;
+    quic_congestion_base_t *const base = &quic_congestion_instance(module)->active_instance->base;
+    quic_congestion_prr_t *const prr = &quic_congestion_instance(module)->active_instance->prr;
+    quic_congestion_slowstart_t *const slowstart = &quic_congestion_instance(module)->active_instance->slowstart;
 
     if (!base->acked) {
         base->acked = true;
@@ -408,11 +398,11 @@ static quic_err_t quic_congestion_module_on_acked(quic_congestion_module_t *cons
 }
 
 static inline quic_err_t quic_congestion_module_increase_cwnd(quic_congestion_module_t *const module, const uint64_t acked_bytes, const uint64_t unacked_bytes, const uint64_t event_time) {
-    quic_congestion_base_t *const base = &quic_congestion_instance(module)->base;
+    quic_congestion_base_t *const base = &quic_congestion_instance(module)->active_instance->base;
     quic_session_t *const session = quic_module_of_session(module);
 
     if (!quic_congestion_module_cwnd_limited(module, unacked_bytes)) {
-        quic_congestion_instance(module)->cubic.epoch = 0;
+        quic_congestion_instance(module)->active_instance->cubic.epoch = 0;
         return quic_err_success;
     }
 
@@ -420,31 +410,31 @@ static inline quic_err_t quic_congestion_module_increase_cwnd(quic_congestion_mo
         return quic_err_success;
     }
 
-    if (base->cwnd < quic_congestion_instance(module)->slowstart.threshold) {
+    if (base->cwnd < quic_congestion_instance(module)->active_instance->slowstart.threshold) {
         base->cwnd += 1460;
         return quic_err_success;
     }
-    base->cwnd = quic_congestion_cubic_on_acked(&quic_congestion_instance(module)->cubic, acked_bytes, base->cwnd, session->rtt.min_rtt, event_time);
+    base->cwnd = quic_congestion_cubic_on_acked(&quic_congestion_instance(module)->active_instance->cubic, acked_bytes, base->cwnd, session->rtt.min_rtt, event_time);
     base->cwnd = base->cwnd > session->cfg.max_cwnd ? session->cfg.max_cwnd : base->cwnd;
     return quic_err_success;
 }
 
 static inline bool quic_congestion_module_cwnd_limited(quic_congestion_module_t *const module, const uint64_t unacked_bytes) {
-    quic_congestion_base_t *const base = &quic_congestion_instance(module)->base;
-    quic_congestion_slowstart_t *const slowstart = &quic_congestion_instance(module)->slowstart;
+    quic_congestion_base_t *const base = &quic_congestion_instance(module)->active_instance->base;
+    quic_congestion_slowstart_t *const slowstart = &quic_congestion_instance(module)->active_instance->slowstart;
 
-    if (unacked_bytes >= quic_congestion_instance(module)->base.cwnd) {
+    if (unacked_bytes >= quic_congestion_instance(module)->active_instance->base.cwnd) {
         return true;
     }
 
     return (base->cwnd < slowstart->threshold && unacked_bytes > base->cwnd / 2) || (base->cwnd - unacked_bytes) <= 3 * 1460;
 }
 
-static inline quic_err_t quic_congestion_tbp_init(quic_congestion_module_t *const module) {
-    quic_congestion_tbp_t *const tbp = &quic_congestion_instance(module)->tbp;
+static inline quic_err_t quic_congestion_tbp_init(quic_congestion_module_t *const module, quic_congestion_status_store_t *const status) {
+    (void) module;
 
-    tbp->budget = quic_congestion_tbp_bandwidth(module);
-    tbp->last_sent_time = 0;
+    status->tbp.budget = quic_congestion_tbp_bandwidth(module);
+    status->tbp.last_sent_time = 0;
 
     return quic_err_success;
 }
@@ -455,7 +445,7 @@ static inline uint64_t quic_congestion_tbp_max_burst_size(quic_congestion_module
 }
 
 static inline uint64_t quic_congestion_tbp_bandwidth(quic_congestion_module_t *const module) {
-    quic_congestion_base_t *const base = &quic_congestion_instance(module)->base;
+    quic_congestion_base_t *const base = &quic_congestion_instance(module)->active_instance->base;
     quic_session_t *const session = quic_module_of_session(module);
 
     if (session->rtt.smoothed_rtt == 0) {
@@ -465,7 +455,7 @@ static inline uint64_t quic_congestion_tbp_bandwidth(quic_congestion_module_t *c
 }
 
 static inline quic_err_t quic_congestion_tbp_sent_packet(quic_congestion_module_t *const module, const uint64_t sent_time, const uint64_t bytes) {
-    quic_congestion_tbp_t *const tbp = &quic_congestion_instance(module)->tbp;
+    quic_congestion_tbp_t *const tbp = &quic_congestion_instance(module)->active_instance->tbp;
     uint64_t budget = quic_congestion_tbp_budget(module, sent_time);
     if (bytes > budget) {
         tbp->budget = 0;
@@ -479,7 +469,7 @@ static inline quic_err_t quic_congestion_tbp_sent_packet(quic_congestion_module_
 }
 
 static inline uint64_t quic_congestion_tbp_budget(quic_congestion_module_t *const module, const uint64_t sent_time) {
-    quic_congestion_tbp_t *const tbp = &quic_congestion_instance(module)->tbp;
+    quic_congestion_tbp_t *const tbp = &quic_congestion_instance(module)->active_instance->tbp;
     uint64_t max_burst_size = quic_congestion_tbp_max_burst_size(module);
     if (tbp->last_sent_time == 0) {
         return max_burst_size;
@@ -490,7 +480,7 @@ static inline uint64_t quic_congestion_tbp_budget(quic_congestion_module_t *cons
 }
 
 static inline uint64_t quic_congestion_tbp_next_send_time(quic_congestion_module_t *const module) {
-    quic_congestion_tbp_t *const tbp = &quic_congestion_instance(module)->tbp;
+    quic_congestion_tbp_t *const tbp = &quic_congestion_instance(module)->active_instance->tbp;
     if (tbp->budget >= 14600) {
         return 0;
     }
@@ -500,8 +490,8 @@ static inline uint64_t quic_congestion_tbp_next_send_time(quic_congestion_module
 
 static quic_err_t quic_congestion_module_update(quic_congestion_module_t *const module, const uint64_t recv_time, const uint64_t sent_time, const uint64_t delay) {
     quic_session_t *const session = quic_module_of_session(module);
-    quic_congestion_base_t *const base = &quic_congestion_instance(module)->base;
-    quic_congestion_slowstart_t *const slowstart = &quic_congestion_instance(module)->slowstart;
+    quic_congestion_base_t *const base = &quic_congestion_instance(module)->active_instance->base;
+    quic_congestion_slowstart_t *const slowstart = &quic_congestion_instance(module)->active_instance->slowstart;
 
     quic_rtt_update(&session->rtt, recv_time, sent_time, delay);
 
@@ -554,27 +544,7 @@ static bool quic_congestion_module_has_budget(quic_congestion_module_t *const mo
 }
 
 static uint64_t quic_congestion_module_id(quic_congestion_module_t *const module) {
-    return quic_congestion_instance(module)->id;
-}
-
-static quic_err_t quic_congestion_module_store(quic_congestion_module_t *const module) {
-    quic_congestion_instance_t *const instance = quic_congestion_instance(module);
-    quic_congestion_status_store_t *store = quic_congestion_status_store_find(instance->store, &instance->id);
-    if (quic_rbt_is_nil(store)) {
-        store = malloc(sizeof(quic_congestion_status_store_t));
-        quic_rbt_init(store);
-        store->key = instance->id;
-
-        quic_congestion_status_store_insert(&instance->store, store);
-    }
-
-    store->base = instance->base;
-    store->slowstart = instance->slowstart;
-    store->cubic = instance->cubic;
-    store->prr = instance->prr;
-    store->tbp = instance->tbp;
-
-    return quic_err_success;
+    return quic_congestion_instance(module)->active_instance->key;
 }
 
 static quic_err_t quic_congestion_module_restore(quic_congestion_module_t *const module, const uint64_t id) {
@@ -583,25 +553,26 @@ static quic_err_t quic_congestion_module_restore(quic_congestion_module_t *const
     if (quic_rbt_is_nil(store)) {
         return quic_err_internal_error;
     }
-
-    instance->id = store->key;
-    instance->base = store->base;
-    instance->slowstart = store->slowstart;
-    instance->cubic = store->cubic;
-    instance->prr = store->prr;
-    instance->tbp = store->tbp;
+    instance->active_instance = store;
 
     return quic_err_success;
 }
 
-static quic_err_t quic_congestion_module_new_instance(quic_congestion_module_t *const module) {
-    quic_congestion_instance(module)->id = quic_congestion_instance(module)->id_counter++;
+static quic_err_t quic_congestion_module_new_instance(quic_congestion_module_t *const module, const uint64_t key) {
+    quic_congestion_status_store_t *status = malloc(sizeof(quic_congestion_status_store_t));
+    if (!status) {
+        return quic_err_internal_error;
+    }
+    quic_rbt_init(status);
+    status->key = key;
 
-    quic_congestion_base_init(module);
-    quic_congestion_slowstart_init(module);
-    quic_congestion_cubic_init(module);
-    quic_congestion_prr_init(module);
-    quic_congestion_tbp_init(module);
+    quic_congestion_base_init(module, status);
+    quic_congestion_slowstart_init(module, status);
+    quic_congestion_cubic_init(module, status);
+    quic_congestion_prr_init(module, status);
+    quic_congestion_tbp_init(module, status);
+
+    quic_congestion_status_store_insert(&quic_congestion_instance(module)->store, status);
 
     return quic_err_success;
 }

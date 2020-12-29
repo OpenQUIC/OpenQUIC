@@ -14,18 +14,12 @@ static quic_err_t quic_udp_fd_module_init(void *const module) {
     quic_udp_fd_module_t *const uf_module = module;
     quic_session_t *const session = quic_module_of_session(module);
 
-    uf_module->local_addr.v4 = session->cfg.local_addr.v4;
-    uf_module->remote_addr.v4 = session->cfg.remote_addr.v4;
+    quic_rbt_tree_init(uf_module->sockets);
+    quic_rbt_tree_init(uf_module->active_socket);
 
-    if ((uf_module->fd = socket(PF_INET, SOCK_DGRAM, 0)) == -1) {
-        return quic_err_internal_error;
-    }
-
-    if (bind(uf_module->fd, (const struct sockaddr *) &uf_module->local_addr, sizeof(struct sockaddr_in)) == -1) {
-        return quic_err_internal_error;
-    }
-
-    uf_module->mtu = session->cfg.mtu;
+    uint64_t default_key = 0;
+    quic_udp_fd_new_socket(module, default_key, session->cfg.mtu, session->cfg.local_addr.v4, session->cfg.remote_addr.v4);
+    uf_module->active_socket = quic_udp_fd_socket_find(uf_module->sockets, &default_key);
 
     return quic_err_success;
 }
