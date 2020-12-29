@@ -153,14 +153,16 @@ static bool quic_stream_flowctrl_instance_newly_blocked(uint64_t *const limit, v
 static inline void quic_stream_flowctrl_adjust_rwnd(quic_stream_flowctrl_t *const flowctrl) {
     quic_session_t *const session = quic_module_of_session(flowctrl->module);
     quic_conn_flowctrl_module_t *const cf_module = quic_session_module(quic_conn_flowctrl_module_t, session, quic_conn_flowctrl_module);
+    quic_congestion_module_t *const c_module = quic_session_module(quic_congestion_module_t, session, quic_congestion_module);
 
+    uint64_t smoothed_rtt = quic_congestion_smoothed_rtt(c_module);
     uint64_t in_epoch_readed_bytes = flowctrl->read_off - flowctrl->epoch_off;
-    if (in_epoch_readed_bytes <= (flowctrl->rwnd_size >> 1) || !session->rtt.smoothed_rtt) {
+    if (in_epoch_readed_bytes <= (flowctrl->rwnd_size >> 1) || !smoothed_rtt) {
         return;
     }
 
     uint64_t now = quic_now();
-    if (now - flowctrl->epoch_time < (session->rtt.smoothed_rtt << 2) * in_epoch_readed_bytes / flowctrl->rwnd_size) {
+    if (now - flowctrl->epoch_time < (smoothed_rtt << 2) * in_epoch_readed_bytes / flowctrl->rwnd_size) {
         uint64_t prev_rwnd_size = flowctrl->rwnd_size;
         flowctrl->rwnd_size = (flowctrl->rwnd_size << 1) > session->cfg.stream_flowctrl_max_rwnd_size ? session->cfg.stream_flowctrl_max_rwnd_size : (flowctrl->rwnd_size << 1);
 

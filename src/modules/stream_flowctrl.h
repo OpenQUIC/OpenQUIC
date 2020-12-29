@@ -9,7 +9,6 @@
 #ifndef __OPENQUIC_STREAM_FLOWCTRL_H__
 #define __OPENQUIC_STREAM_FLOWCTRL_H__
 
-#include "rtt.h"
 #include "utils/errno.h"
 #include "module.h"
 

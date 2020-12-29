@@ -12,7 +12,6 @@
 #include "format/frame.h"
 #include "utils/rbt.h"
 #include "utils/link.h"
-#include "rtt.h"
 #include "modules/congestion.h"
 #include "module.h"
 #include "session.h"
@@ -72,6 +71,7 @@ static inline quic_err_t quic_retransmission_module_retransmission(quic_retransm
 
 static inline quic_err_t quic_retransmission_update_alarm(quic_retransmission_module_t *const module) {
     quic_session_t *const session = quic_module_of_session(module);
+    quic_congestion_module_t *const c_module = quic_session_module(quic_congestion_module_t, session, quic_congestion_module);
 
     if (!module->unacked_len) {
         return quic_err_success;
@@ -79,7 +79,7 @@ static inline quic_err_t quic_retransmission_update_alarm(quic_retransmission_mo
 
     module->alarm = module->loss_time
         ? module->loss_time
-        : module->last_sent_ack_time + quic_rtt_pto(&session->rtt, module->max_delay);
+        : module->last_sent_ack_time + quic_congestion_pto(c_module, module->max_delay);
 
     quic_session_update_loop_deadline(session, module->alarm);
 

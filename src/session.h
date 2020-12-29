@@ -14,7 +14,6 @@
 #include "utils/errno.h"
 #include "utils/rbt.h"
 #include "format/frame.h"
-#include "rtt.h"
 #include "module.h"
 #include <stdbool.h>
 #include <sys/time.h>
@@ -75,8 +74,6 @@ struct quic_session_s {
     quic_buf_t dst;
 
     quic_config_t cfg;
-
-    quic_rtt_t rtt;
 
     pthread_t background_thread;
     liteco_channel_t module_event_pipeline;

@@ -24,7 +24,6 @@ quic_session_t *quic_session_create(const quic_config_t cfg) {
     }
     quic_rbt_init(session);
     session->dst.buf = NULL;
-    quic_rtt_init(&session->rtt);
 
     session->key.ref = false;
     session->key.buf = NULL;

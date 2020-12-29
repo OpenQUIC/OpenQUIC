@@ -108,7 +108,7 @@ quic_err_t quic_retransmission_module_find_newly_lost(quic_retransmission_module
     quic_link_init(&lost_list);
 
     module->loss_time = 0;
-    uint64_t max_rtt = session->rtt.smoothed_rtt;
+    uint64_t max_rtt = quic_congestion_smoothed_rtt(c_module);
     uint64_t lost_delay = (9 * max_rtt) >> 3;
     lost_delay = lost_delay > 1000 ? lost_delay : 1000;
     uint64_t lost_send_time = quic_now() - lost_delay;

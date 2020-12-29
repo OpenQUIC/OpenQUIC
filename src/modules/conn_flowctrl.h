@@ -10,6 +10,7 @@
 #define __OPENQUIC_CONN_FLOWCTRL_H__
 
 #include "module.h"
+#include "modules/congestion.h"
 #include "session.h"
 #include "utils/time.h"
 
@@ -54,14 +55,16 @@ static inline quic_err_t quic_conn_flowctrl_update_swnd(quic_conn_flowctrl_modul
 
 static inline void quic_conn_flowctrl_adjust_rwnd(quic_conn_flowctrl_module_t *const module) {
     quic_session_t *const session = quic_module_of_session(module);
+    quic_congestion_module_t *const c_module = quic_session_module(quic_congestion_module_t, session, quic_congestion_module);
 
+    uint64_t smoothed_rtt = quic_congestion_smoothed_rtt(c_module);
     uint64_t in_epoch_readed_bytes = module->read_off - module->epoch_off;
-    if (in_epoch_readed_bytes <= (module->rwnd_size >> 1) || !session->rtt.smoothed_rtt) {
+    if (in_epoch_readed_bytes <= (module->rwnd_size >> 1) || !smoothed_rtt) {
         return;
     }
 
     uint64_t now = quic_now();
-    if (now - module->epoch_time < (session->rtt.smoothed_rtt >> 2) * in_epoch_readed_bytes / module->rwnd_size) {
+    if (now - module->epoch_time < (smoothed_rtt >> 2) * in_epoch_readed_bytes / module->rwnd_size) {
         module->rwnd_size = (module->rwnd_size >> 1) > session->cfg.conn_flowctrl_max_rwnd_size ? session->cfg.conn_flowctrl_max_rwnd_size : (module->rwnd_size >> 1);
     }
 

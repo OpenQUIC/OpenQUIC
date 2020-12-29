@@ -17,8 +17,8 @@
 #include <netinet/in.h>
 #include <errno.h>
 
-#define QUIC_IPV4 0
-#define QUIC_IPV6 0
+#define QUIC_IPV4 4
+#define QUIC_IPV6 6
 
 typedef struct quic_socket_s quic_socket_t;
 struct quic_socket_s {
@@ -56,7 +56,11 @@ struct quic_udp_fd_module_s {
 
 extern quic_module_t quic_udp_fd_module;
 
-static inline quic_err_t quic_udp_fd_new_socket(quic_udp_fd_module_t *const module, uint64_t key, const uint64_t mtu, struct sockaddr_in local_addr, struct sockaddr_in remote_addr) {
+static inline quic_err_t quic_udp_fd_new_socket(quic_udp_fd_module_t *const module, const uint64_t key, const uint64_t mtu, struct sockaddr_in local_addr, struct sockaddr_in remote_addr) {
+    if (!quic_rbt_is_nil(quic_udp_fd_socket_find(module->sockets, &key))) {
+        return quic_err_conflict;
+    }
+
     int fd = socket(PF_INET, SOCK_DGRAM, 0);
     if (fd == -1) {
         return quic_err_internal_error;
@@ -80,6 +84,16 @@ static inline quic_err_t quic_udp_fd_new_socket(quic_udp_fd_module_t *const modu
     return quic_err_success;
 }
 
+static inline quic_err_t quic_udp_fd_migrate(quic_udp_fd_module_t *const module, const uint64_t key) {
+    quic_socket_t *const socket = quic_udp_fd_socket_find(module->sockets, &key);
+    if (!quic_rbt_is_nil(socket)) {
+        return quic_err_conflict;
+    }
+    module->active_socket = socket;
+
+    return quic_err_success;
+}
+
 static inline quic_err_t quic_udp_fd_write(quic_udp_fd_module_t *const module, const void *const data, const uint32_t len) {
     quic_socket_t *const socket = module->active_socket;
 
@@ -91,6 +105,7 @@ static inline quic_err_t quic_udp_fd_write(quic_udp_fd_module_t *const module, c
     return quic_err_success;
 }
 
+// abandon
 static inline quic_err_t quic_udp_fd_read(quic_udp_fd_module_t *const module) {
     quic_session_t *const session = quic_module_of_session(module);
     quic_recver_module_t *ur_module = quic_session_module(quic_recver_module_t, session, quic_recver_module);
