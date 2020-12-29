@@ -175,10 +175,6 @@ static inline quic_err_t quic_congestion_instance_init(quic_congestion_module_t 
     quic_rbt_tree_init(quic_congestion_instance(module)->store);
     quic_rbt_tree_init(quic_congestion_instance(module)->active_instance);
 
-    uint64_t default_key = 0;
-    quic_congestion_module_new_instance(module, default_key);
-    quic_congestion_instance(module)->active_instance = quic_congestion_status_store_find(quic_congestion_instance(module)->store, &default_key);
-
     return quic_err_success;
 }
 

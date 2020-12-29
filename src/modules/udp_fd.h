@@ -86,8 +86,8 @@ static inline quic_err_t quic_udp_fd_new_socket(quic_udp_fd_module_t *const modu
 
 static inline quic_err_t quic_udp_fd_migrate(quic_udp_fd_module_t *const module, const uint64_t key) {
     quic_socket_t *const socket = quic_udp_fd_socket_find(module->sockets, &key);
-    if (!quic_rbt_is_nil(socket)) {
-        return quic_err_conflict;
+    if (quic_rbt_is_nil(socket)) {
+        return quic_err_internal_error;
     }
     module->active_socket = socket;
 
@@ -117,6 +117,9 @@ static inline quic_err_t quic_udp_fd_read(quic_udp_fd_module_t *const module) {
     socklen_t socklen = 0;
 
     int ret = recvfrom(module->active_socket->fd, rp->data, module->active_socket->mtu, 0, (struct sockaddr *) &rp->remote_addr.v4, &socklen);
+    if (ret < 0) {
+        return quic_err_internal_error;
+    }
 
     rp->len = ret;
     rp->recv_time = quic_now();

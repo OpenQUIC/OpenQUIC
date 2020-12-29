@@ -23,14 +23,6 @@
 typedef struct quic_config_s quic_config_t;
 struct quic_config_s {
     quic_buf_t src;
-    union {
-        struct sockaddr_in v4;
-        struct sockaddr_in6 v6;
-    } local_addr;
-    union {
-        struct sockaddr_in v4;
-        struct sockaddr_in6 v6;
-    } remote_addr;
     quic_buf_t dst;
 
     bool is_cli;
