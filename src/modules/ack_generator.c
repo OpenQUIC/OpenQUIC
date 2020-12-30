@@ -129,6 +129,7 @@ quic_frame_ack_t *quic_ack_generator_generate(quic_ack_generator_module_t *const
 
             frame->largest_ack = range->end;
             frame->first_range = range->end - range->start;
+
             smallest = range->start;
         }
         else {
@@ -142,8 +143,6 @@ quic_frame_ack_t *quic_ack_generator_generate(quic_ack_generator_module_t *const
 
     module->alarm = 0;
     module->should_send = false;
-    module->ss_pkt = 0;
-    module->ss_ack_pkt = 0;
 
     return frame;
 }
@@ -178,11 +177,6 @@ static quic_err_t quic_ack_generator_init(void *const module) {
     ag_module->should_send = false;
     ag_module->is_sent = false;
     ag_module->alarm = 0;
-
-    ag_module->ss_pkt = 0;
-    ag_module->ss_ack_pkt = 0;
-
-    ag_module->max_delay = 25 * 1000;
 
     return quic_err_success;
 }

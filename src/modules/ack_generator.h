@@ -37,12 +37,6 @@ struct quic_ack_generator_module_s {
     bool is_sent;
 
     uint64_t alarm;
-    uint64_t max_delay;
-
-    // since last ack, packet count
-    uint32_t ss_pkt;
-    // since last ack, packet (eliciting ACK frame) count
-    uint32_t ss_ack_pkt;
 };
 
 extern quic_module_t quic_initial_ack_generator_module;
@@ -66,11 +60,7 @@ static inline bool quic_ack_generator_should_send(quic_ack_generator_module_t *c
     return module->should_send;
 }
 
-static inline quic_err_t quic_ack_generator_module_received(module, num, recv_time)
-    quic_ack_generator_module_t *const module; 
-    const uint64_t num;
-    const uint64_t recv_time; {
-
+static inline quic_err_t quic_ack_generator_module_received(quic_ack_generator_module_t *const module, const uint64_t num, const uint64_t recv_time) {
     if (num < module->ignore_threhold) {
         return quic_err_success;
     }
