@@ -47,6 +47,7 @@ static inline quic_err_t quic_recver_handle_packet(quic_recver_module_t *const m
     module->recv_first = true;
     module->last_recv_time = module->curr_packet->recv_time;
 
+
     if (quic_header_is_long(header)) {
         switch (quic_packet_type(header)) {
         case quic_packet_initial_type:
@@ -153,14 +154,19 @@ static quic_err_t quic_recver_module_process(void *const module) {
     quic_recver_module_t *const ur_module = module;
 
     pthread_mutex_lock(&ur_module->mtx);
-    ur_module->curr_packet = (quic_recv_packet_t *) quic_link_next(&ur_module->queue);
-    quic_link_remove(ur_module->curr_packet);
+    while (!quic_link_empty(&ur_module->queue)) {
+        ur_module->curr_packet = (quic_recv_packet_t *) quic_link_next(&ur_module->queue);
+        quic_link_remove(ur_module->curr_packet);
+        pthread_mutex_unlock(&ur_module->mtx);
+
+        quic_recver_handle_packet(module);
+        free(ur_module->curr_packet);
+        ur_module->curr_packet = NULL;
+
+        pthread_mutex_lock(&ur_module->mtx);
+    }
     pthread_mutex_unlock(&ur_module->mtx);
 
-    quic_recver_handle_packet(module);
-
-    free(ur_module->curr_packet);
-    ur_module->curr_packet = NULL;
 
     return quic_err_success;
 }
