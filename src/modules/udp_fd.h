@@ -38,6 +38,8 @@ struct quic_socket_s {
         struct sockaddr_in v4;
         struct sockaddr_in6 v6;
     } local_addr;
+
+    quic_session_t *session;
 };
 
 #define quic_udp_fd_socket_insert(sockets, socket) \
@@ -78,6 +80,7 @@ static inline quic_err_t quic_udp_fd_new_socket(quic_udp_fd_module_t *const modu
     socket->mtu = mtu;
     socket->local_addr.v4 = local_addr;
     socket->remote_addr.v4 = remote_addr;
+    socket->session = quic_module_of_session(module);
 
     quic_udp_fd_socket_insert(&module->sockets, socket);
 
