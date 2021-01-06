@@ -102,8 +102,11 @@ quic_err_t quic_ack_generator_ignore(quic_ack_generator_module_t *const module) 
 }
 
 quic_frame_ack_t *quic_ack_generator_generate(quic_ack_generator_module_t *const module) {
-    uint64_t now = quic_now();
+    if (module->dropped) {
+        return NULL;
+    }
 
+    uint64_t now = quic_now();
     if (!module->should_send && (module->alarm == 0 || now < module->alarm)) {
         return NULL;
     }
@@ -165,6 +168,18 @@ bool quic_ack_generator_check_is_lost(quic_ack_generator_module_t *const module,
     return false;
 }
 
+quic_err_t quic_ack_generator_drop(quic_ack_generator_module_t *const module) {
+    while (!quic_link_empty(&module->ranges)) {
+        quic_ack_generator_range_t *range = (quic_ack_generator_range_t *) quic_link_next(&module->ranges);
+        quic_link_remove(range);
+        free(range);
+    }
+    module->ranges_count = 0;
+
+    module->dropped = true;
+    return quic_err_success;
+}
+
 static quic_err_t quic_ack_generator_init(void *const module) {
     quic_ack_generator_module_t *const ag_module = module;
     ag_module->ignore_threhold = 0;
@@ -177,6 +192,7 @@ static quic_err_t quic_ack_generator_init(void *const module) {
     ag_module->should_send = false;
     ag_module->is_sent = false;
     ag_module->alarm = 0;
+    ag_module->dropped = false;
 
     return quic_err_success;
 }

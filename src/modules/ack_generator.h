@@ -36,6 +36,7 @@ struct quic_ack_generator_module_s {
     bool should_send;
     bool is_sent;
 
+    bool dropped;
     uint64_t alarm;
 };
 
@@ -44,24 +45,30 @@ extern quic_module_t quic_handshake_ack_generator_module;
 extern quic_module_t quic_app_ack_generator_module;
 
 bool quic_ack_generator_insert_ranges(quic_ack_generator_module_t *const module, const uint64_t num);
-
 quic_err_t quic_ack_generator_ignore(quic_ack_generator_module_t *const module);
-
 quic_frame_ack_t *quic_ack_generator_generate(quic_ack_generator_module_t *const module);
-
 bool quic_ack_generator_check_is_lost(quic_ack_generator_module_t *const module, const uint64_t num);
+quic_err_t quic_ack_generator_drop(quic_ack_generator_module_t *const module);
 
 static inline bool quic_ack_generator_contains_lost(quic_ack_generator_module_t *const module) {
+    if (module->dropped) {
+        return false;
+    }
+
     return module->ranges_count > 1
         || ((quic_ack_generator_range_t *) quic_link_next(&module->ranges))->start > module->ignore_threhold;
 }
 
 static inline bool quic_ack_generator_should_send(quic_ack_generator_module_t *const module) {
+    if (module->dropped) {
+        return false;
+    }
+
     return module->should_send;
 }
 
 static inline quic_err_t quic_ack_generator_module_received(quic_ack_generator_module_t *const module, const uint64_t num, const uint64_t recv_time) {
-    if (num < module->ignore_threhold) {
+    if (num < module->ignore_threhold || module->dropped) {
         return quic_err_success;
     }
 
