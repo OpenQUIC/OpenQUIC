@@ -14,6 +14,7 @@
 #include "session.h"
 #include "format/frame.h"
 #include "modules/framer.h"
+#include "modules/ack_generator.h"
 #include <openssl/ssl.h>
 #include <malloc.h>
 #include <byteswap.h>
@@ -101,6 +102,31 @@ struct quic_sealer_module_s {
 extern quic_module_t quic_sealer_module;
 
 static inline quic_err_t quic_sealer_set_level(quic_sealer_module_t *const module, enum ssl_encryption_level_t level) {
+    quic_session_t *const session = quic_module_of_session(module);
+    quic_ack_generator_module_t *ag_module = NULL;
+    quic_retransmission_module_t *r_module = NULL;
+
+    switch (level) {
+    case ssl_encryption_handshake:
+        ag_module = quic_session_module(quic_ack_generator_module_t, session, quic_initial_ack_generator_module);
+        r_module = quic_session_module(quic_retransmission_module_t, session, quic_initial_retransmission_module);
+        break;
+
+    case ssl_encryption_application:
+        ag_module = quic_session_module(quic_ack_generator_module_t, session, quic_handshake_ack_generator_module);
+        r_module = quic_session_module(quic_retransmission_module_t, session, quic_handshake_retransmission_module);
+        break;
+    default:
+        break;
+    }
+
+    if (ag_module) {
+        quic_ack_generator_drop(ag_module);
+    }
+    if (r_module) {
+        quic_retransmission_drop(r_module);
+    }
+
     module->level = level;
     
     return quic_err_success;
@@ -119,6 +145,7 @@ static inline quic_err_t quic_sealer_handshake_process(quic_sealer_module_t *con
             quic_frame_init(frame, quic_frame_handshake_done_type);
 
             quic_framer_ctrl(f_module, (quic_frame_t *) frame);
+            quic_module_activate(session, quic_sender_module);
         }
         return quic_err_success;
     }
