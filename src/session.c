@@ -12,10 +12,9 @@
 #include <malloc.h>
 #include <arpa/inet.h>
 
-static void *quic_session_background(void *const session_);
-static int quic_session_background_co(void *const session_);
+static int quic_session_run_co(void *const session_);
 
-quic_session_t *quic_session_create(const quic_config_t cfg) {
+quic_session_t *quic_session_create(const quic_config_t cfg, uint8_t *const stack, const uint32_t stack_len) {
     uint32_t modules_size = quic_modules_size();
 
     quic_session_t *session = malloc(sizeof(quic_session_t) + modules_size);
@@ -41,30 +40,12 @@ quic_session_t *quic_session_create(const quic_config_t cfg) {
         quic_module_init(module);
     }
 
-    pthread_create(&session->background_thread, NULL, quic_session_background, session);
+    liteco_create(&session->co, stack, stack_len, quic_session_run_co, session, NULL);
 
     return session;
 }
 
-static void *quic_session_background(void *const session_) {
-    liteco_runtime_t rt;
-    liteco_runtime_init(&rt);
-    uint8_t stack[LITECO_DEFAULT_STACK_SIZE] = { 0 };
-
-    liteco_coroutine_t co = { };
-    liteco_create(&co, stack, sizeof(stack), quic_session_background_co, session_, NULL);
-    liteco_runtime_join(&rt, &co);
-
-    while (co.status != LITECO_TERMINATE) {
-        if (liteco_runtime_execute(&rt, &co) != LITECO_SUCCESS) {
-            break;
-        }
-    }
-
-    return NULL;
-}
-
-static int quic_session_background_co(void *const session_) {
+static int quic_session_run_co(void *const session_) {
     uint32_t i;
     quic_session_t *const session = session_;
     const quic_module_t *active_module = NULL;

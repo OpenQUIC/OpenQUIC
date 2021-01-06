@@ -25,6 +25,8 @@ struct quic_config_s {
     quic_buf_t src;
     quic_buf_t dst;
 
+    uint32_t co_stack_size;
+
     bool is_cli;
     uint32_t conn_len;
 
@@ -67,6 +69,8 @@ struct quic_session_s {
 
     quic_config_t cfg;
 
+    liteco_coroutine_t co;
+
     pthread_t background_thread;
     liteco_channel_t module_event_pipeline;
     uint64_t loop_deadline;
@@ -90,8 +94,7 @@ struct quic_session_s {
         (session)->loop_deadline = (deadline);                                                     \
     }
 
-quic_session_t *quic_session_create(const quic_config_t cfg);
-
+quic_session_t *quic_session_create(const quic_config_t cfg, uint8_t *const stack, const uint32_t stack_len);
 typedef quic_err_t (*quic_session_handler_t) (quic_session_t *const, const quic_frame_t *const);
 
 #endif
