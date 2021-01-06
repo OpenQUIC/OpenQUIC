@@ -89,7 +89,7 @@ uint64_t quic_framer_append_ctrl_frame(quic_link_t *const frames, const uint64_t
 
 static quic_err_t quic_framer_stream_frame_on_lost(void *const lost_obj, const quic_frame_t *const frame) {
     quic_retransmission_module_t *const r_module = lost_obj;
-    quic_retransmission_module_retransmission(r_module, (quic_frame_t *) frame);
+    quic_retransmission_frame_insert(r_module, (quic_frame_t *) frame);
 
     return quic_err_success;
 }
