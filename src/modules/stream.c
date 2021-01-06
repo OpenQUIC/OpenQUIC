@@ -69,7 +69,7 @@ uint64_t quic_send_stream_write(quic_send_stream_t *const str, const void *data,
     liteco_runtime_join(&__stream_runtime, &co);
 
     while (co.status != LITECO_TERMINATE) {
-        if (liteco_runtime_execute(&__stream_runtime, &co) != LITECO_SUCCESS) {
+        if (liteco_runtime_execute(NULL, &__stream_runtime, &co) != LITECO_SUCCESS) {
             break;
         }
     }
@@ -253,7 +253,7 @@ uint64_t quic_recv_stream_read(quic_recv_stream_t *const str, void *const data, 
     liteco_runtime_join(&__stream_runtime, &co);
 
     while (co.status != LITECO_TERMINATE) {
-        if (liteco_runtime_execute(&__stream_runtime, &co) != LITECO_SUCCESS) {
+        if (liteco_runtime_execute(NULL, &__stream_runtime, &co) != LITECO_SUCCESS) {
             break;
         }
     }
@@ -352,7 +352,7 @@ quic_stream_t *quic_stream_inuni_accept(quic_inuni_streams_t *const strs) {
     liteco_runtime_join(&__accept_runtime, &co);
 
     while (co.status != LITECO_TERMINATE) {
-        if (liteco_runtime_execute(&__accept_runtime, &co) != LITECO_SUCCESS) {
+        if (liteco_runtime_execute(NULL, &__accept_runtime, &co) != LITECO_SUCCESS) {
             break;
         }
     }
@@ -381,7 +381,7 @@ quic_stream_t *quic_stream_inbidi_accept(quic_inbidi_streams_t *const strs) {
     liteco_runtime_join(&__accept_runtime, &co);
 
     while (co.status != LITECO_TERMINATE) {
-        if (liteco_runtime_execute(&__accept_runtime, &co) != LITECO_SUCCESS) {
+        if (liteco_runtime_execute(NULL, &__accept_runtime, &co) != LITECO_SUCCESS) {
             break;
         }
     }
@@ -468,7 +468,7 @@ quic_err_t quic_stream_close(quic_stream_t *const str) {
         liteco_create(&co, co_s, sizeof(co_s), quic_stream_close_sync_co, &destoryed_notifier, NULL);
         liteco_runtime_join(&__stream_runtime, &co);
         while (co.status != LITECO_TERMINATE) {
-            if (liteco_runtime_execute(&__stream_runtime, &co) != LITECO_SUCCESS) {
+            if (liteco_runtime_execute(NULL, &__stream_runtime, &co) != LITECO_SUCCESS) {
                 break;
             }
         }

@@ -560,14 +560,18 @@ static inline quic_err_t quic_recv_stream_handle_frame(quic_recv_stream_t *const
         return quic_err_success;
     }
 
+    uint64_t readable_size = quic_sorter_readable(&str->sorter);
     if ((err = quic_sorter_write(&str->sorter, frame->off, frame->len, frame->data)) != quic_err_success) {
         pthread_mutex_unlock(&str->mtx);
         return quic_err_success;
     }
+    bool notify = readable_size != quic_sorter_readable(&str->sorter);
 
     pthread_mutex_unlock(&str->mtx);
 
-    liteco_channel_notify(&str->handled_notifier);
+    if (notify) {
+        liteco_channel_notify(&str->handled_notifier);
+    }
     return quic_err_success;
 }
 
