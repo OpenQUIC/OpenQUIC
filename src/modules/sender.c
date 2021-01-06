@@ -31,9 +31,9 @@ static inline quic_err_t quic_sender_generate_retry_header(quic_sender_module_t 
 /* all fields of the short header are completely filled */
 static inline quic_err_t quic_sender_generate_short_header(quic_session_t *const session, const uint64_t num, quic_buf_t *const buf);
 
-static quic_send_packet_t *quic_sender_pack_app_packet(quic_sender_module_t *const sender);
-static quic_send_packet_t *quic_sender_pack_initial_packet(quic_sender_module_t *const sender);
-static quic_send_packet_t *quic_sender_pack_handshake_packet(quic_sender_module_t *const sender);
+static quic_send_packet_t *quic_sender_pack_initial_packet(quic_sender_module_t *const sender, const bool probe);
+static quic_send_packet_t *quic_sender_pack_handshake_packet(quic_sender_module_t *const sender, const bool probe);
+static quic_send_packet_t *quic_sender_pack_app_packet(quic_sender_module_t *const sender, const bool probe);
 
 static inline quic_err_t quic_sender_send_packet(quic_sender_module_t *const module, quic_send_packet_t *const pkt);
 
@@ -136,7 +136,7 @@ static inline quic_err_t quic_sender_generate_short_header(quic_session_t *const
 }
 
 
-static quic_send_packet_t *quic_sender_pack_initial_packet(quic_sender_module_t *const sender) {
+static quic_send_packet_t *quic_sender_pack_initial_packet(quic_sender_module_t *const sender, const bool probe) {
     quic_session_t *const session = quic_module_of_session(sender);
     quic_packet_number_generator_module_t *const numgen = quic_session_module(quic_packet_number_generator_module_t, session, quic_initial_packet_number_generator_module);
     quic_framer_module_t *const f_module = quic_session_module(quic_framer_module_t, session, quic_framer_module);
@@ -164,37 +164,39 @@ static quic_send_packet_t *quic_sender_pack_initial_packet(quic_sender_module_t 
     max_bytes -= frame_len;
     payload_len += frame_len;
 
-    // serialize retransmission frames
-    for ( ;; ) {
-        frame_len = quic_retransmission_append_frame(&pkt->frames, max_bytes, pkt->retransmission_module);
-        max_bytes -= frame_len;
-        payload_len += frame_len;
-        if (frame_len == 0) {
-            break;
+    if (!probe) {
+        // serialize retransmission frames
+        for ( ;; ) {
+            frame_len = quic_retransmission_append_frame(&pkt->frames, max_bytes, pkt->retransmission_module);
+            max_bytes -= frame_len;
+            payload_len += frame_len;
+            if (frame_len == 0) {
+                break;
+            }
+            pkt->included_unacked = true;
         }
-        pkt->included_unacked = true;
-    }
 
-    // serialize ctrl frames
-    for ( ;; ) {
-        frame_len = quic_framer_append_ctrl_frame(&pkt->frames, max_bytes, f_module);
-        max_bytes -= frame_len;
-        payload_len += frame_len;
-        if (frame_len == 0) {
-            break;
+        // serialize ctrl frames
+        for ( ;; ) {
+            frame_len = quic_framer_append_ctrl_frame(&pkt->frames, max_bytes, f_module);
+            max_bytes -= frame_len;
+            payload_len += frame_len;
+            if (frame_len == 0) {
+                break;
+            }
+            pkt->included_unacked = true;
         }
-        pkt->included_unacked = true;
-    }
 
-    // serialize crypto frames
-    for ( ;; ) {
-        frame_len = quic_sealer_append_crypto_frame(&pkt->frames, max_bytes, s_module, ssl_encryption_initial);
-        max_bytes -= frame_len;
-        payload_len += frame_len;
-        if (frame_len == 0) {
-            break;
+        // serialize crypto frames
+        for ( ;; ) {
+            frame_len = quic_sealer_append_crypto_frame(&pkt->frames, max_bytes, s_module, ssl_encryption_initial);
+            max_bytes -= frame_len;
+            payload_len += frame_len;
+            if (frame_len == 0) {
+                break;
+            }
+            pkt->included_unacked = true;
         }
-        pkt->included_unacked = true;
     }
 
     if (quic_link_empty(&pkt->frames)) {
@@ -211,7 +213,7 @@ static quic_send_packet_t *quic_sender_pack_initial_packet(quic_sender_module_t 
     return pkt;
 }
 
-static quic_send_packet_t *quic_sender_pack_handshake_packet(quic_sender_module_t *const sender) {
+static quic_send_packet_t *quic_sender_pack_handshake_packet(quic_sender_module_t *const sender, const bool probe) {
     quic_session_t *const session = quic_module_of_session(sender);
     quic_packet_number_generator_module_t *const numgen = quic_session_module(quic_packet_number_generator_module_t, session, quic_handshake_packet_number_generator_module);
     quic_framer_module_t *const f_module = quic_session_module(quic_framer_module_t, session, quic_framer_module);
@@ -239,37 +241,39 @@ static quic_send_packet_t *quic_sender_pack_handshake_packet(quic_sender_module_
     max_bytes -= frame_len;
     payload_len += frame_len;
 
-    // serialize retransmission frames
-    for ( ;; ) {
-        frame_len = quic_retransmission_append_frame(&pkt->frames, max_bytes, pkt->retransmission_module);
-        max_bytes -= frame_len;
-        payload_len += frame_len;
-        if (frame_len == 0) {
-            break;
+    if (!probe) {
+        // serialize retransmission frames
+        for ( ;; ) {
+            frame_len = quic_retransmission_append_frame(&pkt->frames, max_bytes, pkt->retransmission_module);
+            max_bytes -= frame_len;
+            payload_len += frame_len;
+            if (frame_len == 0) {
+                break;
+            }
+            pkt->included_unacked = true;
         }
-        pkt->included_unacked = true;
-    }
 
-    // serialize ctrl frames
-    for ( ;; ) {
-        frame_len = quic_framer_append_ctrl_frame(&pkt->frames, max_bytes, f_module);
-        max_bytes -= frame_len;
-        payload_len += frame_len;
-        if (frame_len == 0) {
-            break;
+        // serialize ctrl frames
+        for ( ;; ) {
+            frame_len = quic_framer_append_ctrl_frame(&pkt->frames, max_bytes, f_module);
+            max_bytes -= frame_len;
+            payload_len += frame_len;
+            if (frame_len == 0) {
+                break;
+            }
+            pkt->included_unacked = true;
         }
-        pkt->included_unacked = true;
-    }
 
-    // serialize crypto frames
-    for ( ;; ) {
-        frame_len = quic_sealer_append_crypto_frame(&pkt->frames, max_bytes, s_module, ssl_encryption_handshake);
-        max_bytes -= frame_len;
-        payload_len += frame_len;
-        if (frame_len == 0) {
-            break;
+        // serialize crypto frames
+        for ( ;; ) {
+            frame_len = quic_sealer_append_crypto_frame(&pkt->frames, max_bytes, s_module, ssl_encryption_handshake);
+            max_bytes -= frame_len;
+            payload_len += frame_len;
+            if (frame_len == 0) {
+                break;
+            }
+            pkt->included_unacked = true;
         }
-        pkt->included_unacked = true;
     }
 
     if (quic_link_empty(&pkt->frames)) {
@@ -286,7 +290,7 @@ static quic_send_packet_t *quic_sender_pack_handshake_packet(quic_sender_module_
     return pkt;
 }
 
-static quic_send_packet_t *quic_sender_pack_app_packet(quic_sender_module_t *const sender) {
+static quic_send_packet_t *quic_sender_pack_app_packet(quic_sender_module_t *const sender, const bool probe) {
     quic_session_t *const session = quic_module_of_session(sender);
     quic_stream_module_t *const stream_module = quic_session_module(quic_stream_module_t, session, quic_stream_module);
     quic_packet_number_generator_module_t *const numgen = quic_session_module(quic_packet_number_generator_module_t, session, quic_app_packet_number_generator_module);
@@ -319,33 +323,35 @@ static quic_send_packet_t *quic_sender_pack_app_packet(quic_sender_module_t *con
     frame_len = quic_ack_generator_append_ack_frame(&pkt->frames, &pkt->largest_ack, ag_module);
     max_bytes -= frame_len;
 
-    // serialize retransmission frames
-    for ( ;; ) {
-        frame_len = quic_retransmission_append_frame(&pkt->frames, max_bytes, pkt->retransmission_module);
-        max_bytes -= frame_len;
-        if (frame_len == 0) {
-            break;
+    if (!probe) {
+        // serialize retransmission frames
+        for ( ;; ) {
+            frame_len = quic_retransmission_append_frame(&pkt->frames, max_bytes, pkt->retransmission_module);
+            max_bytes -= frame_len;
+            if (frame_len == 0) {
+                break;
+            }
+            pkt->included_unacked = true;
         }
-        pkt->included_unacked = true;
-    }
 
-    // serialize ctrl frames
-    for ( ;; ) {
-        frame_len = quic_framer_append_ctrl_frame(&pkt->frames, max_bytes, f_module);
-        max_bytes -= frame_len;
-        if (frame_len == 0) {
-            break;
+        // serialize ctrl frames
+        for ( ;; ) {
+            frame_len = quic_framer_append_ctrl_frame(&pkt->frames, max_bytes, f_module);
+            max_bytes -= frame_len;
+            if (frame_len == 0) {
+                break;
+            }
+            pkt->included_unacked = true;
         }
-        pkt->included_unacked = true;
-    }
-    // serialize stream frames
-    for ( ;; ) {
-        frame_len = quic_framer_append_stream_frame(&pkt->frames, max_bytes, false, f_module, pkt->retransmission_module);
-        max_bytes -= frame_len;
-        if (frame_len == 0) {
-            break;
+        // serialize stream frames
+        for ( ;; ) {
+            frame_len = quic_framer_append_stream_frame(&pkt->frames, max_bytes, false, f_module, pkt->retransmission_module);
+            max_bytes -= frame_len;
+            if (frame_len == 0) {
+                break;
+            }
+            pkt->included_unacked = true;
         }
-        pkt->included_unacked = true;
     }
 
     if (quic_link_empty(&pkt->frames)) {
@@ -376,6 +382,8 @@ static quic_err_t quic_sender_module_loop(void *const module, const uint64_t now
     quic_session_t *const session = quic_module_of_session(sender_module);
     quic_sealer_module_t *const sealer_module = quic_session_module(quic_sealer_module_t, session, quic_sealer_module);
 
+    bool probe = false;
+
     if (now < sender_module->next_send_time && sender_module->next_send_time != 0) {
         quic_session_update_loop_deadline(session, sender_module->next_send_time);
         return quic_err_success;
@@ -387,50 +395,53 @@ static quic_err_t quic_sender_module_loop(void *const module, const uint64_t now
     quic_retransmission_module_t *const init_r_module = quic_session_module(quic_retransmission_module_t, session, quic_initial_retransmission_module);
     quic_congestion_module_t *const c_module = quic_session_module(quic_congestion_module_t, session, quic_congestion_module);
 
+    quic_send_packet_t *pkt = NULL;
+
     uint64_t unacked_pkt_count = app_r_module->sent_pkt_count + hs_r_module->sent_pkt_count + init_r_module->sent_pkt_count;
     if (unacked_pkt_count >= (25000 >> 2)) {
-        return quic_err_success;
+        goto finished;
     }
-    // TODO probe pkt (on lost)
+
     uint64_t unacked_bytes = app_r_module->unacked_len + hs_r_module->unacked_len + init_r_module->unacked_len;
-    if (!quic_congestion_allow_send(c_module, unacked_bytes) || unacked_pkt_count >= 20000) {
-        // TODO send ACK
+    probe = !quic_congestion_allow_send(c_module, unacked_bytes) || unacked_pkt_count >= 20000;
+    if (probe) {
         return quic_err_success;
     }
 
     if (!quic_congestion_has_budget(c_module)) {
-        sender_module->next_send_time = quic_congestion_next_send_time(c_module, unacked_pkt_count);
-        return quic_err_success;
+        goto finished;
     }
-
-    quic_send_packet_t *pkt = NULL;
 
     switch (sealer_module->level) {
     case ssl_encryption_initial:
-        pkt = quic_sender_pack_initial_packet(sender_module);
+        pkt = quic_sender_pack_initial_packet(sender_module, probe);
         if (pkt != NULL) {
             break;
         }
     case ssl_encryption_handshake:
-        pkt = quic_sender_pack_handshake_packet(sender_module);
+        pkt = quic_sender_pack_handshake_packet(sender_module, probe);
         if (pkt != NULL) {
             quic_sealer_set_level(sealer_module, ssl_encryption_handshake);
-            break;
         }
+        break;
     case ssl_encryption_application:
-        pkt = quic_sender_pack_app_packet(sender_module);
+        pkt = quic_sender_pack_app_packet(sender_module, probe);
         break;
     case ssl_encryption_early_data:
         // ignore
         break;
     }
 
-    if (pkt == NULL) {
-        return quic_err_success;
-    }
+finished:
+    if (pkt != NULL) {
+        quic_sender_send_packet(sender_module, pkt);
+        free(pkt);
 
-    quic_sender_send_packet(sender_module, pkt);
-    free(pkt);
+        if (!probe) {
+            sender_module->next_send_time = quic_congestion_next_send_time(c_module, unacked_bytes);
+            quic_session_update_loop_deadline(session, sender_module->next_send_time);
+        }
+    }
 
     return quic_err_success;
 }
@@ -458,8 +469,6 @@ static inline quic_err_t quic_sender_send_packet(quic_sender_module_t *const mod
 
         quic_retransmission_sent_mem_push(pkt->retransmission_module, sent_pkt);
         quic_congestion_on_sent(c_module, sent_pkt->sent_time, sent_pkt->key, sent_pkt->pkt_len, sent_pkt->included_unacked);
-
-        quic_session_update_loop_deadline(session, module->next_send_time);
     }
 
     quic_udp_fd_write(uf_module, pkt->data, pkt->buf.pos - pkt->buf.buf);
