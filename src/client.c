@@ -55,15 +55,15 @@ quic_err_t quic_client_init(quic_client_t *const client, const quic_config_t cfg
 }
 
 quic_err_t quic_client_start_loop(quic_client_t *const client) {
-    /*pthread_t thread;*/
-    /*pthread_create(&thread, NULL, quic_client_epoll_process_thread, client);*/
+    pthread_t thread;
+    pthread_create(&thread, NULL, quic_client_epoll_process_thread, client);
 
     while (client->session->co.status != LITECO_TERMINATE) {
-        uint64_t waiting = 0;
-        switch (liteco_runtime_execute(&waiting, &client->rt, &client->session->co)) {
+        /*uint64_t waiting = 0;*/
+        switch (liteco_runtime_execute(NULL, &client->rt, &client->session->co)) {
         case LITECO_SUCCESS:
         case LITECO_BLOCKED:
-            quic_event_epoll_process(&client->epoll, waiting > 5000 ? 5 : waiting / 1000);
+            /*quic_event_epoll_process(&client->epoll, waiting > 5000 ? 5 : waiting / 1000);*/
             break;
         default:
             goto finished;
