@@ -10,8 +10,8 @@
 #define __OPENQUIC_MODULE_H__
 
 #include "utils/errno.h"
-#include "liteco.h"
 #include <stdint.h>
+#include <stddef.h>
 
 typedef struct quic_session_s quic_session_t;
 

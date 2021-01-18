@@ -11,8 +11,8 @@
 #include "format/header.h"
 
 static inline quic_err_t quic_recver_handle_packet(quic_recver_module_t *const module);
-static quic_err_t quic_recver_process_packet(quic_session_t *const sess, quic_recver_module_t *const module, const quic_payload_t *payload, const uint64_t recv_time);
-static quic_err_t quic_recver_process_packet_payload(quic_session_t *const sess, quic_recver_module_t *const module, const quic_payload_t *payload, const uint64_t recv_time);
+static quic_err_t quic_recver_process_packet(quic_session_t *const sess, quic_recver_module_t *const r_module, quic_ack_generator_module_t *const a_module, const quic_payload_t *payload, const uint64_t recv_time);
+static quic_err_t quic_recver_process_packet_payload(quic_session_t *const sess, quic_recver_module_t *const r_module, quic_ack_generator_module_t *const a_module, const quic_payload_t *payload, const uint64_t recv_time);
 
 static quic_err_t quic_recver_module_init(void *const module);
 static quic_err_t quic_recver_module_process(void *const module);
@@ -23,7 +23,7 @@ static inline quic_err_t quic_recver_handle_packet(quic_recver_module_t *const m
     quic_session_t *const session = quic_module_of_session(module);
     quic_ack_generator_module_t *ag_module = NULL;
 
-    quic_buf_t recv_buf = { .buf = module->curr_packet->data, .capa = module->curr_packet->len };
+    quic_buf_t recv_buf = { .buf = module->curr_packet->pkt.data, .capa = module->curr_packet->pkt.len };
     quic_buf_setpl(&recv_buf);
 
     union {
@@ -33,7 +33,7 @@ static inline quic_err_t quic_recver_handle_packet(quic_recver_module_t *const m
         quic_payload_t short_payload;
     } payload;
 
-    quic_header_t *const header = (quic_header_t *) module->curr_packet->data;
+    quic_header_t *const header = (quic_header_t *) module->curr_packet->pkt.data;
 
     if (session->cfg.is_cli && !module->recv_first && quic_header_is_long(header)) {
         quic_buf_t src = quic_long_header_src_conn(header);
@@ -70,38 +70,35 @@ static inline quic_err_t quic_recver_handle_packet(quic_recver_module_t *const m
     }
     else {
         payload.short_payload = quic_short_header(header, session->cfg.conn_len);
-        payload.short_payload.payload_len = module->curr_packet->len - ((uint8_t *) payload.short_payload.payload - module->curr_packet->data);
+        payload.short_payload.payload_len = module->curr_packet->pkt.len - ((uint8_t *) payload.short_payload.payload - module->curr_packet->pkt.data);
         ag_module = quic_session_module(quic_ack_generator_module_t, session, quic_app_ack_generator_module);
     }
 
-    quic_recver_process_packet(session, module, (quic_payload_t *) &payload, module->curr_packet->recv_time);
-
-    if (ag_module) {
-        quic_ack_generator_module_received(ag_module, ((quic_payload_t *) &payload)->p_num, module->curr_packet->recv_time);
-    }
+    quic_recver_process_packet(session, module, ag_module, (quic_payload_t *) &payload, module->curr_packet->recv_time);
 
     return quic_err_success;
 }
 
-static quic_err_t quic_recver_process_packet(quic_session_t *const sess, quic_recver_module_t *const module, const quic_payload_t *payload, const uint64_t recv_time) {
+static quic_err_t quic_recver_process_packet(quic_session_t *const sess, quic_recver_module_t *const r_module, quic_ack_generator_module_t *const a_module, const quic_payload_t *payload, const uint64_t recv_time) {
     quic_err_t err = quic_err_success;
 
-    if ((err = quic_recver_process_packet_payload(sess, module, payload, recv_time)) != quic_err_success) {
+    if ((err = quic_recver_process_packet_payload(sess, r_module, a_module, payload, recv_time)) != quic_err_success) {
         return err;
     }
 
     return quic_err_success;
 }
 
-static quic_err_t quic_recver_process_packet_payload(quic_session_t *const sess, quic_recver_module_t *const module, const quic_payload_t *payload, const uint64_t recv_time) {
+static quic_err_t quic_recver_process_packet_payload(quic_session_t *const sess, quic_recver_module_t *const r_module, quic_ack_generator_module_t *const a_module, const quic_payload_t *payload, const uint64_t recv_time) {
     quic_err_t err = quic_err_success;
+    bool should_ack = false;
 
     quic_buf_t buf;
     buf.buf = payload->payload;
     buf.capa = payload->payload_len;
     quic_buf_setpl(&buf);
 
-    module->curr_ack_eliciting = false;
+    r_module->curr_ack_eliciting = false;
     while (!quic_buf_empty(&buf)) {
         quic_frame_t *frame = NULL;
 
@@ -113,9 +110,14 @@ static quic_err_t quic_recver_process_packet_payload(quic_session_t *const sess,
             ((quic_frame_ack_t *) frame)->packet_type = payload->type;
             ((quic_frame_ack_t *) frame)->recv_time = recv_time;
         }
-        else if (frame->first_byte == quic_frame_crypto_type) {
-            ((quic_frame_crypto_t *) frame)->packet_type = payload->type;
+        else {
+            should_ack = true;
+
+            if (frame->first_byte == quic_frame_crypto_type) {
+                ((quic_frame_crypto_t *) frame)->packet_type = payload->type;
+            }
         }
+
 
         if (!quic_session_handler[frame->first_byte]) {
             free(frame);
@@ -127,10 +129,14 @@ static quic_err_t quic_recver_process_packet_payload(quic_session_t *const sess,
         }
 
         if (frame->first_byte != quic_frame_ack_type && frame->first_byte == quic_frame_ack_ecn_type) {
-            module->curr_ack_eliciting = true;
+            r_module->curr_ack_eliciting = true;
         }
 
         free(frame);
+    }
+
+    if (a_module && should_ack) {
+        quic_ack_generator_module_received(a_module, payload->p_num, recv_time);
     }
 
     return quic_err_success;
@@ -160,7 +166,7 @@ static quic_err_t quic_recver_module_process(void *const module) {
         pthread_mutex_unlock(&ur_module->mtx);
 
         quic_recver_handle_packet(module);
-        free(ur_module->curr_packet);
+        ur_module->curr_packet->pkt.recovery(&ur_module->curr_packet->pkt);
         ur_module->curr_packet = NULL;
 
         pthread_mutex_lock(&ur_module->mtx);

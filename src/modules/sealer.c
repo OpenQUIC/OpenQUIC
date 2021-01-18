@@ -214,13 +214,16 @@ static int quic_sealer_module_set_write_secret(SSL *ssl, enum ssl_encryption_lev
 
 static int quic_sealer_module_write_handshake_data(SSL *ssl, enum ssl_encryption_level_t level, const uint8_t *data, size_t len) {
     quic_sealer_module_t *const s_module = SSL_get_app_data(ssl);
+    quic_session_t *const session = quic_module_of_session(s_module);
 
     switch (level) {
     case ssl_encryption_initial:
         quic_sorter_append(&s_module->initial_w_sorter, len, data);
+        quic_module_activate(session, quic_sealer_module);
         break;
     case ssl_encryption_handshake:
         quic_sorter_append(&s_module->handshake_w_sorter, len, data);
+        quic_module_activate(session, quic_sealer_module);
         break;
     default:
         break;

@@ -404,9 +404,6 @@ static quic_err_t quic_sender_module_loop(void *const module, const uint64_t now
 
     uint64_t unacked_bytes = app_r_module->unacked_len + hs_r_module->unacked_len + init_r_module->unacked_len;
     probe = !quic_congestion_allow_send(c_module, unacked_bytes) || unacked_pkt_count >= 20000;
-    if (probe) {
-        return quic_err_success;
-    }
 
     if (!quic_congestion_has_budget(c_module)) {
         goto finished;

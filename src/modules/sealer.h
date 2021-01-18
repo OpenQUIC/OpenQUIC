@@ -115,6 +115,10 @@ static inline quic_err_t quic_sealer_set_level(quic_sealer_module_t *const modul
     case ssl_encryption_application:
         ag_module = quic_session_module(quic_ack_generator_module_t, session, quic_handshake_ack_generator_module);
         r_module = quic_session_module(quic_retransmission_module_t, session, quic_handshake_retransmission_module);
+
+        if (session->cfg.handshake_done_cb) {
+            session->cfg.handshake_done_cb(session);
+        }
         break;
     default:
         break;

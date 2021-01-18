@@ -11,6 +11,7 @@
 
 #include "utils/errno.h"
 #include "module.h"
+#include <stdbool.h>
 
 typedef struct quic_stream_flowctrl_module_s quic_stream_flowctrl_module_t;
 struct quic_stream_flowctrl_module_s {

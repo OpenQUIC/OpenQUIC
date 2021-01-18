@@ -10,6 +10,7 @@
 #define __OPENQUIC_CONGESTION_H__
 
 #include "module.h"
+#include <stdbool.h>
 
 typedef struct quic_congestion_module_s quic_congestion_module_t;
 struct quic_congestion_module_s {

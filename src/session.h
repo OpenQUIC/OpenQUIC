@@ -15,10 +15,17 @@
 #include "utils/rbt.h"
 #include "format/frame.h"
 #include "module.h"
+#include "lc_eloop.h"
+#include "lc_runtime.h"
+#include "lc_timer.h"
+#include "lc_coroutine.h"
+#include "lc_channel.h"
 #include <stdbool.h>
 #include <sys/time.h>
 #include <netinet/in.h>
 #include <pthread.h>
+
+typedef struct quic_stream_s quic_stream_t;
 
 typedef struct quic_config_s quic_config_t;
 struct quic_config_s {
@@ -60,6 +67,11 @@ struct quic_config_s {
 
     bool stream_sync_close;
     uint64_t stream_destory_timeout;
+
+    quic_err_t (*handshake_done_cb) (quic_session_t *const);
+    quic_err_t (*accept_stream_cb) (quic_session_t *const, quic_stream_t *const);
+    quic_err_t (*stream_write_done_cb) (quic_stream_t *const, void *const, const size_t, const size_t);
+    quic_err_t (*stream_read_done_cb) (quic_stream_t *const, void *const, const size_t, const size_t);
 };
 
 typedef struct quic_session_s quic_session_t;
@@ -69,10 +81,14 @@ struct quic_session_s {
 
     quic_config_t cfg;
 
-    liteco_coroutine_t co;
+    liteco_eloop_t *eloop;
+    liteco_runtime_t *rt;
 
-    pthread_t background_thread;
-    liteco_channel_t module_event_pipeline;
+    liteco_co_t co;
+    liteco_chan_t mod_chan;
+    liteco_chan_t timer_chan;
+    liteco_timer_t timer;
+
     uint64_t loop_deadline;
     uint8_t modules[0];
 };
@@ -84,7 +100,7 @@ struct quic_session_s {
     ((quic_session_t *) (((void *) (module)) - ((quic_base_module_t *) (module))->module_declare->off - offsetof(quic_session_t, modules)))
 
 #define quic_module_activate(session, module) \
-    (liteco_channel_send(&(session)->module_event_pipeline, &(module)))
+    (liteco_chan_unenforceable_push(&(session)->mod_chan, &(module)))
 
 #define quic_session_reset_loop_deadline(session) \
     (session)->loop_deadline = 0;
@@ -94,7 +110,8 @@ struct quic_session_s {
         (session)->loop_deadline = (deadline);                                                     \
     }
 
-quic_session_t *quic_session_create(const quic_config_t cfg, uint8_t *const stack, const uint32_t stack_len);
+quic_session_t *quic_session_create(const quic_config_t cfg);
+quic_err_t quic_session_run(quic_session_t *const session, liteco_eloop_t *const eloop, liteco_runtime_t *const rt, void *const st, const size_t st_len);
 typedef quic_err_t (*quic_session_handler_t) (quic_session_t *const, const quic_frame_t *const);
 
 #endif

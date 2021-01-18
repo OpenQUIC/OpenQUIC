@@ -9,6 +9,7 @@
 #ifndef __OPENQUIC_RECV_PACKET_H__
 #define __OPENQUIC_RECV_PACKET_H__
 
+#include "lc_udp.h"
 #include "utils/link.h"
 #include <netinet/in.h>
 
@@ -28,8 +29,7 @@ struct quic_recv_packet_s {
 
     uint64_t recv_time;
 
-    uint32_t len;
-    uint8_t data[0];
+    liteco_udp_pkt_t pkt;
 };
 
 #endif
