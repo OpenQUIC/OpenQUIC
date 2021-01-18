@@ -43,6 +43,8 @@ const quic_config_t quic_client_default_config = {
 
     .handshake_done_cb = NULL,
     .accept_stream_cb = NULL,
+    .stream_write_done_cb = NULL,
+    .stream_read_done_cb = NULL
 };
 
 quic_err_t quic_client_init(quic_client_t *const client, const quic_config_t cfg) {

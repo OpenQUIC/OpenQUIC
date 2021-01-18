@@ -393,6 +393,7 @@ __quic_extends quic_stream_t *quic_session_open_send_stream(quic_session_t *cons
 __quic_extends quic_err_t quic_stream_close(quic_stream_t *const str);
 __quic_extends bool quic_stream_remote_closed(quic_stream_t *const str);
 
+quic_stream_t *quic_stream_module_send_relation_stream(quic_stream_module_t *const module, const uint64_t sid);
 
 static inline quic_err_t quic_recv_stream_handle_frame(quic_recv_stream_t *const str, const quic_frame_stream_t *const frame) {
     quic_err_t err = quic_err_success;

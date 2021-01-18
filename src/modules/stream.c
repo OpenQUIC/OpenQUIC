@@ -17,7 +17,6 @@
 
 static inline quic_stream_t *quic_session_open_recv_stream(quic_session_t *const session, const uint64_t sid);
 static inline quic_stream_t *quic_stream_module_recv_relation_stream(quic_stream_module_t *const module, const uint64_t sid);
-static inline quic_stream_t *quic_stream_module_send_relation_stream(quic_stream_module_t *const module, const uint64_t sid);
 
 typedef struct quic_stream_io_s quic_stream_io_t;
 struct quic_stream_io_s {
@@ -442,7 +441,7 @@ static inline quic_stream_t *quic_stream_module_recv_relation_stream(quic_stream
         ? quic_streams_find(strs, &sid) : quic_session_open_recv_stream(session, sid);
 }
 
-static inline quic_stream_t *quic_stream_module_send_relation_stream(quic_stream_module_t *const module, const uint64_t sid) {
+quic_stream_t *quic_stream_module_send_relation_stream(quic_stream_module_t *const module, const uint64_t sid) {
     quic_session_t *const session = quic_module_of_session(module);
 
     if (quic_stream_id_same_principal(sid, session)) {
