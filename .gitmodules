@@ -1,6 +1,6 @@
-[submodule "deps/liteco"]
-	path = deps/liteco
-	url = git@github.com:Gscienty/liteco.git
 [submodule "deps/boringssl"]
 	path = deps/boringssl
 	url = https://github.com/google/boringssl.git
+[submodule "deps/liteco"]
+	path = deps/liteco
+	url = git@github.com:OpenQUIC/liteco.git
