@@ -211,6 +211,7 @@ struct quic_stream_destory_sid_s {
     QUIC_RBT_UINT64_FIELDS
 
     uint64_t destory_time;
+    quic_err_t (*closed_cb) (quic_stream_t *const);
 };
 
 #define quic_stream_destory_sid_find(set, key) \
@@ -261,7 +262,7 @@ static inline quic_err_t quic_stream_module_update_rwnd(quic_stream_module_t *co
 quic_err_t quic_stream_module_process_rwnd(quic_stream_module_t *const module);
 
 __quic_extends quic_stream_t *quic_stream_open(quic_stream_module_t *const module, const bool bidi);
-__quic_extends quic_err_t quic_stream_close(quic_stream_t *const str);
+__quic_extends quic_err_t quic_stream_close(quic_stream_t *const str, quic_err_t (*closed_cb) (quic_stream_t *const));
 __quic_extends bool quic_stream_remote_closed(quic_stream_t *const str);
 
 quic_stream_t *quic_stream_module_send_relation_stream(quic_stream_module_t *const module, const uint64_t sid);

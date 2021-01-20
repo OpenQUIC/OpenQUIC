@@ -20,7 +20,7 @@ static inline quic_stream_t *quic_stream_module_recv_relation_stream(quic_stream
 
 static inline quic_err_t quic_send_stream_close(quic_send_stream_t *const str);
 static inline quic_err_t quic_recv_stream_close(quic_recv_stream_t *const str);
-static inline quic_err_t quic_stream_destory_push(quic_stream_module_t *const module, const uint64_t sid);
+static inline quic_err_t quic_stream_destory_push(quic_stream_module_t *const module, const uint64_t sid, quic_err_t (*closed_cb) (quic_stream_t *const));
 static inline quic_err_t quic_recv_stream_handle_frame(quic_recv_stream_t *const str, const quic_frame_stream_t *const frame);
 static inline quic_err_t quic_send_stream_handle_max_stream_data_frame(quic_send_stream_t *const str, const quic_frame_max_stream_data_t *const frame);
 static inline bool quic_stream_destroable(quic_stream_t *const str);
@@ -554,7 +554,7 @@ static inline quic_err_t quic_send_stream_close(quic_send_stream_t *const str) {
     return quic_err_success;
 }
 
-static inline quic_err_t quic_stream_destory_push(quic_stream_module_t *const module, const uint64_t sid) {
+static inline quic_err_t quic_stream_destory_push(quic_stream_module_t *const module, const uint64_t sid, quic_err_t (*closed_cb) (quic_stream_t *const)) {
     pthread_mutex_lock(&module->destory_mtx);
     if (quic_rbt_is_nil(quic_stream_destory_sid_find(module->destory_set, &sid))) {
         quic_stream_destory_sid_t *d_sid = malloc(sizeof(quic_stream_destory_sid_t));
@@ -562,6 +562,7 @@ static inline quic_err_t quic_stream_destory_push(quic_stream_module_t *const mo
             quic_rbt_init(d_sid);
             d_sid->key = sid;
             d_sid->destory_time = quic_now();
+            d_sid->closed_cb = closed_cb;
 
             quic_stream_destory_sid_insert(&module->destory_set, d_sid);
         }
@@ -571,13 +572,13 @@ static inline quic_err_t quic_stream_destory_push(quic_stream_module_t *const mo
     return quic_err_success;
 }
 
-quic_err_t quic_stream_close(quic_stream_t *const str) {
+quic_err_t quic_stream_close(quic_stream_t *const str, quic_err_t (*closed_cb) (quic_stream_t *const)) {
     quic_stream_module_t *const s_module = quic_session_module(quic_stream_module_t, str->session, quic_stream_module);
 
     quic_send_stream_close(&str->send);
     quic_recv_stream_close(&str->recv);
 
-    quic_stream_destory_push(s_module, str->key);
+    quic_stream_destory_push(s_module, str->key, closed_cb);
 
     return quic_err_success;
 }
@@ -671,6 +672,10 @@ static quic_err_t quic_session_stream_module_loop(void *const module, const uint
                 continue;
             }
 
+            if (d_sid->closed_cb) {
+                d_sid->closed_cb(str);
+            }
+
             quic_streams_destory(stream_module, session, d_sid->key);
 
             quic_stream_destoryed_t *destoryed = malloc(sizeof(quic_stream_destoryed_t));
@@ -690,7 +695,6 @@ static quic_err_t quic_session_stream_module_loop(void *const module, const uint
         d_sid = quic_stream_destory_sid_find(stream_module->destory_set, &destoryed->sid);
         if (!quic_rbt_is_nil(d_sid)) {
             quic_rbt_remove(&stream_module->destory_set, &d_sid);
-            /*liteco_channel_close(d_sid->destoryed_notifier);*/
 
             free(d_sid);
         }
