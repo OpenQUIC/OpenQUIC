@@ -306,6 +306,7 @@ static quic_err_t quic_sealer_module_init(void *const module) {
     s_module->tls_alert = 0;
     s_module->off = 0;
     s_module->level = ssl_encryption_initial;
+    s_module->handshake_done_cb = NULL;
 
     s_module->r_level = ssl_encryption_initial;
     s_module->w_level = ssl_encryption_initial;

@@ -67,11 +67,6 @@ struct quic_config_s {
 
     bool stream_sync_close;
     uint64_t stream_destory_timeout;
-
-    quic_err_t (*handshake_done_cb) (quic_session_t *const);
-    quic_err_t (*accept_stream_cb) (quic_session_t *const, quic_stream_t *const);
-    quic_err_t (*stream_write_done_cb) (quic_stream_t *const, void *const, const size_t, const size_t);
-    quic_err_t (*stream_read_done_cb) (quic_stream_t *const, void *const, const size_t, const size_t);
 };
 
 typedef struct quic_session_s quic_session_t;
@@ -113,5 +108,9 @@ struct quic_session_s {
 quic_session_t *quic_session_create(const quic_config_t cfg);
 quic_err_t quic_session_run(quic_session_t *const session, liteco_eloop_t *const eloop, liteco_runtime_t *const rt, void *const st, const size_t st_len);
 typedef quic_err_t (*quic_session_handler_t) (quic_session_t *const, const quic_frame_t *const);
+
+quic_err_t quic_session_accept(quic_session_t *const session, quic_err_t (*accept_cb) (quic_session_t *const, quic_stream_t *const));
+quic_err_t quic_session_handshake_done(quic_session_t *const session, quic_err_t (*handshake_done_cb) (quic_session_t *const));
+quic_stream_t *quic_session_open(quic_session_t *const session, const bool bidi);
 
 #endif

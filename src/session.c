@@ -8,6 +8,8 @@
 
 #include "session.h"
 #include "module.h"
+#include "modules/stream.h"
+#include "modules/sealer.h"
 #include "utils/time.h"
 #include <malloc.h>
 #include <arpa/inet.h>
@@ -96,4 +98,19 @@ static int quic_session_run_co(void *const session_) {
     }
 
     return 0;
+}
+
+quic_err_t quic_session_accept(quic_session_t *const session, quic_err_t (*accept_cb) (quic_session_t *const, quic_stream_t *const)) {
+    quic_stream_module_t *const module = quic_session_module(quic_stream_module_t, session, quic_stream_module);
+    return quic_stream_accept(module, accept_cb);
+}
+
+quic_err_t quic_session_handshake_done(quic_session_t *const session, quic_err_t (*handshake_done_cb) (quic_session_t *const)) {
+    quic_sealer_module_t *const module = quic_session_module(quic_sealer_module_t, session, quic_sealer_module);
+    return quic_sealer_handshake_done(module, handshake_done_cb);
+}
+
+quic_stream_t *quic_session_open(quic_session_t *const session, const bool bidi) {
+    quic_stream_module_t *const module = quic_session_module(quic_stream_module_t, session, quic_stream_module);
+    return quic_stream_open(module, bidi);
 }

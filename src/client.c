@@ -9,6 +9,7 @@
 #include "client.h"
 #include "modules/udp_fd.h"
 #include "modules/recver.h"
+#include "modules/stream.h"
 #include <stdlib.h>
 
 static int quic_client_recv_alloc_cb(liteco_udp_pkt_t **const pkt_storage, liteco_udp_t *const udp);
@@ -40,11 +41,6 @@ const quic_config_t quic_client_default_config = {
     .tls_capath = NULL,
     .stream_sync_close = true,
     .stream_destory_timeout = 0,
-
-    .handshake_done_cb = NULL,
-    .accept_stream_cb = NULL,
-    .stream_write_done_cb = NULL,
-    .stream_read_done_cb = NULL
 };
 
 quic_err_t quic_client_init(quic_client_t *const client, const quic_config_t cfg) {
@@ -76,6 +72,14 @@ quic_err_t quic_client_create_ipv4_path(quic_client_t *const client, const uint6
     return quic_err_success;
 }
 
+quic_err_t quic_client_accept(quic_client_t *const client, quic_err_t (*accept_cb) (quic_session_t *const, quic_stream_t *const)) {
+    return quic_session_accept(client->session, accept_cb);
+}
+
+quic_err_t quic_client_handshake_done(quic_client_t *const client, quic_err_t (*handshake_done_cb) (quic_session_t *const)) {
+    return quic_session_handshake_done(client->session, handshake_done_cb);
+}
+
 static int quic_client_recv_alloc_cb(liteco_udp_pkt_t **const pkt_storage, liteco_udp_t *const udp) {
     (void) udp;
     quic_recv_packet_t *const pkt = malloc(sizeof(quic_recv_packet_t) + 1460);
@@ -90,3 +94,4 @@ static void quic_client_recovery_pkt(liteco_udp_pkt_t *const pkt) {
     quic_recv_packet_t *recv_pkt = ((void *) pkt) - offsetof(quic_recv_packet_t, pkt);
     free(recv_pkt);
 }
+

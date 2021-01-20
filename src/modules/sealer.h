@@ -97,6 +97,8 @@ struct quic_sealer_module_s {
     quic_sorter_t initial_w_sorter;
     quic_sorter_t handshake_r_sorter;
     quic_sorter_t handshake_w_sorter;
+
+    quic_err_t (*handshake_done_cb) (quic_session_t *const);
 };
 
 extern quic_module_t quic_sealer_module;
@@ -116,8 +118,8 @@ static inline quic_err_t quic_sealer_set_level(quic_sealer_module_t *const modul
         ag_module = quic_session_module(quic_ack_generator_module_t, session, quic_handshake_ack_generator_module);
         r_module = quic_session_module(quic_retransmission_module_t, session, quic_handshake_retransmission_module);
 
-        if (session->cfg.handshake_done_cb) {
-            session->cfg.handshake_done_cb(session);
+        if (module->handshake_done_cb) {
+            module->handshake_done_cb(session);
         }
         break;
     default:
@@ -216,6 +218,11 @@ static inline bool quic_sealer_should_send(quic_sealer_module_t *const module, e
     default:
         return false;
     }
+}
+
+static inline quic_err_t quic_sealer_handshake_done(quic_sealer_module_t *const module, quic_err_t (*handshake_done_cb) (quic_session_t *const)) {
+    module->handshake_done_cb = handshake_done_cb;
+    return quic_err_success;
 }
 
 #endif

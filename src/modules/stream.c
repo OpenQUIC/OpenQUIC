@@ -15,8 +15,18 @@
 #include "module.h"
 #include <stdbool.h>
 
-static inline quic_stream_t *quic_session_open_recv_stream(quic_session_t *const session, const uint64_t sid);
+static inline quic_stream_t *quic_session_open_recv_stream(quic_stream_module_t *const module, const uint64_t sid);
 static inline quic_stream_t *quic_stream_module_recv_relation_stream(quic_stream_module_t *const module, const uint64_t sid);
+
+static inline quic_err_t quic_send_stream_close(quic_send_stream_t *const str);
+static inline quic_err_t quic_recv_stream_close(quic_recv_stream_t *const str);
+static inline quic_err_t quic_stream_destory_push(quic_stream_module_t *const module, const uint64_t sid);
+static inline quic_err_t quic_recv_stream_handle_frame(quic_recv_stream_t *const str, const quic_frame_stream_t *const frame);
+static inline quic_err_t quic_send_stream_handle_max_stream_data_frame(quic_send_stream_t *const str, const quic_frame_max_stream_data_t *const frame);
+static inline bool quic_stream_destroable(quic_stream_t *const str);
+
+static inline quic_stream_t *quic_stream_create(quic_session_t *const session, const uint64_t sid, const uint32_t extends_size);
+static inline quic_err_t quic_stream_destory(quic_stream_t *const str);
 
 typedef struct quic_stream_io_s quic_stream_io_t;
 struct quic_stream_io_s {
@@ -30,6 +40,8 @@ struct quic_stream_io_s {
     void *data;
 
     uint64_t pos;
+
+    quic_err_t (*done_cb) (quic_stream_t *const, void *const, const size_t, const size_t);
 
     uint8_t st[0];
 };
@@ -45,6 +57,8 @@ static int quic_stream_write_co(void *const args);
 static int quic_stream_write_done(liteco_co_t *const co);
 static int quic_stream_read_co(void *const args);
 static int quic_stream_read_done(liteco_co_t *const co);
+
+static inline quic_err_t quic_stream_set_delete(quic_stream_module_t *const, quic_stream_set_t *const , const uint64_t);
 
 static quic_err_t quic_send_stream_on_acked(void *const str_, const quic_frame_t *const frame_);
 
@@ -283,10 +297,10 @@ static int quic_stream_read_co(void *const args) {
 static quic_err_t quic_stream_module_init(void *const module) {
     quic_stream_module_t *const stream_module = module;
 
-    quic_inuni_streams_init(&stream_module->inuni);
-    quic_inbidi_streams_init(&stream_module->inbidi);
-    quic_outuni_streams_init(&stream_module->outuni);
-    quic_outbidi_streams_init(&stream_module->outbidi);
+    quic_stream_set_init(&stream_module->inuni);
+    quic_stream_set_init(&stream_module->inbidi);
+    quic_stream_set_init(&stream_module->outuni);
+    quic_stream_set_init(&stream_module->outbidi);
 
     stream_module->extends_size = 0;
 
@@ -298,11 +312,15 @@ static quic_err_t quic_stream_module_init(void *const module) {
 
     stream_module->init = NULL;
     stream_module->destory = NULL;
+    stream_module->accept_cb = NULL;
 
     return quic_err_success;
 }
 
-quic_err_t quic_stream_write(liteco_eloop_t *const eloop, quic_stream_t *const str, void *const data, const uint64_t len) {
+quic_err_t quic_stream_write(liteco_eloop_t *const eloop,
+                             quic_stream_t *const str,
+                             void *const data, const uint64_t len,
+                             quic_err_t (*write_done_cb) (quic_stream_t *const, void *const, const size_t, const size_t)) {
     if (str->send.closed) {
         return quic_err_closed;
     }
@@ -312,6 +330,7 @@ quic_err_t quic_stream_write(liteco_eloop_t *const eloop, quic_stream_t *const s
         return quic_err_internal_error;
     }
 
+    io->done_cb = write_done_cb;
     io->pos = 0;
     io->str = str;
     io->data = data;
@@ -332,15 +351,18 @@ static int quic_stream_write_done(liteco_co_t *const co) {
     liteco_chan_close(&io->timer_chan);
     liteco_chan_destory(&io->timer_chan);
 
-    if (io->str->session->cfg.stream_write_done_cb) {
-        io->str->session->cfg.stream_write_done_cb(io->str, io->data, io->len, io->pos);
+    if (io->done_cb) {
+        io->done_cb(io->str, io->data, io->len, io->pos);
     }
 
     free(io);
     return 0;
 }
 
-quic_err_t quic_stream_read(liteco_eloop_t *const eloop, quic_stream_t *const str, void *const data, const uint64_t len) {
+quic_err_t quic_stream_read(liteco_eloop_t *const eloop,
+                            quic_stream_t *const str,
+                            void *const data, const uint64_t len,
+                            quic_err_t (*read_done_cb) (quic_stream_t *const, void *const, const size_t, const size_t)) {
     if (str->recv.closed) {
         return quic_err_closed;
     }
@@ -350,6 +372,7 @@ quic_err_t quic_stream_read(liteco_eloop_t *const eloop, quic_stream_t *const st
         return quic_err_internal_error;
     }
 
+    io->done_cb = read_done_cb;
     io->pos = 0;
     io->str = str;
     io->data = data;
@@ -370,16 +393,52 @@ static int quic_stream_read_done(liteco_co_t *const co) {
     liteco_chan_close(&io->timer_chan);
     liteco_chan_destory(&io->timer_chan);
 
-    if (io->str->session->cfg.stream_read_done_cb) {
-        io->str->session->cfg.stream_read_done_cb(io->str, io->data, io->len, io->pos);
+    if (io->done_cb) {
+        io->done_cb(io->str, io->data, io->len, io->pos);
     }
 
     free(io);
     return 0;
 }
 
-quic_stream_t *quic_session_open_send_stream(quic_session_t *const session, const bool bidi) {
-    quic_stream_module_t *module = quic_session_module(quic_stream_module_t, session, quic_stream_module);
+static inline quic_stream_t *quic_stream_create(quic_session_t *const session, const uint64_t sid, const uint32_t extends_size) {
+    quic_stream_flowctrl_module_t *const f_module = quic_session_module(quic_stream_flowctrl_module_t, session, quic_stream_flowctrl_module);
+
+    quic_stream_t *str = malloc(sizeof(quic_stream_t) + f_module->module_size + extends_size);
+    if (str == NULL) {
+        return NULL;
+    }
+    quic_rbt_init(str);
+    str->key = sid;
+    str->session = session;
+    str->flowctrl_module = f_module;
+    quic_stream_flowctrl_init(str->flowctrl_module, quic_stream_extend_flowctrl(str));
+
+    quic_send_stream_init(&str->send, session->rt);
+    quic_recv_stream_init(&str->recv, session->rt);
+
+    liteco_chan_create(&str->fin_chan, 0, liteco_runtime_readycb, session->rt);
+
+    str->recv.deadline = session->cfg.stream_recv_timeout;
+
+    return str;
+}
+
+static inline quic_err_t quic_stream_destory(quic_stream_t *const str) {
+    quic_stream_flowctrl_module_t *const flowctrl_module = quic_session_module(quic_stream_flowctrl_module_t, str->session, quic_stream_flowctrl_module);
+
+    quic_send_stream_destory(&str->send);
+    quic_recv_stream_destory(&str->recv);
+
+    quic_stream_flowctrl_destory(flowctrl_module, quic_stream_extend_flowctrl(str));
+
+    free(str);
+
+    return quic_err_success;
+}
+
+quic_stream_t *quic_stream_open(quic_stream_module_t *const module, const bool bidi) {
+    quic_session_t *const session = quic_module_of_session(module);
     
     pthread_mutex_t *const mtx = bidi ? &module->outbidi.mtx : &module->outuni.mtx;
     uint64_t *const next_sid = bidi ? &module->outbidi.next_sid : &module->outuni.next_sid;
@@ -394,7 +453,7 @@ quic_stream_t *quic_session_open_send_stream(quic_session_t *const session, cons
         if (module->destory) {
             module->destory(stream);
         }
-        quic_stream_destory(stream, session);
+        quic_stream_destory(stream);
     }
     stream = quic_stream_create(session, sid, module->extends_size);
     if (module->init) {
@@ -406,8 +465,8 @@ quic_stream_t *quic_session_open_send_stream(quic_session_t *const session, cons
     return stream;
 }
 
-static inline quic_stream_t *quic_session_open_recv_stream(quic_session_t *const session, const uint64_t sid) {
-    quic_stream_module_t *module = quic_session_module(quic_stream_module_t, session, quic_stream_module);
+static inline quic_stream_t *quic_session_open_recv_stream(quic_stream_module_t *const module, const uint64_t sid) {
+    quic_session_t *const session = quic_module_of_session(module);
     const bool bidi = quic_stream_id_is_bidi(sid);
 
     quic_stream_t **const strs = bidi ? &module->inbidi.streams : &module->inuni.streams;
@@ -426,8 +485,8 @@ static inline quic_stream_t *quic_session_open_recv_stream(quic_session_t *const
     quic_streams_insert(strs, stream);
     pthread_mutex_unlock(mtx);
 
-    if (session->cfg.accept_stream_cb) {
-        session->cfg.accept_stream_cb(session, stream);
+    if (module->accept_cb) {
+        module->accept_cb(session, stream);
     }
 
     return stream;
@@ -438,7 +497,7 @@ static inline quic_stream_t *quic_stream_module_recv_relation_stream(quic_stream
     quic_stream_t *const strs = quic_stream_id_is_bidi(sid) ? module->outbidi.streams : (quic_stream_t *) quic_rbt_nil;
 
     return quic_stream_id_same_principal(sid, session)
-        ? quic_streams_find(strs, &sid) : quic_session_open_recv_stream(session, sid);
+        ? quic_streams_find(strs, &sid) : quic_session_open_recv_stream(module, sid);
 }
 
 quic_stream_t *quic_stream_module_send_relation_stream(quic_stream_module_t *const module, const uint64_t sid) {
@@ -450,10 +509,66 @@ quic_stream_t *quic_stream_module_send_relation_stream(quic_stream_module_t *con
     }
 
     if (quic_stream_id_is_bidi(sid)) {
-        return quic_session_open_recv_stream(session, sid);
+        return quic_session_open_recv_stream(module, sid);
     }
 
     return (quic_stream_t *) quic_rbt_nil;
+}
+
+static inline quic_err_t quic_recv_stream_close(quic_recv_stream_t *const str) {
+    quic_stream_t *const p_str = quic_container_of_recv_stream(str);
+    quic_stream_flowctrl_module_t *const flowctrl_module = p_str->flowctrl_module;
+    bool completed = false;
+
+    pthread_mutex_lock(&str->mtx);
+    if (str->closed) {
+        goto end;
+    }
+    str->closed = true;
+    completed = str->fin_flag;
+    quic_sorter_destory(&str->sorter);
+end:
+    pthread_mutex_unlock(&str->mtx);
+    liteco_chan_close(&str->handled_chan);
+
+    if (completed) {
+        quic_stream_flowctrl_abandon(flowctrl_module, quic_stream_extend_flowctrl(p_str));
+    }
+    return quic_err_success;
+}
+
+static inline quic_err_t quic_send_stream_close(quic_send_stream_t *const str) {
+    quic_stream_t *const p_str = quic_container_of_send_stream(str);
+    quic_framer_module_t *const framer_module = quic_session_module(quic_framer_module_t, p_str->session, quic_framer_module);
+
+    pthread_mutex_lock(&str->mtx);
+    if (str->closed) {
+        pthread_mutex_unlock(&str->mtx);
+        return quic_err_closed;
+    }
+    str->closed = true;
+    pthread_mutex_unlock(&str->mtx);
+    quic_framer_add_active(framer_module, p_str->key); // send fin flag
+    liteco_chan_unenforceable_push(&str->sent_segment_chan, NULL); // notify app writed
+
+    return quic_err_success;
+}
+
+static inline quic_err_t quic_stream_destory_push(quic_stream_module_t *const module, const uint64_t sid) {
+    pthread_mutex_lock(&module->destory_mtx);
+    if (quic_rbt_is_nil(quic_stream_destory_sid_find(module->destory_set, &sid))) {
+        quic_stream_destory_sid_t *d_sid = malloc(sizeof(quic_stream_destory_sid_t));
+        if (d_sid) {
+            quic_rbt_init(d_sid);
+            d_sid->key = sid;
+            d_sid->destory_time = quic_now();
+
+            quic_stream_destory_sid_insert(&module->destory_set, d_sid);
+        }
+    }
+    pthread_mutex_unlock(&module->destory_mtx);
+
+    return quic_err_success;
 }
 
 quic_err_t quic_stream_close(quic_stream_t *const str) {
@@ -474,21 +589,35 @@ bool quic_stream_remote_closed(quic_stream_t *const str) {
 static inline quic_err_t quic_streams_destory(quic_stream_module_t *const module, quic_session_t *const session, const uint64_t sid) {
     if (quic_stream_id_is_bidi(sid)) {
         if (quic_stream_id_same_principal(sid, session)) {
-            quic_stream_outbidi_delete(&module->outbidi, &sid);
+            quic_stream_set_delete(module, &module->outbidi, sid);
         }
         else {
-            quic_stream_inbidi_delete(&module->inbidi, &sid);
+            quic_stream_set_delete(module, &module->inbidi, sid);
         }
     }
     else {
         if (quic_stream_id_same_principal(sid, session)) {
-            quic_stream_outuni_delete(&module->outuni, &sid);
+            quic_stream_set_delete(module, &module->outuni, sid);
         }
         else {
-            quic_stream_inuni_delete(&module->inuni, &sid);
+            quic_stream_set_delete(module, &module->inuni, sid);
         }
     }
 
+    return quic_err_success;
+}
+
+static inline quic_err_t quic_stream_set_delete(quic_stream_module_t *const module, quic_stream_set_t *const strset, const uint64_t sid) {
+    pthread_mutex_lock(&strset->mtx);
+    quic_stream_t *const str = quic_streams_find(strset->streams, &sid);
+    if (!quic_rbt_is_nil(str)) {
+        quic_rbt_remove(&strset->streams, &str);
+        if (module->destory) {
+            module->destory(str);
+        }
+        quic_stream_destory(str);
+    }
+    pthread_mutex_unlock(&strset->mtx);
     return quic_err_success;
 }
 
@@ -502,6 +631,10 @@ static quic_err_t quic_send_stream_on_acked(void *const str_, const quic_frame_t
     pthread_mutex_unlock(&str->mtx);
 
     return quic_err_success;
+}
+
+static inline bool quic_stream_destroable(quic_stream_t *const str) {
+    return str->recv.closed && str->recv.fin_flag && str->send.closed && str->send.sent_fin;
 }
 
 static quic_err_t quic_session_stream_module_loop(void *const module, const uint64_t now) {
@@ -609,6 +742,56 @@ quic_module_t quic_stream_module = {
     .destory     = NULL,
 };
 
+static inline quic_err_t quic_recv_stream_handle_frame(quic_recv_stream_t *const str, const quic_frame_stream_t *const frame) {
+    quic_err_t err = quic_err_success;
+    quic_stream_t *const p_str = quic_container_of_recv_stream(str);
+    quic_stream_flowctrl_module_t *const flowctrl_module = p_str->flowctrl_module;
+
+    pthread_mutex_lock(&str->mtx);
+    uint64_t t_off = frame->off + frame->len;
+    bool fin = (frame->first_byte & quic_frame_stream_type_fin) == quic_frame_stream_type_fin;
+    bool newly_fin = false;
+
+    quic_stream_flowctrl_update_rwnd(flowctrl_module, quic_stream_extend_flowctrl(p_str), t_off, fin);
+
+    if (fin) {
+        newly_fin = !str->fin_flag;
+
+        str->final_off = t_off;
+        str->fin_flag = true;
+
+        liteco_chan_close(&p_str->fin_chan);
+    }
+
+    if (str->closed) {
+        pthread_mutex_unlock(&str->mtx);
+        return quic_err_success;
+    }
+
+    if (frame->len == 0) {
+        pthread_mutex_unlock(&str->mtx);
+
+        if (fin && newly_fin) {
+            liteco_chan_unenforceable_push(&str->handled_chan, NULL);
+        }
+        return quic_err_success;
+    }
+
+    uint64_t readable_size = quic_sorter_readable(&str->sorter);
+    if ((err = quic_sorter_write(&str->sorter, frame->off, frame->len, frame->data)) != quic_err_success) {
+        pthread_mutex_unlock(&str->mtx);
+        return quic_err_success;
+    }
+    bool notify = readable_size != quic_sorter_readable(&str->sorter);
+
+    pthread_mutex_unlock(&str->mtx);
+
+    if (notify) {
+        liteco_chan_unenforceable_push(&str->handled_chan, NULL);
+    }
+    return quic_err_success;
+}
+
 quic_err_t quic_session_handle_stream_frame(quic_session_t *const session, const quic_frame_t *const frame) {
     quic_stream_module_t *module = quic_session_module(quic_stream_module_t, session, quic_stream_module);
     const quic_frame_stream_t *const s_frame = (const quic_frame_stream_t *) frame;
@@ -619,6 +802,23 @@ quic_err_t quic_session_handle_stream_frame(quic_session_t *const session, const
     }
 
     quic_recv_stream_handle_frame(&stream->recv, s_frame);
+
+    return quic_err_success;
+}
+
+static inline quic_err_t quic_send_stream_handle_max_stream_data_frame(quic_send_stream_t *const str, const quic_frame_max_stream_data_t *const frame) {
+    quic_stream_t *const p_str = quic_container_of_send_stream(str);
+    quic_stream_flowctrl_module_t *const f_module = quic_session_module(quic_stream_flowctrl_module_t, p_str->session, quic_stream_flowctrl_module);
+    quic_framer_module_t *const framer_module = quic_session_module(quic_framer_module_t, p_str->session, quic_framer_module);
+
+    pthread_mutex_lock(&str->mtx);
+    bool remain = str->reader_len != 0;
+    pthread_mutex_unlock(&str->mtx);
+
+    quic_stream_flowctrl_update_swnd(f_module, quic_stream_extend_flowctrl(p_str), frame->max_data);
+    if (remain) {
+        quic_framer_add_active(framer_module, p_str->key);
+    }
 
     return quic_err_success;
 }
