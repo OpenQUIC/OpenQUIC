@@ -241,8 +241,6 @@ static int quic_stream_read_co(void *const args) {
     uint64_t readed_len = 0;
     bool readed = false;
 
-    uint64_t timeout = str->deadline == 0 ? 0 : str->deadline + quic_now();
-
     pthread_mutex_lock(&str->mtx);
     for ( ;; ) {
         if (str->closed) {
@@ -252,9 +250,6 @@ static int quic_stream_read_co(void *const args) {
             break;
         }
         if (str->fin_flag && str->final_off <= str->sorter.readed_size) {
-            break;
-        }
-        if (timeout != 0 && timeout < quic_now()) {
             break;
         }
 
@@ -269,7 +264,10 @@ static int quic_stream_read_co(void *const args) {
                     { .chan = &io->timer_chan, .type = liteco_casetype_pop, .ele = NULL },
                     { .chan = &str->handled_chan, .type = liteco_casetype_pop, .ele = NULL }
                 };
-                liteco_select(cases, 2, true);
+
+                if (liteco_select(cases, 2, true)->chan == &io->timer_chan) {
+                    break;
+                }
             }
             else {
                 liteco_chan_pop(&str->handled_chan, true);
@@ -735,6 +733,22 @@ quic_err_t quic_stream_module_process_rwnd(quic_stream_module_t *const module) {
     pthread_mutex_unlock(&module->rwnd_updated_mtx);
 
     return quic_err_success;
+}
+
+bool quic_stream_recv_closed(quic_stream_t *const str) {
+    return str->recv.closed;
+}
+
+bool quic_stream_send_closed(quic_stream_t *const str) {
+    return str->send.closed;
+}
+
+bool quic_stream_fin(quic_stream_t *const str) {
+    return str->recv.fin_flag || str->send.sent_fin;
+}
+
+quic_session_t *quic_stream_session(quic_stream_t *const str) {
+    return str->session;
 }
 
 quic_module_t quic_stream_module = {

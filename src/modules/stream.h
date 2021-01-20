@@ -265,6 +265,11 @@ __quic_extends quic_stream_t *quic_stream_open(quic_stream_module_t *const modul
 __quic_extends quic_err_t quic_stream_close(quic_stream_t *const str, quic_err_t (*closed_cb) (quic_stream_t *const));
 __quic_extends bool quic_stream_remote_closed(quic_stream_t *const str);
 
+__quic_extends bool quic_stream_recv_closed(quic_stream_t *const str);
+__quic_extends bool quic_stream_send_closed(quic_stream_t *const str);
+__quic_extends bool quic_stream_fin(quic_stream_t *const str);
+__quic_extends quic_session_t *quic_stream_session(quic_stream_t *const str);
+
 quic_stream_t *quic_stream_module_send_relation_stream(quic_stream_module_t *const module, const uint64_t sid);
 
 static inline quic_err_t quic_stream_accept(quic_stream_module_t *const module, quic_err_t (*accept_cb) (quic_session_t *const, quic_stream_t *const)) {
