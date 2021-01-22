@@ -64,11 +64,17 @@ static int quic_session_run_co(void *const session_) {
 
     // event loop
     for ( ;; ) {
+        quic_module_t *active_module = NULL;
         uint64_t now = quic_now();
         if (session->loop_deadline) {
             int timeout = session->loop_deadline - now;
             if (timeout <= 0) {
                 quic_session_reset_loop_deadline(session);
+
+                active_module = liteco_chan_pop(&session->mod_chan, false);
+                if (active_module == liteco_chan_pop_failed) {
+                    active_module = NULL;
+                }
                 goto module_loop;
             }
 
@@ -79,20 +85,22 @@ static int quic_session_run_co(void *const session_) {
             { .chan = &session->timer_chan, .type = liteco_casetype_pop, .ele = NULL }
         };
         liteco_case_t *choosed_case = liteco_select(cases, 2, true);
+        if (choosed_case->chan == &session->mod_chan) {
+            active_module = choosed_case->ele;
+        }
 
+module_loop:
         if (session->mod_chan.closed) {
             break;
         }
 
         quic_session_reset_loop_deadline(session);
 
-        if (choosed_case->chan == &session->mod_chan) {
-            quic_module_t *active_module = choosed_case->ele;
+        if (active_module) {
             void *module = quic_session_module(void, session, *active_module);
             quic_module_process(module);
         }
 
-module_loop:
         now = quic_now();
         for (i = 0; quic_modules[i]; i++) {
             void *module = quic_session_module(void, session, *quic_modules[i]);
