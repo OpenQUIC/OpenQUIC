@@ -25,6 +25,14 @@
 #include <netinet/in.h>
 #include <pthread.h>
 
+typedef union quic_addr_u quic_addr_t;
+union quic_addr_u {
+    struct sockaddr_in v4;
+    struct sockaddr_in6 v6;
+};
+
+quic_addr_t quic_ipv4(const char *const addr, const uint16_t port);
+
 typedef struct quic_stream_s quic_stream_t;
 
 typedef struct quic_config_s quic_config_t;
@@ -112,5 +120,8 @@ typedef quic_err_t (*quic_session_handler_t) (quic_session_t *const, const quic_
 quic_err_t quic_session_accept(quic_session_t *const session, quic_err_t (*accept_cb) (quic_session_t *const, quic_stream_t *const));
 quic_err_t quic_session_handshake_done(quic_session_t *const session, quic_err_t (*handshake_done_cb) (quic_session_t *const));
 quic_stream_t *quic_session_open(quic_session_t *const session, const bool bidi);
+
+quic_err_t quic_session_path_add(liteco_eloop_t *const eloop, quic_session_t *const session, const uint64_t key, quic_addr_t local_addr, quic_addr_t remote_addr);
+quic_err_t quic_session_path_use(quic_session_t *const session, const uint64_t key);
 
 #endif

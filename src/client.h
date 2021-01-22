@@ -29,14 +29,8 @@ extern const quic_config_t quic_client_default_config;
 
 quic_err_t quic_client_init(quic_client_t *const client, const quic_config_t cfg);
 
-quic_err_t quic_client_create_ipv4_path(quic_client_t *const client, const uint64_t key, struct sockaddr_in local_addr, struct sockaddr_in remote_addr);
-
-static inline quic_err_t quic_client_use_path(quic_client_t *const client, const uint64_t key) {
-    quic_migrate_module_t *const migrate = quic_session_module(quic_migrate_module_t, client->session, quic_migrate_module);
-    quic_migrate_use_path(migrate, key);
-
-    return quic_err_success;
-}
+quic_err_t quic_client_path_add(quic_client_t *const client, const uint64_t key, quic_addr_t local_addr, quic_addr_t remote_addr);
+quic_err_t quic_client_path_use(quic_client_t *const client, const uint64_t key);
 
 quic_err_t quic_client_accept(quic_client_t *const client, quic_err_t (*accept_cb) (quic_session_t *const, quic_stream_t *const));
 quic_err_t quic_client_handshake_done(quic_client_t *const client, quic_err_t (*handshake_done_cb) (quic_session_t *const));

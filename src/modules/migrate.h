@@ -35,12 +35,12 @@ struct quic_migrate_module_s {
 
 extern quic_module_t quic_migrate_module;
 
-static inline quic_err_t quic_migrate_new_ipv4_path(liteco_eloop_t *const eloop,
-                                                    quic_migrate_module_t *const module,
-                                                    int (*alloc_cb) (liteco_udp_pkt_t **const, liteco_udp_t *const),
-                                                    const uint64_t key,
-                                                    struct sockaddr_in local_addr,
-                                                    struct sockaddr_in remote_addr) {
+static inline quic_err_t quic_migrate_path_add(liteco_eloop_t *const eloop,
+                                               quic_migrate_module_t *const module,
+                                               int (*alloc_cb) (liteco_udp_pkt_t **const, liteco_udp_t *const),
+                                               const uint64_t key,
+                                               const quic_addr_t local_addr,
+                                               const quic_addr_t remote_addr) {
     if (!quic_rbt_is_nil(quic_migrate_path_find(module->paths, &key))) {
         return quic_err_conflict;
     }
@@ -54,13 +54,13 @@ static inline quic_err_t quic_migrate_new_ipv4_path(liteco_eloop_t *const eloop,
     path->key = key;
 
     quic_migrate_path_insert(&module->paths, path);
-    quic_udp_fd_new_socket(eloop, u_module, alloc_cb, key, local_addr, remote_addr);
+    quic_udp_fd_path_add(eloop, u_module, alloc_cb, key, local_addr, remote_addr);
     quic_congestion_new_instance(c_module, key);
 
     return quic_err_success;
 }
 
-static inline quic_err_t quic_migrate_use_path(quic_migrate_module_t *const module, const uint64_t key) {
+static inline quic_err_t quic_migrate_path_use(quic_migrate_module_t *const module, const uint64_t key) {
     quic_path_t *const path = quic_migrate_path_find(module->paths, &key);
     if (quic_rbt_is_nil(path)) {
         return quic_err_internal_error;

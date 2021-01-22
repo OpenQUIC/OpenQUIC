@@ -12,9 +12,6 @@
 #include "modules/stream.h"
 #include <stdlib.h>
 
-static int quic_client_recv_alloc_cb(liteco_udp_pkt_t **const pkt_storage, liteco_udp_t *const udp);
-static void quic_client_recovery_pkt(liteco_udp_pkt_t *const pkt);
-
 const quic_config_t quic_client_default_config = {
     .co_stack_size = 8192,
     .is_cli = true,
@@ -64,12 +61,12 @@ quic_err_t quic_client_start_loop(quic_client_t *const client) {
     }
 }
 
-quic_err_t quic_client_create_ipv4_path(quic_client_t *const client, const uint64_t key, struct sockaddr_in local_addr, struct sockaddr_in remote_addr) {
-    quic_migrate_module_t *const migrate = quic_session_module(quic_migrate_module_t, client->session, quic_migrate_module);
+quic_err_t quic_client_path_add(quic_client_t *const client, const uint64_t key, quic_addr_t local_addr, quic_addr_t remote_addr) {
+    return quic_session_path_add(&client->eloop, client->session, key, local_addr, remote_addr);
+}
 
-    quic_migrate_new_ipv4_path(&client->eloop, migrate, quic_client_recv_alloc_cb, key, local_addr, remote_addr);
-
-    return quic_err_success;
+quic_err_t quic_client_path_use(quic_client_t *const client, const uint64_t key) {
+    return quic_session_path_use(client->session, key);
 }
 
 quic_err_t quic_client_accept(quic_client_t *const client, quic_err_t (*accept_cb) (quic_session_t *const, quic_stream_t *const)) {
@@ -78,20 +75,5 @@ quic_err_t quic_client_accept(quic_client_t *const client, quic_err_t (*accept_c
 
 quic_err_t quic_client_handshake_done(quic_client_t *const client, quic_err_t (*handshake_done_cb) (quic_session_t *const)) {
     return quic_session_handshake_done(client->session, handshake_done_cb);
-}
-
-static int quic_client_recv_alloc_cb(liteco_udp_pkt_t **const pkt_storage, liteco_udp_t *const udp) {
-    (void) udp;
-    quic_recv_packet_t *const pkt = malloc(sizeof(quic_recv_packet_t) + 1460);
-    *pkt_storage = &pkt->pkt;
-    (*pkt_storage)->cap = 1460;
-    (*pkt_storage)->recovery = quic_client_recovery_pkt;
-    (*pkt_storage)->len = 0;
-    return 0;
-}
-
-static void quic_client_recovery_pkt(liteco_udp_pkt_t *const pkt) {
-    quic_recv_packet_t *recv_pkt = ((void *) pkt) - offsetof(quic_recv_packet_t, pkt);
-    free(recv_pkt);
 }
 

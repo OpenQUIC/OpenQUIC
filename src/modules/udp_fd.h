@@ -24,15 +24,8 @@ struct quic_socket_s {
 
     uint32_t mtu;
 
-    union {
-        struct sockaddr_in v4;
-        struct sockaddr_in6 v6;
-    } remote_addr;
-
-    union {
-        struct sockaddr_in v4;
-        struct sockaddr_in6 v6;
-    } local_addr;
+    quic_addr_t remote_addr;
+    quic_addr_t local_addr;
 
     quic_session_t *session;
 
@@ -56,12 +49,12 @@ struct quic_udp_fd_module_s {
 
 extern quic_module_t quic_udp_fd_module;
 
-static inline quic_err_t quic_udp_fd_new_socket(liteco_eloop_t *const eloop,
-                                                quic_udp_fd_module_t *const module,
-                                                int (*alloc_cb) (liteco_udp_pkt_t **const, liteco_udp_t *const),
-                                                const uint64_t key,
-                                                struct sockaddr_in local_addr,
-                                                struct sockaddr_in remote_addr) {
+static inline quic_err_t quic_udp_fd_path_add(liteco_eloop_t *const eloop,
+                                              quic_udp_fd_module_t *const module,
+                                              int (*alloc_cb) (liteco_udp_pkt_t **const, liteco_udp_t *const),
+                                              const uint64_t key,
+                                              const quic_addr_t local_addr,
+                                              const quic_addr_t remote_addr) {
     if (!quic_rbt_is_nil(quic_udp_fd_socket_find(module->sockets, &key))) {
         return quic_err_conflict;
     }
@@ -73,8 +66,8 @@ static inline quic_err_t quic_udp_fd_new_socket(liteco_eloop_t *const eloop,
     liteco_udp_bind(&socket->udp, (struct sockaddr *) &local_addr, sizeof(local_addr));
     liteco_udp_set_recv(&socket->udp, alloc_cb, &module->rchan);
     socket->key = key;
-    socket->local_addr.v4 = local_addr;
-    socket->remote_addr.v4 = remote_addr;
+    socket->local_addr = local_addr;
+    socket->remote_addr = remote_addr;
     socket->session = quic_module_of_session(module);
 
     quic_udp_fd_socket_insert(&module->sockets, socket);
