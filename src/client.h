@@ -33,6 +33,7 @@ quic_err_t quic_client_path_add(quic_client_t *const client, const uint64_t key,
 quic_err_t quic_client_path_use(quic_client_t *const client, const uint64_t key);
 
 quic_err_t quic_client_accept(quic_client_t *const client, quic_err_t (*accept_cb) (quic_session_t *const, quic_stream_t *const));
+quic_stream_t *quic_client_open(quic_client_t *const client, bool bidi);
 quic_err_t quic_client_handshake_done(quic_client_t *const client, quic_err_t (*handshake_done_cb) (quic_session_t *const));
 
 quic_err_t quic_client_start_loop(quic_client_t *const client);
