@@ -13,22 +13,10 @@
 #include "modules/migrate.h"
 #include "utils/time.h"
 #include <malloc.h>
-#include <arpa/inet.h>
 
-static int quic_session_recv_alloc_cb(liteco_udp_pkt_t **const pkt_storage, liteco_udp_t *const udp);
-static void quic_session_recovery_pkt(liteco_udp_pkt_t *const pkt);
 static int quic_session_run_co(void *const session_);
 
-quic_addr_t quic_ipv4(const char *const addr, const uint16_t port) {
-    quic_addr_t ret = { };
-    ret.v4.sin_family = AF_INET;
-    ret.v4.sin_addr.s_addr = inet_addr(addr);
-    ret.v4.sin_port = htons(port);
-
-    return ret;
-}
-
-quic_session_t *quic_session_create(const quic_config_t cfg) {
+quic_session_t *quic_session_create(quic_transmission_t *const transmission, const quic_config_t cfg) {
     uint32_t modules_size = quic_modules_size();
 
     quic_session_t *session = malloc(sizeof(quic_session_t) + modules_size);
@@ -43,6 +31,8 @@ quic_session_t *quic_session_create(const quic_config_t cfg) {
     quic_buf_copy(&session->key, &cfg.src);
     session->cfg = cfg;
     session->loop_deadline = 0;
+
+    session->transmission = transmission;
 
     return session;
 }
@@ -143,31 +133,15 @@ quic_stream_t *quic_session_open(quic_session_t *const session, const bool bidi)
     return quic_stream_open(module, bidi);
 }
 
-quic_err_t quic_session_path_add(liteco_eloop_t *const eloop, quic_session_t *const session, const uint64_t key, quic_addr_t local_addr, quic_addr_t remote_addr) {
+quic_err_t quic_session_path_use(quic_session_t *const session, const quic_path_t path) {
     quic_migrate_module_t *const migrate = quic_session_module(quic_migrate_module_t, session, quic_migrate_module);
-    quic_migrate_path_add(eloop, migrate, quic_session_recv_alloc_cb, key, local_addr, remote_addr);
+    session->path = path;
+    quic_migrate_path_use(migrate, path);
 
     return quic_err_success;
 }
 
-quic_err_t quic_session_path_use(quic_session_t *const session, const uint64_t key) {
-    quic_migrate_module_t *const migrate = quic_session_module(quic_migrate_module_t, session, quic_migrate_module);
-    quic_migrate_path_use(migrate, key);
-
-    return quic_err_success;
+quic_err_t quic_session_send(quic_session_t *const session, const void *const data, const uint32_t len) {
+    return quic_transmission_send(session->transmission, session->path, data, len);
 }
 
-static int quic_session_recv_alloc_cb(liteco_udp_pkt_t **const pkt_storage, liteco_udp_t *const udp) {
-    quic_session_t *const session = ((quic_socket_t *) (((void *) udp) - offsetof(quic_socket_t, udp)))->session;
-    quic_recv_packet_t *const pkt = malloc(sizeof(quic_recv_packet_t) + 1460);
-    *pkt_storage = &pkt->pkt;
-    (*pkt_storage)->cap = session->cfg.mtu;
-    (*pkt_storage)->recovery = quic_session_recovery_pkt;
-    (*pkt_storage)->len = 0;
-    return 0;
-}
-
-static void quic_session_recovery_pkt(liteco_udp_pkt_t *const pkt) {
-    quic_recv_packet_t *recv_pkt = ((void *) pkt) - offsetof(quic_recv_packet_t, pkt);
-    free(recv_pkt);
-}

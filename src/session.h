@@ -10,9 +10,11 @@
 #define __OPENQUIC_SESSION_H__
 
 #include "def.h"
+#include "transmission.h"
 #include "utils/buf.h"
 #include "utils/errno.h"
 #include "utils/rbt.h"
+#include "utils/addr.h"
 #include "format/frame.h"
 #include "module.h"
 #include "lc_eloop.h"
@@ -25,22 +27,12 @@
 #include <netinet/in.h>
 #include <pthread.h>
 
-typedef union quic_addr_u quic_addr_t;
-union quic_addr_u {
-    struct sockaddr_in v4;
-    struct sockaddr_in6 v6;
-};
-
-quic_addr_t quic_ipv4(const char *const addr, const uint16_t port);
-
 typedef struct quic_stream_s quic_stream_t;
 
 typedef struct quic_config_s quic_config_t;
 struct quic_config_s {
     quic_buf_t src;
     quic_buf_t dst;
-
-    uint32_t co_stack_size;
 
     bool is_cli;
     uint32_t conn_len;
@@ -92,6 +84,9 @@ struct quic_session_s {
     liteco_chan_t timer_chan;
     liteco_timer_t timer;
 
+    quic_transmission_t *transmission;
+    quic_path_t path;
+
     uint64_t loop_deadline;
     uint8_t modules[0];
 };
@@ -113,7 +108,7 @@ struct quic_session_s {
         (session)->loop_deadline = (deadline);                                                     \
     }
 
-quic_session_t *quic_session_create(const quic_config_t cfg);
+quic_session_t *quic_session_create(quic_transmission_t *const transmission, const quic_config_t cfg);
 quic_err_t quic_session_run(quic_session_t *const session, liteco_eloop_t *const eloop, liteco_runtime_t *const rt, void *const st, const size_t st_len);
 typedef quic_err_t (*quic_session_handler_t) (quic_session_t *const, const quic_frame_t *const);
 
@@ -121,7 +116,7 @@ quic_err_t quic_session_accept(quic_session_t *const session, quic_err_t (*accep
 quic_err_t quic_session_handshake_done(quic_session_t *const session, quic_err_t (*handshake_done_cb) (quic_session_t *const));
 quic_stream_t *quic_session_open(quic_session_t *const session, const bool bidi);
 
-quic_err_t quic_session_path_add(liteco_eloop_t *const eloop, quic_session_t *const session, const uint64_t key, quic_addr_t local_addr, quic_addr_t remote_addr);
-quic_err_t quic_session_path_use(quic_session_t *const session, const uint64_t key);
+quic_err_t quic_session_path_use(quic_session_t *const session, const quic_path_t path);
+quic_err_t quic_session_send(quic_session_t *const session, const void *const data, const uint32_t len);
 
 #endif

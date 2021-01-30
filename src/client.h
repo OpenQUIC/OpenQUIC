@@ -10,6 +10,7 @@
 #define __OPENQUIC_CLIENT_H__
 
 #include "session.h"
+#include "transmission.h"
 #include "modules/migrate.h"
 #include "modules/udp_fd.h"
 #include "lc_runtime.h"
@@ -20,17 +21,15 @@ struct quic_client_s {
     liteco_eloop_t eloop;
     liteco_runtime_t rt;
 
+    quic_transmission_t transmission;
     quic_session_t *session;
-
-    uint8_t *st;
 };
 
 extern const quic_config_t quic_client_default_config;
 
-quic_err_t quic_client_init(quic_client_t *const client, const quic_config_t cfg);
-
-quic_err_t quic_client_path_add(quic_client_t *const client, const uint64_t key, quic_addr_t local_addr, quic_addr_t remote_addr);
-quic_err_t quic_client_path_use(quic_client_t *const client, const uint64_t key);
+quic_err_t quic_client_init(quic_client_t *const client, void *const st, const size_t st_size, const quic_config_t cfg);
+quic_err_t quic_client_listen(quic_client_t *const client, const uint32_t mtu, const quic_addr_t local_addr);
+quic_err_t quic_client_path_use(quic_client_t *const client, const quic_path_t path);
 
 quic_err_t quic_client_accept(quic_client_t *const client, quic_err_t (*accept_cb) (quic_session_t *const, quic_stream_t *const));
 quic_stream_t *quic_client_open(quic_client_t *const client, bool bidi);

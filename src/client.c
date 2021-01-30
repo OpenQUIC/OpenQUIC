@@ -13,7 +13,6 @@
 #include <stdlib.h>
 
 const quic_config_t quic_client_default_config = {
-    .co_stack_size = 8192,
     .is_cli = true,
     .conn_len = 6,
     .stream_recv_timeout = 0,
@@ -40,17 +39,17 @@ const quic_config_t quic_client_default_config = {
     .stream_destory_timeout = 0,
 };
 
-quic_err_t quic_client_init(quic_client_t *const client, const quic_config_t cfg) {
-    if ((client->st = malloc(cfg.co_stack_size)) == NULL) {
-        return quic_err_internal_error;
-    }
+static quic_err_t quic_client_transmission_recv_cb(quic_transmission_t *const transmission, quic_recv_packet_t *const recvpkt);
+
+quic_err_t quic_client_init(quic_client_t *const client, void *const st, const size_t st_size, const quic_config_t cfg) {
 
     liteco_eloop_init(&client->eloop);
-
     liteco_runtime_init(&client->eloop, &client->rt);
-    client->session = quic_session_create(cfg);
+    quic_transmission_init(&client->transmission, &client->rt);
+    quic_transmission_recv(&client->transmission, quic_client_transmission_recv_cb);
 
-    quic_session_run(client->session, &client->eloop, &client->rt, client->st, cfg.co_stack_size);
+    client->session = quic_session_create(&client->transmission, cfg);
+    quic_session_run(client->session, &client->eloop, &client->rt, st, st_size);
 
     return quic_err_success;
 }
@@ -61,12 +60,12 @@ quic_err_t quic_client_start_loop(quic_client_t *const client) {
     }
 }
 
-quic_err_t quic_client_path_add(quic_client_t *const client, const uint64_t key, quic_addr_t local_addr, quic_addr_t remote_addr) {
-    return quic_session_path_add(&client->eloop, client->session, key, local_addr, remote_addr);
+quic_err_t quic_client_listen(quic_client_t *const client, const uint32_t mtu, const quic_addr_t local_addr) {
+    return quic_transmission_listen(&client->eloop, &client->transmission, mtu, local_addr);
 }
 
-quic_err_t quic_client_path_use(quic_client_t *const client, const uint64_t key) {
-    return quic_session_path_use(client->session, key);
+quic_err_t quic_client_path_use(quic_client_t *const client, const quic_path_t path) {
+    return quic_session_path_use(client->session, path);
 }
 
 quic_err_t quic_client_accept(quic_client_t *const client, quic_err_t (*accept_cb) (quic_session_t *const, quic_stream_t *const)) {
@@ -81,3 +80,9 @@ quic_err_t quic_client_handshake_done(quic_client_t *const client, quic_err_t (*
     return quic_session_handshake_done(client->session, handshake_done_cb);
 }
 
+static quic_err_t quic_client_transmission_recv_cb(quic_transmission_t *const transmission, quic_recv_packet_t *const recvpkt) {
+    quic_client_t *const client = ((void *) transmission) - offsetof(quic_client_t, transmission);
+    quic_recver_module_t *const r_module = quic_session_module(quic_recver_module_t, client->session, quic_recver_module);
+
+    return quic_recver_push(r_module, recvpkt);
+}
