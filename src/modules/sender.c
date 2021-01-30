@@ -468,9 +468,7 @@ static inline quic_err_t quic_sender_send_packet(quic_sender_module_t *const mod
         quic_congestion_on_sent(c_module, sent_pkt->sent_time, sent_pkt->key, sent_pkt->pkt_len, sent_pkt->included_unacked);
     }
 
-    quic_udp_fd_write(uf_module, pkt->data, pkt->buf.pos - pkt->buf.buf);
-
-    return quic_err_success;
+    return quic_session_send(session, pkt->data, pkt->buf.pos - pkt->buf.buf);
 }
 
 quic_module_t quic_sender_module = {
