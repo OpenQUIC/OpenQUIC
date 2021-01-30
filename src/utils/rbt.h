@@ -12,6 +12,7 @@
 #include "utils/errno.h"
 #include "utils/buf.h"
 #include "utils/link.h"
+#include "utils/addr.h"
 #include <stdint.h>
 
 #define QUIC_RBT_BLACK  0
@@ -161,5 +162,19 @@ int quic_rbt_uint64_comparer(const quic_rbt_t *const lf, const quic_rbt_t *const
 
 int quic_rbt_string_key_comparer(const void *const key, const quic_rbt_t *const node);
 int quic_rbt_string_comparer(const quic_rbt_t *const lf, const quic_rbt_t *const rt);
+
+#define QUIC_RBT_ADDR_FIELDS \
+    QUIC_RBT_FIELDS          \
+    quic_addr_t key;
+
+int quic_rbt_addr_key_comparer(const void *const key, const quic_rbt_t *const node);
+int quic_rbt_addr_comparer(const quic_rbt_t *const lf, const quic_rbt_t *const rt);
+
+#define QUIC_RBT_PATH_FIELDS \
+    QUIC_RBT_FIELDS          \
+    quic_path_t key;
+
+int quic_rbt_path_key_comparer(const void *const key, const quic_rbt_t *const node);
+int quic_rbt_path_comparer(const quic_rbt_t *const lf, const quic_rbt_t *const rt);
 
 #endif

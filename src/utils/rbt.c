@@ -156,6 +156,60 @@ int quic_rbt_string_comparer(const quic_rbt_t *const lf, const quic_rbt_t *const
     return quic_rbt_string_key_comparer(&lf_ref->key, rt);
 }
 
+typedef struct quic_rbt_addr_key_s quic_rbt_addr_key_t;
+struct quic_rbt_addr_key_s {
+    QUIC_RBT_ADDR_FIELDS
+};
+
+int quic_rbt_addr_key_comparer(const void *const key, const quic_rbt_t *const node) {
+    quic_addr_t key_ref = *(quic_addr_t *) key;
+    quic_rbt_addr_key_t *node_ref = (quic_rbt_addr_key_t *) node;
+
+    int cmpret = quic_addr_cmp(key_ref, node_ref->key);
+    if (cmpret == 0) {
+        return QUIC_RBT_EQ;
+    }
+    else if (cmpret < 0) {
+        return QUIC_RBT_LS;
+    }
+    else {
+        return QUIC_RBT_GT;
+    }
+}
+
+int quic_rbt_addr_comparer(const quic_rbt_t *const lf, const quic_rbt_t *const rt) {
+    quic_rbt_addr_key_t *const lf_ref = (quic_rbt_addr_key_t *) lf;
+
+    return quic_rbt_addr_key_comparer(&lf_ref->key, rt);
+}
+
+typedef struct quic_rbt_path_key_s quic_rbt_path_key_t;
+struct quic_rbt_path_key_s {
+    QUIC_RBT_PATH_FIELDS
+};
+
+int quic_rbt_path_key_comparer(const void *const key, const quic_rbt_t *const node) {
+    quic_path_t key_ref = *(quic_path_t *) key;
+    quic_rbt_path_key_t *node_ref = (quic_rbt_path_key_t *) node;
+
+    int cmpret = quic_path_cmp(key_ref, node_ref->key);
+    if (cmpret == 0) {
+        return QUIC_RBT_EQ;
+    }
+    else if (cmpret < 0) {
+        return QUIC_RBT_LS;
+    }
+    else {
+        return QUIC_RBT_GT;
+    }
+}
+
+int quic_rbt_path_comparer(const quic_rbt_t *const lf, const quic_rbt_t *const rt) {
+    quic_rbt_path_key_t *const lf_ref = (quic_rbt_path_key_t *) lf;
+
+    return quic_rbt_path_key_comparer(&lf_ref->key, rt);
+}
+
 static inline void __rbt_lr(quic_rbt_t **const root, quic_rbt_t *const node) {
     quic_rbt_t *child;
 
