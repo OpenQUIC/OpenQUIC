@@ -7,7 +7,6 @@
  */
 
 #include "client.h"
-#include "modules/udp_fd.h"
 #include "modules/recver.h"
 #include "modules/stream.h"
 #include <stdlib.h>

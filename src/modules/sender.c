@@ -10,7 +10,6 @@
 #include "modules/sender.h"
 #include "modules/packet_number_generator.h"
 #include "modules/framer.h"
-#include "modules/udp_fd.h"
 #include "modules/ack_generator.h"
 #include "modules/congestion.h"
 #include "modules/stream.h"
@@ -445,7 +444,6 @@ finished:
 
 static inline quic_err_t quic_sender_send_packet(quic_sender_module_t *const module, quic_send_packet_t *const pkt) {
     quic_session_t *const session = quic_module_of_session(module);
-    quic_udp_fd_module_t *const uf_module = quic_session_module(quic_udp_fd_module_t, session, quic_udp_fd_module);
     quic_congestion_module_t *const c_module = quic_session_module(quic_congestion_module_t, session, quic_congestion_module);
 
     quic_sent_packet_rbt_t *sent_pkt = malloc(sizeof(quic_sent_packet_rbt_t));

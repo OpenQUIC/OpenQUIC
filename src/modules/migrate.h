@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 Gscienty <gaoxiaochuan@hotmail.com>
+ * Copyright (c) 2020-2021 Gscienty <gaoxiaochuan@hotmail.com>
  *
  * Distributed under the MIT software license, see the accompanying
  * file LICENSE or https://www.opensource.org/licenses/mit-license.php .
@@ -10,10 +10,9 @@
 #define __OPENQUIC_MIGRATE_H__
 
 #include "module.h"
-#include "modules/udp_fd.h"
+#include "session.h"
 #include "modules/congestion.h"
 #include "utils/rbt.h"
-
 
 typedef struct quic_migrate_module_s quic_migrate_module_t;
 struct quic_migrate_module_s {

@@ -12,7 +12,6 @@
 #include "session.h"
 #include "transmission.h"
 #include "modules/migrate.h"
-#include "modules/udp_fd.h"
 #include "lc_runtime.h"
 #include "lc_eloop.h"
 
