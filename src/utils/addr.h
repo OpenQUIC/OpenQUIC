@@ -69,6 +69,15 @@ static inline quic_path_t quic_path_ipv4(const char *const local_addr, const uin
     return path;
 }
 
+static inline quic_path_t quic_path_addr(const quic_addr_t local_addr, const quic_addr_t remote_addr) {
+    quic_path_t path = {
+        .local_addr = local_addr,
+        .remote_addr = remote_addr
+    };
+
+    return path;
+}
+
 static inline int quic_path_cmp(const quic_path_t path1, const quic_path_t path2) {
     int cmpret = quic_addr_cmp(path1.local_addr, path2.local_addr);
     if (cmpret) {

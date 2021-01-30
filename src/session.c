@@ -133,10 +133,22 @@ quic_stream_t *quic_session_open(quic_session_t *const session, const bool bidi)
     return quic_stream_open(module, bidi);
 }
 
+uint32_t quic_session_path_mtu(quic_session_t *const session) {
+    return quic_transmission_get_mtu(session->transmission, session->path.local_addr);
+}
+
 quic_err_t quic_session_path_use(quic_session_t *const session, const quic_path_t path) {
     quic_migrate_module_t *const migrate = quic_session_module(quic_migrate_module_t, session, quic_migrate_module);
     session->path = path;
-    quic_migrate_path_use(migrate, path);
+    quic_migrate_path_use(migrate, session->path);
+
+    return quic_err_success;
+}
+
+quic_err_t quic_session_path_target_use(quic_session_t *const session, const quic_addr_t remote_addr) {
+    quic_migrate_module_t *const migrate = quic_session_module(quic_migrate_module_t, session, quic_migrate_module);
+    session->path.remote_addr = remote_addr;
+    quic_migrate_path_use(migrate, session->path);
 
     return quic_err_success;
 }

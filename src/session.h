@@ -39,8 +39,6 @@ struct quic_config_s {
 
     uint64_t stream_recv_timeout;
 
-    uint64_t mtu;
-
     bool disable_prr;
     uint64_t initial_cwnd;
     uint64_t max_cwnd;
@@ -116,7 +114,9 @@ quic_err_t quic_session_accept(quic_session_t *const session, quic_err_t (*accep
 quic_err_t quic_session_handshake_done(quic_session_t *const session, quic_err_t (*handshake_done_cb) (quic_session_t *const));
 quic_stream_t *quic_session_open(quic_session_t *const session, const bool bidi);
 
+uint32_t quic_session_path_mtu(quic_session_t *const session);
 quic_err_t quic_session_path_use(quic_session_t *const session, const quic_path_t path);
+quic_err_t quic_session_path_target_use(quic_session_t *const session, const quic_addr_t remote_addr);
 quic_err_t quic_session_send(quic_session_t *const session, const void *const data, const uint32_t len);
 
 #endif

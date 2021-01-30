@@ -76,7 +76,7 @@ static int quic_transmission_recver_process_finish(liteco_co_t *const co) {
     return 0;
 }
 
-quic_err_t quic_transmission_listen(liteco_eloop_t *const eloop, quic_transmission_t *const trans, const uint32_t mtu, const quic_addr_t local_addr) {
+quic_err_t quic_transmission_listen(liteco_eloop_t *const eloop, quic_transmission_t *const trans, const quic_addr_t local_addr, const uint32_t mtu) {
     if (!quic_rbt_is_nil(quic_transmission_socket_find(trans->sockets, &local_addr))) {
         return quic_err_conflict;
     }

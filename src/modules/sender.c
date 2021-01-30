@@ -137,6 +137,11 @@ static inline quic_err_t quic_sender_generate_short_header(quic_session_t *const
 
 static quic_send_packet_t *quic_sender_pack_initial_packet(quic_sender_module_t *const sender, const bool probe) {
     quic_session_t *const session = quic_module_of_session(sender);
+    const uint32_t mtu = quic_session_path_mtu(session);
+    if (!mtu) {
+        return NULL;
+    }
+
     quic_packet_number_generator_module_t *const numgen = quic_session_module(quic_packet_number_generator_module_t, session, quic_initial_packet_number_generator_module);
     quic_framer_module_t *const f_module = quic_session_module(quic_framer_module_t, session, quic_framer_module);
     quic_ack_generator_module_t *const ag_module = quic_session_module(quic_ack_generator_module_t, session, quic_initial_ack_generator_module);
@@ -150,11 +155,11 @@ static quic_send_packet_t *quic_sender_pack_initial_packet(quic_sender_module_t 
 
     // init send_pkt
     quic_send_packet_t *pkt = NULL;
-    quic_send_packet_init(pkt, sender->mtu);
+    quic_send_packet_init(pkt, mtu);
     pkt->retransmission_module = quic_session_module(quic_retransmission_module_t, session, quic_initial_retransmission_module);
     pkt->num = numgen->next;
 
-    uint32_t max_bytes = pkt->buf.capa - quic_sender_initial_header_max_size(session, pkt->num, sender->mtu);
+    uint32_t max_bytes = pkt->buf.capa - quic_sender_initial_header_max_size(session, pkt->num, mtu);
     uint32_t frame_len = 0;
     uint32_t payload_len = 0;
 
@@ -214,6 +219,11 @@ static quic_send_packet_t *quic_sender_pack_initial_packet(quic_sender_module_t 
 
 static quic_send_packet_t *quic_sender_pack_handshake_packet(quic_sender_module_t *const sender, const bool probe) {
     quic_session_t *const session = quic_module_of_session(sender);
+    const uint32_t mtu = quic_session_path_mtu(session);
+    if (!mtu) {
+        return NULL;
+    }
+
     quic_packet_number_generator_module_t *const numgen = quic_session_module(quic_packet_number_generator_module_t, session, quic_handshake_packet_number_generator_module);
     quic_framer_module_t *const f_module = quic_session_module(quic_framer_module_t, session, quic_framer_module);
     quic_ack_generator_module_t *const ag_module = quic_session_module(quic_ack_generator_module_t, session, quic_handshake_ack_generator_module);
@@ -227,11 +237,11 @@ static quic_send_packet_t *quic_sender_pack_handshake_packet(quic_sender_module_
 
     // init send_pkt
     quic_send_packet_t *pkt = NULL;
-    quic_send_packet_init(pkt, sender->mtu);
+    quic_send_packet_init(pkt, mtu);
     pkt->retransmission_module = quic_session_module(quic_retransmission_module_t, session, quic_handshake_retransmission_module);
     pkt->num = numgen->next;
 
-    uint32_t max_bytes = pkt->buf.capa - quic_sender_handshake_header_max_size(session, pkt->num, sender->mtu);
+    uint32_t max_bytes = pkt->buf.capa - quic_sender_handshake_header_max_size(session, pkt->num, mtu);
     uint32_t frame_len = 0;
     uint32_t payload_len = 0;
 
@@ -291,6 +301,11 @@ static quic_send_packet_t *quic_sender_pack_handshake_packet(quic_sender_module_
 
 static quic_send_packet_t *quic_sender_pack_app_packet(quic_sender_module_t *const sender, const bool probe) {
     quic_session_t *const session = quic_module_of_session(sender);
+    const uint32_t mtu = quic_session_path_mtu(session);
+    if (!mtu) {
+        return NULL;
+    }
+
     quic_stream_module_t *const stream_module = quic_session_module(quic_stream_module_t, session, quic_stream_module);
     quic_packet_number_generator_module_t *const numgen = quic_session_module(quic_packet_number_generator_module_t, session, quic_app_packet_number_generator_module);
     quic_framer_module_t *const f_module = quic_session_module(quic_framer_module_t, session, quic_framer_module);
@@ -308,7 +323,7 @@ static quic_send_packet_t *quic_sender_pack_app_packet(quic_sender_module_t *con
 
     // init send_pkt
     quic_send_packet_t *pkt = NULL;
-    quic_send_packet_init(pkt, sender->mtu);
+    quic_send_packet_init(pkt, mtu);
     pkt->retransmission_module = quic_session_module(quic_retransmission_module_t, session, quic_app_retransmission_module);
     pkt->num = numgen->next;
 
@@ -368,9 +383,7 @@ static quic_send_packet_t *quic_sender_pack_app_packet(quic_sender_module_t *con
 
 static quic_err_t quic_sender_module_init(void *const module) {
     quic_sender_module_t *const s_module = module;
-    quic_session_t *const session = quic_module_of_session(s_module);
 
-    s_module->mtu = session->cfg.mtu;
     s_module->next_send_time = 0;
 
     return quic_err_success;

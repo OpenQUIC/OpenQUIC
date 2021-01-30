@@ -15,7 +15,6 @@ const quic_config_t quic_client_default_config = {
     .is_cli = true,
     .conn_len = 6,
     .stream_recv_timeout = 0,
-    .mtu = 1460,
     .disable_prr = false,
     .initial_cwnd = 1460,
     .min_cwnd = 1460,
@@ -40,7 +39,7 @@ const quic_config_t quic_client_default_config = {
 
 static quic_err_t quic_client_transmission_recv_cb(quic_transmission_t *const transmission, quic_recv_packet_t *const recvpkt);
 
-quic_err_t quic_client_init(quic_client_t *const client, void *const st, const size_t st_size, const quic_config_t cfg) {
+quic_err_t quic_client_init(quic_client_t *const client, const quic_config_t cfg, void *const st, const size_t st_size) {
 
     liteco_eloop_init(&client->eloop);
     liteco_runtime_init(&client->eloop, &client->rt);
@@ -59,12 +58,20 @@ quic_err_t quic_client_start_loop(quic_client_t *const client) {
     }
 }
 
-quic_err_t quic_client_listen(quic_client_t *const client, const uint32_t mtu, const quic_addr_t local_addr) {
-    return quic_transmission_listen(&client->eloop, &client->transmission, mtu, local_addr);
+quic_err_t quic_client_listen(quic_client_t *const client, const quic_addr_t local_addr, const uint32_t mtu) {
+    return quic_transmission_listen(&client->eloop, &client->transmission, local_addr, mtu);
 }
 
 quic_err_t quic_client_path_use(quic_client_t *const client, const quic_path_t path) {
+    if (!quic_transmission_exist(&client->transmission, path.local_addr)) {
+        quic_client_listen(client, path.local_addr, 1460);
+    }
+
     return quic_session_path_use(client->session, path);
+}
+
+quic_err_t quic_client_path_target_use(quic_client_t *const client, const quic_addr_t remote_addr) {
+    return quic_session_path_target_use(client->session, remote_addr);
 }
 
 quic_err_t quic_client_accept(quic_client_t *const client, quic_err_t (*accept_cb) (quic_session_t *const, quic_stream_t *const)) {

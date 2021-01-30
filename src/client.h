@@ -26,9 +26,10 @@ struct quic_client_s {
 
 extern const quic_config_t quic_client_default_config;
 
-quic_err_t quic_client_init(quic_client_t *const client, void *const st, const size_t st_size, const quic_config_t cfg);
-quic_err_t quic_client_listen(quic_client_t *const client, const uint32_t mtu, const quic_addr_t local_addr);
-quic_err_t quic_client_path_use(quic_client_t *const client, const quic_path_t path);
+quic_err_t quic_client_init(quic_client_t *const client, const quic_config_t cfg, void *const st, const size_t st_size);
+quic_err_t quic_client_listen(quic_client_t *const client, const quic_addr_t local_addr, const uint32_t mtu);
+quic_err_t quic_client_path_use(quic_client_t *const client, const quic_path_t path); 
+quic_err_t quic_client_path_target_use(quic_client_t *const client, const quic_addr_t remote_addr);
 
 quic_err_t quic_client_accept(quic_client_t *const client, quic_err_t (*accept_cb) (quic_session_t *const, quic_stream_t *const));
 quic_stream_t *quic_client_open(quic_client_t *const client, bool bidi);
