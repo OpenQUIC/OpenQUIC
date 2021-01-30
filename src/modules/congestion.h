@@ -10,6 +10,7 @@
 #define __OPENQUIC_CONGESTION_H__
 
 #include "module.h"
+#include "utils/addr.h"
 #include <stdbool.h>
 
 typedef struct quic_congestion_module_s quic_congestion_module_t;
@@ -29,9 +30,7 @@ struct quic_congestion_module_s {
     uint64_t (*pto) (quic_congestion_module_t *const module, const uint64_t max_delay);
     uint64_t (*smoothed_rtt) (quic_congestion_module_t *const module);
 
-    uint64_t (*id) (quic_congestion_module_t *const module);
-    quic_err_t (*migrate) (quic_congestion_module_t *const module, uint64_t id);
-    quic_err_t (*new_instance) (quic_congestion_module_t *const module, const uint64_t key);
+    quic_err_t (*migrate) (quic_congestion_module_t *const module, const quic_path_t path);
 
     uint8_t instance[0];
 };
@@ -65,17 +64,11 @@ struct quic_congestion_module_s {
 #define quic_congestion_has_budget(module) \
     ((module)->has_budget ? (module)->has_budget((module)) : false)
 
-#define quic_congestion_id(module) \
-    ((module)->id ? (module)->id((module)) : 0);
-
 #define quic_congestion_store(module) \
     ((module)->store ? (module)->store((module)) : quic_err_not_implemented)
 
-#define quic_congestion_migrate(module, id) \
-    ((module)->migrate ? (module)->migrate((module), id) : quic_err_not_implemented)
-
-#define quic_congestion_new_instance(module, key) \
-    ((module)->new_instance ? (module)->new_instance((module), (key)) : quic_err_not_implemented)
+#define quic_congestion_migrate(module, path) \
+    ((module)->migrate ? (module)->migrate((module), path) : quic_err_not_implemented)
 
 #define quic_congestion_pto(module, max_delay) \
     ((module)->pto ? (module)->pto((module), (max_delay)) : quic_err_not_implemented)

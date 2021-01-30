@@ -77,7 +77,7 @@ struct quic_congestion_rtt_s {
 
 typedef struct quic_congestion_status_store_s quic_congestion_status_store_t;
 struct quic_congestion_status_store_s {
-    QUIC_RBT_UINT64_FIELDS
+    QUIC_RBT_PATH_FIELDS
 
     quic_congestion_base_t base;
     quic_congestion_slowstart_t slowstart;
@@ -88,10 +88,10 @@ struct quic_congestion_status_store_s {
 };
 
 #define quic_congestion_status_store_insert(store, status) \
-    quic_rbt_insert((store), (status), quic_rbt_uint64_comparer)
+    quic_rbt_insert((store), (status), quic_rbt_path_comparer)
 
 #define quic_congestion_status_store_find(store, key) \
-    ((quic_congestion_status_store_t *) quic_rbt_find((store), (key), quic_rbt_uint64_key_comparer))
+    ((quic_congestion_status_store_t *) quic_rbt_find((store), (key), quic_rbt_path_key_comparer))
 
 typedef struct quic_congestion_instance_s quic_congestion_instance_t;
 struct quic_congestion_instance_s {
@@ -113,9 +113,7 @@ static quic_err_t quic_congestion_module_update(quic_congestion_module_t *const 
 static bool quic_congestion_module_allow_send(quic_congestion_module_t *const module, const uint64_t unacked_bytes);
 static uint64_t quic_congestion_module_next_send_time(quic_congestion_module_t *const module, const uint64_t unacked_bytes);
 static bool quic_congestion_module_has_budget(quic_congestion_module_t *const module);
-static uint64_t quic_congestion_module_id(quic_congestion_module_t *const module);
-static quic_err_t quic_congestion_module_migrate(quic_congestion_module_t *const module, const uint64_t id);
-static quic_err_t quic_congestion_module_new_instance(quic_congestion_module_t *const module, const uint64_t id);
+static quic_err_t quic_congestion_module_migrate(quic_congestion_module_t *const module, const quic_path_t path);
 
 static inline quic_err_t quic_congestion_module_increase_cwnd(quic_congestion_module_t *const module, const uint64_t acked_bytes, const uint64_t unacked_bytes, const uint64_t event_time);
 static inline bool quic_congestion_module_cwnd_limited(quic_congestion_module_t *const module, const uint64_t unacked_bytes);
@@ -162,9 +160,7 @@ static quic_err_t quic_congestion_module_init(void *const module) {
     c_module->pto = quic_congestion_rtt_pto;
     c_module->smoothed_rtt = quic_congestion_rtt_smoothed_rtt;
 
-    c_module->id = quic_congestion_module_id;
     c_module->migrate = quic_congestion_module_migrate;
-    c_module->new_instance = quic_congestion_module_new_instance;
 
     quic_congestion_instance_init(c_module);
 
@@ -638,43 +634,27 @@ static bool quic_congestion_module_has_budget(quic_congestion_module_t *const mo
     return quic_congestion_tbp_budget(module, quic_now()) >= 14600;
 }
 
-static uint64_t quic_congestion_module_id(quic_congestion_module_t *const module) {
-    return quic_congestion_instance(module)->active_instance->key;
-}
-
-static quic_err_t quic_congestion_module_migrate(quic_congestion_module_t *const module, const uint64_t id) {
+static quic_err_t quic_congestion_module_migrate(quic_congestion_module_t *const module, const quic_path_t key) {
     quic_congestion_instance_t *const instance = quic_congestion_instance(module);
-    quic_congestion_status_store_t *store = quic_congestion_status_store_find(instance->store, &id);
+    quic_congestion_status_store_t *store = quic_congestion_status_store_find(instance->store, &key);
     if (quic_rbt_is_nil(store)) {
-        return quic_err_internal_error;
+        store = malloc(sizeof(quic_congestion_status_store_t));
+        if (!store) {
+            return quic_err_internal_error;
+        }
+        quic_rbt_init(store);
+        store->key = key;
+
+        quic_congestion_base_init(module, store);
+        quic_congestion_slowstart_init(module, store);
+        quic_congestion_cubic_init(module, store);
+        quic_congestion_prr_init(module, store);
+        quic_congestion_tbp_init(module, store);
+        quic_congestion_rtt_init(module, store);
+
+        quic_congestion_status_store_insert(&instance->store, store);
     }
     instance->active_instance = store;
-
-    return quic_err_success;
-}
-
-static quic_err_t quic_congestion_module_new_instance(quic_congestion_module_t *const module, const uint64_t key) {
-    quic_congestion_instance_t *const instance = quic_congestion_instance(module);
-
-    if (!quic_rbt_is_nil(quic_congestion_status_store_find(instance->store, &key))) {
-        return quic_err_conflict;
-    }
-
-    quic_congestion_status_store_t *status = malloc(sizeof(quic_congestion_status_store_t));
-    if (!status) {
-        return quic_err_internal_error;
-    }
-    quic_rbt_init(status);
-    status->key = key;
-
-    quic_congestion_base_init(module, status);
-    quic_congestion_slowstart_init(module, status);
-    quic_congestion_cubic_init(module, status);
-    quic_congestion_prr_init(module, status);
-    quic_congestion_tbp_init(module, status);
-    quic_congestion_rtt_init(module, status);
-
-    quic_congestion_status_store_insert(&instance->store, status);
 
     return quic_err_success;
 }

@@ -11,10 +11,9 @@
 static quic_err_t quic_migrate_module_init(void *const module);
 
 static quic_err_t quic_migrate_module_init(void *const module) {
-    quic_migrate_module_t *const m_module = module;
+    quic_migrate_module_t *const migrate = module;
 
-    quic_rbt_tree_init(m_module->paths);
-    m_module->active_id = -1L;
+    migrate->setup = false;
 
     return quic_err_success;
 }
