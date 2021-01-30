@@ -40,7 +40,6 @@ static inline size_t quic_addr_size(quic_addr_t addr) {
     }
 }
 
-#include <stdio.h>
 static inline int quic_addr_cmp(const quic_addr_t addr1, const quic_addr_t addr2) {
     int addr1_family = ((struct sockaddr *) &addr1)->sa_family;
     int addr2_family = ((struct sockaddr *) &addr2)->sa_family;
