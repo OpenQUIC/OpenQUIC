@@ -20,8 +20,8 @@ struct quic_transmission_recver_s {
     uint8_t st[0];
 };
 
-static int quic_transmission_recver_process_co(void *const arg);
-static int quic_transmission_recver_process_finish(liteco_co_t *const co);
+static int quic_transmission_recver_process_co(void *const args);
+static int quic_transmission_recver_process_finish(void *const args);
 static int quic_transmission_recv_alloc(liteco_udp_pkt_t **const pkt, liteco_udp_t *const udp);
 static void quic_transmission_pkt_recovery(liteco_udp_pkt_t *const pkt);
 
@@ -37,18 +37,16 @@ quic_err_t quic_transmission_init(quic_transmission_t *const trans, liteco_runti
         return quic_err_internal_error;
     }
     recver->trans = trans;
-    liteco_create(&recver->co,
-                  quic_transmission_recver_process_co, recver,
-                  quic_transmission_recver_process_finish,
-                  recver->st, 4096);
+    liteco_create(&recver->co, quic_transmission_recver_process_co, recver, recver->st, 4096);
+    liteco_finished(&recver->co, quic_transmission_recver_process_finish, recver);
 
     liteco_runtime_join(rt, &recver->co, true);
 
     return quic_err_success;
 }
 
-static int quic_transmission_recver_process_co(void *const arg) {
-    quic_treansmission_recver_t *const recver = arg;
+static int quic_transmission_recver_process_co(void *const args) {
+    quic_treansmission_recver_t *const recver = args;
 
     for ( ;; ) {
         liteco_udp_pkt_t *const pkt = liteco_chan_pop(&recver->trans->rchan, true);
@@ -70,8 +68,8 @@ static int quic_transmission_recver_process_co(void *const arg) {
     return 0;
 }
 
-static int quic_transmission_recver_process_finish(liteco_co_t *const co) {
-    quic_treansmission_recver_t *const recver = (((void *) co) - offsetof(quic_treansmission_recver_t, co));
+static int quic_transmission_recver_process_finish(void *const args) {
+    quic_treansmission_recver_t *const recver = args;
     free(recver);
     return 0;
 }

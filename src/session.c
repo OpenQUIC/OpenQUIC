@@ -44,7 +44,7 @@ quic_err_t quic_session_run(quic_session_t *const session, liteco_eloop_t *const
     liteco_chan_create(&session->mod_chan, 0, liteco_runtime_readycb, rt);
     liteco_chan_create(&session->timer_chan, 0, liteco_runtime_readycb, rt);
 
-    liteco_create(&session->co, quic_session_run_co, session, NULL, st, st_len);
+    liteco_create(&session->co, quic_session_run_co, session, st, st_len);
     liteco_timer_init(eloop, &session->timer, &session->timer_chan);
 
     liteco_runtime_join(rt, &session->co, true);

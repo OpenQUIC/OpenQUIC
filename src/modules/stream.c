@@ -54,9 +54,9 @@ struct quic_stream_destoryed_s {
 };
 
 static int quic_stream_write_co(void *const args);
-static int quic_stream_write_done(liteco_co_t *const co);
+static int quic_stream_write_done(void *const args);
 static int quic_stream_read_co(void *const args);
-static int quic_stream_read_done(liteco_co_t *const co);
+static int quic_stream_read_done(void *const args);
 
 static inline quic_err_t quic_stream_set_delete(quic_stream_module_t *const, quic_stream_set_t *const , const uint64_t);
 
@@ -336,14 +336,15 @@ quic_err_t quic_stream_write(liteco_eloop_t *const eloop,
     liteco_chan_create(&io->timer_chan, 0, liteco_runtime_readycb, str->session->rt);
     liteco_timer_init(eloop, &io->timer, &io->timer_chan);
 
-    liteco_create(&io->co, quic_stream_write_co, io, quic_stream_write_done, io->st, QUIC_STREAM_CO_STACK);
+    liteco_create(&io->co, quic_stream_write_co, io, io->st, QUIC_STREAM_CO_STACK);
+    liteco_finished(&io->co, quic_stream_write_done, io);
     liteco_runtime_join(str->session->rt, &io->co, true);
 
     return quic_err_success;
 }
 
-static int quic_stream_write_done(liteco_co_t *const co) {
-    quic_stream_io_t *const io = ((void *) co) - offsetof(quic_stream_io_t, co);
+static int quic_stream_write_done(void *const args) {
+    quic_stream_io_t *const io = args;
 
     liteco_timer_close(&io->timer);
     liteco_chan_close(&io->timer_chan);
@@ -378,14 +379,16 @@ quic_err_t quic_stream_read(liteco_eloop_t *const eloop,
     liteco_chan_create(&io->timer_chan, 0, liteco_runtime_readycb, str->session->rt);
     liteco_timer_init(eloop, &io->timer, &io->timer_chan);
 
-    liteco_create(&io->co, quic_stream_read_co, io, quic_stream_read_done, io->st, QUIC_STREAM_CO_STACK);
+    liteco_create(&io->co, quic_stream_read_co, io, io->st, QUIC_STREAM_CO_STACK);
+    liteco_finished(&io->co, quic_stream_read_done, io);
+
     liteco_runtime_join(str->session->rt, &io->co, true);
 
     return quic_err_success;
 }
 
-static int quic_stream_read_done(liteco_co_t *const co) {
-    quic_stream_io_t *const io = ((void *) co) - offsetof(quic_stream_io_t, co);
+static int quic_stream_read_done(void *const args) {
+    quic_stream_io_t *const io = args;
 
     liteco_timer_close(&io->timer);
     liteco_chan_close(&io->timer_chan);
