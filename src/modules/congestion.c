@@ -106,6 +106,7 @@ static inline uint64_t quic_congestion_delta_bandwidth(const uint64_t bytes, con
 }
 
 static quic_err_t quic_congestion_module_init(void *const module);
+
 static quic_err_t quic_congestion_module_on_acked(quic_congestion_module_t *const module, const uint64_t num, const uint64_t acked_bytes, const uint64_t unacked_bytes, const uint64_t event_time);
 static quic_err_t quic_congestion_module_on_sent(quic_congestion_module_t *const module, const uint64_t sent_time, const uint64_t num, const uint64_t sent_bytes, const bool included_unacked);
 static quic_err_t quic_congestion_module_on_lost(quic_congestion_module_t *const module, const uint64_t num, const uint64_t lost_bytes, const uint64_t unacked_bytes);
@@ -663,6 +664,7 @@ quic_module_t quic_congestion_module = {
     .name        = "congestion",
     .module_size = sizeof(quic_congestion_module_t) + sizeof(quic_congestion_instance_t),
     .init        = quic_congestion_module_init,
+    .start       = NULL,
     .process     = NULL,
     .loop        = NULL,
     .destory     = NULL

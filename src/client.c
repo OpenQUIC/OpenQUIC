@@ -9,11 +9,11 @@
 #include "client.h"
 #include "modules/recver.h"
 #include "modules/stream.h"
+#include <openssl/rand.h>
 #include <stdlib.h>
 
 const quic_config_t quic_client_default_config = {
     .is_cli = true,
-    .conn_len = 6,
     .stream_recv_timeout = 0,
     .disable_prr = false,
     .initial_cwnd = 1460,
@@ -40,6 +40,20 @@ const quic_config_t quic_client_default_config = {
 static quic_err_t quic_client_transmission_recv_cb(quic_transmission_t *const transmission, quic_recv_packet_t *const recvpkt);
 
 quic_err_t quic_client_init(quic_client_t *const client, const quic_config_t cfg, void *const st, const size_t st_size) {
+    uint8_t rand = 0;
+
+    if (RAND_bytes(&rand, 1) <= 0) {
+        return quic_err_internal_error;
+    }
+    // TODO rand capa
+    client->src.capa = 8;
+    if (!(client->src.buf = malloc(client->src.capa))) {
+        return quic_err_internal_error;
+    }
+    if (RAND_bytes(client->src.buf, client->src.capa) <= 0) {
+        return quic_err_internal_error;
+    }
+    quic_buf_setpl(&client->src);
 
     liteco_eloop_init(&client->eloop);
     liteco_runtime_init(&client->eloop, &client->rt);
@@ -47,6 +61,18 @@ quic_err_t quic_client_init(quic_client_t *const client, const quic_config_t cfg
     quic_transmission_recv(&client->transmission, quic_client_transmission_recv_cb);
 
     client->session = quic_session_create(&client->transmission, cfg);
+    client->session->src = client->src;
+    quic_buf_t *const dst = &client->session->dst;
+    // TODO rand capa
+    dst->capa = 8;
+    if (!(dst->buf = malloc(dst->capa))) {
+        return quic_err_internal_error;
+    }
+    if (RAND_bytes(dst->buf, dst->capa) <= 0) {
+        return quic_err_internal_error;
+    }
+    quic_buf_setpl(dst);
+
     quic_session_run(client->session, &client->eloop, &client->rt, st, st_size);
 
     return quic_err_success;
@@ -88,6 +114,9 @@ quic_err_t quic_client_handshake_done(quic_client_t *const client, quic_err_t (*
 
 static quic_err_t quic_client_transmission_recv_cb(quic_transmission_t *const transmission, quic_recv_packet_t *const recvpkt) {
     quic_client_t *const client = ((void *) transmission) - offsetof(quic_client_t, transmission);
+
+    // TODO check client
+
     quic_recver_module_t *const r_module = quic_session_module(quic_recver_module_t, client->session, quic_recver_module);
 
     return quic_recver_push(r_module, recvpkt);

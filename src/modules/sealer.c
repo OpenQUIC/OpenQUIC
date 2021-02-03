@@ -23,6 +23,7 @@
 #define QUIC_DEFAULT_CURVE_GROUPS "X25519"
 
 static quic_err_t quic_sealer_module_init(void *const module);
+static quic_err_t quic_sealer_module_start(void *const module);
 
 static int quic_sealer_module_set_read_secret(SSL *ssl, enum ssl_encryption_level_t level, const SSL_CIPHER *cipher, const uint8_t *secret, size_t secret_len);
 static int quic_sealer_module_set_write_secret(SSL *ssl, enum ssl_encryption_level_t level, const SSL_CIPHER *cipher, const uint8_t *secret, size_t secret_len);
@@ -301,7 +302,6 @@ static enum ssl_verify_result_t quic_sealer_module_custom_verify(SSL *ssl, uint8
 
 static quic_err_t quic_sealer_module_init(void *const module) {
     quic_sealer_module_t *const s_module = module;
-    quic_session_t *const session = quic_module_of_session(s_module);
 
     s_module->tls_alert = 0;
     s_module->off = 0;
@@ -320,6 +320,13 @@ static quic_err_t quic_sealer_module_init(void *const module) {
     quic_sorter_init(&s_module->handshake_w_sorter);
 
     CRYPTO_library_init();
+
+    return quic_err_success;
+}
+
+static quic_err_t quic_sealer_module_start(void *const module) {
+    quic_sealer_module_t *const s_module = module;
+    quic_session_t *const session = quic_module_of_session(s_module);
 
     if (session->cfg.is_cli) {
         s_module->ssl_ctx = SSL_CTX_new(TLS_with_buffers_method());
@@ -401,6 +408,7 @@ quic_module_t quic_sealer_module = {
     .name        = "sealer",
     .module_size = sizeof(quic_sealer_module_t),
     .init        = quic_sealer_module_init,
+    .start       = quic_sealer_module_start,
     .process     = NULL,
     .loop        = NULL,
     .destory     = NULL

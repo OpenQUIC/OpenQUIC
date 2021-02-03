@@ -181,6 +181,7 @@ quic_module_t quic_stream_flowctrl_module = {
     .name        = "stream_flowctrl",
     .module_size = sizeof(quic_stream_flowctrl_module_t),
     .init        = quic_stream_flowctrl_module_init,
+    .start       = NULL,
     .process     = NULL,
     .loop        = NULL,
     .destory     = NULL

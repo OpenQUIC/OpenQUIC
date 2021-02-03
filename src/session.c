@@ -23,12 +23,9 @@ quic_session_t *quic_session_create(quic_transmission_t *const transmission, con
     if (session == NULL) {
         return NULL;
     }
-    quic_rbt_init(session);
-    session->dst.buf = NULL;
+    quic_buf_init(&session->src);
+    quic_buf_init(&session->dst);
 
-    session->key.ref = false;
-    session->key.buf = NULL;
-    quic_buf_copy(&session->key, &cfg.src);
     session->cfg = cfg;
     session->loop_deadline = 0;
 
@@ -63,6 +60,13 @@ quic_err_t quic_session_run(quic_session_t *const session, liteco_eloop_t *const
 static int quic_session_run_co(void *const session_) {
     uint32_t i;
     quic_session_t *const session = session_;
+
+    for (i = 0; quic_modules[i]; i++) {
+        quic_base_module_t *module = quic_session_module(quic_base_module_t, session, *quic_modules[i]);
+        module->module_declare = quic_modules[i];
+
+        quic_module_start(module);
+    }
 
     // event loop
     for ( ;; ) {

@@ -21,6 +21,7 @@ struct quic_client_s {
     liteco_runtime_t rt;
 
     quic_transmission_t transmission;
+    quic_buf_t src;
     quic_session_t *session;
 };
 

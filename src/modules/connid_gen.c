@@ -13,6 +13,8 @@
 #include <openssl/rand.h>
 
 static quic_err_t quic_connid_gen_init(void *const module);
+static quic_err_t quic_connid_gen_start(void *const module);
+
 static quic_err_t quic_connid_gen_issue(quic_connid_gen_module_t *const module);
 static inline quic_err_t quic_connid_gen(quic_buf_t *const connid, const size_t len);
 
@@ -72,12 +74,20 @@ static quic_err_t quic_connid_gen_init(void *const module) {
     quic_connid_gen_module_t *const c_module = module;
     quic_session_t *const session = quic_module_of_session(c_module);
 
-    c_module->connid_len = quic_buf_size(&session->cfg.src);
+    c_module->connid_len = quic_buf_size(&session->src);
     c_module->highest_seq = 0;
     quic_rbt_tree_init(c_module->src_gened);
     quic_buf_init(&c_module->initial_cli_dst_connid);
+
+    return quic_err_success;
+}
+
+static quic_err_t quic_connid_gen_start(void *const module) {
+    quic_connid_gen_module_t *const c_module = module;
+    quic_session_t *const session = quic_module_of_session(c_module);
+
     if (!session->cfg.is_cli) {
-        quic_buf_copy(&c_module->initial_cli_dst_connid, &session->cfg.dst);
+        quic_buf_copy(&c_module->initial_cli_dst_connid, &session->dst);
     }
 
     quic_connid_gened_t *gened = malloc(sizeof(quic_connid_gened_t));
@@ -87,7 +97,7 @@ static quic_err_t quic_connid_gen_init(void *const module) {
     quic_rbt_init(gened);
     gened->key = 0;
     quic_buf_init(&gened->connid);
-    quic_buf_copy(&gened->connid, &session->cfg.src);
+    quic_buf_copy(&gened->connid, &session->src);
 
     quic_connid_gened_insert(&c_module->src_gened, gened);
 
@@ -98,6 +108,7 @@ quic_module_t quic_connid_gen_module = {
     .name        = "connid_gen",
     .module_size = sizeof(quic_connid_gen_module_t),
     .init        = quic_connid_gen_init,
+    .start       = quic_connid_gen_start,
     .process     = NULL,
     .loop        = NULL,
     .destory     = NULL

@@ -31,11 +31,7 @@ typedef struct quic_stream_s quic_stream_t;
 
 typedef struct quic_config_s quic_config_t;
 struct quic_config_s {
-    quic_buf_t src;
-    quic_buf_t dst;
-
     bool is_cli;
-    uint32_t conn_len;
 
     uint64_t stream_recv_timeout;
 
@@ -69,7 +65,7 @@ struct quic_config_s {
 
 typedef struct quic_session_s quic_session_t;
 struct quic_session_s {
-    QUIC_RBT_STRING_FIELDS
+    quic_buf_t src;
     quic_buf_t dst;
 
     quic_config_t cfg;

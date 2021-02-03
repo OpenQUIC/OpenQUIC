@@ -109,6 +109,7 @@ quic_module_t quic_framer_module = {
     .name        = "framer",
     .module_size = sizeof(quic_framer_module_t),
     .init        = quic_framer_module_init,
+    .start       = NULL,
     .process     = NULL,
     .loop        = NULL,
     .destory     = NULL

@@ -69,7 +69,7 @@ static inline quic_err_t quic_recver_handle_packet(quic_recver_module_t *const m
         }
     }
     else {
-        payload.short_payload = quic_short_header(header, session->cfg.conn_len);
+        payload.short_payload = quic_short_header(header, quic_buf_size(&session->src));
         payload.short_payload.payload_len = module->curr_packet->pkt.len - ((uint8_t *) payload.short_payload.payload - module->curr_packet->pkt.data);
         ag_module = quic_session_module(quic_ack_generator_module_t, session, quic_app_ack_generator_module);
     }
@@ -181,6 +181,7 @@ quic_module_t quic_recver_module = {
     .name        = "recver",
     .module_size = sizeof(quic_recver_module_t),
     .init        = quic_recver_module_init,
+    .start       = NULL,
     .process     = quic_recver_module_process,
     .loop        = NULL,
     .destory     = NULL

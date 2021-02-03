@@ -238,9 +238,8 @@ struct quic_stream_module_s {
     quic_stream_destory_sid_t *destory_set;
 
     quic_err_t (*init) (quic_stream_t *const str);
-    void (*destory) (quic_stream_t *const str);
-
     quic_err_t (*accept_cb) (quic_session_t *const, quic_stream_t *const);
+    void (*destory) (quic_stream_t *const str);
 };
 
 static inline quic_err_t quic_stream_module_update_rwnd(quic_stream_module_t *const module, const uint64_t sid) {

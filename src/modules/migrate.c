@@ -22,6 +22,7 @@ quic_module_t quic_migrate_module = {
     .name        = "migrate",
     .module_size = sizeof(quic_migrate_module_t),
     .init        = quic_migrate_module_init,
+    .start       = NULL,
     .process     = NULL,
     .loop        = NULL,
     .destory     = NULL

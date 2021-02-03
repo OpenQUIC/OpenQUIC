@@ -226,7 +226,6 @@ static quic_err_t quic_retransmission_module_init(void *const module) {
 
     quic_link_init(&r_module->retransmission_queue);
 
-
     return quic_err_success;
 }
 
@@ -254,6 +253,7 @@ quic_module_t quic_initial_retransmission_module = {
     .name        = "initial_retransmission",
     .module_size = sizeof(quic_retransmission_module_t),
     .init        = quic_retransmission_module_init,
+    .start       = NULL,
     .process     = NULL,
     .loop        = quic_retransmission_module_loop,
     .destory     = NULL
@@ -263,6 +263,7 @@ quic_module_t quic_handshake_retransmission_module = {
     .name        = "handshake_retransmission",
     .module_size = sizeof(quic_retransmission_module_t),
     .init        = quic_retransmission_module_init,
+    .start       = NULL,
     .process     = NULL,
     .loop        = quic_retransmission_module_loop,
     .destory     = NULL
@@ -272,6 +273,7 @@ quic_module_t quic_app_retransmission_module = {
     .name        = "app_retransmission",
     .module_size = sizeof(quic_retransmission_module_t),
     .init        = quic_retransmission_module_init,
+    .start       = NULL,
     .process     = NULL,
     .loop        = quic_retransmission_module_loop,
     .destory     = NULL

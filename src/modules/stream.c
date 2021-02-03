@@ -758,6 +758,7 @@ quic_module_t quic_stream_module = {
     .name        = "stream",
     .module_size = sizeof(quic_stream_module_t),
     .init        = quic_stream_module_init,
+    .start       = NULL,
     .process     = NULL,
     .loop        = quic_session_stream_module_loop,
     .destory     = NULL,
