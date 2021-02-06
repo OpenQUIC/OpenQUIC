@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 Gscienty <gaoxiaochuan@hotmail.com>
+ * Copyright (c) 2020-2021 Gscienty <gaoxiaochuan@hotmail.com>
  *
  * Distributed under the MIT software license, see the accompanying
  * file LICENSE or https://www.opensource.org/licenses/mit-license.php .
@@ -78,6 +78,7 @@ typedef struct quic_sealer_module_s quic_sealer_module_t;
 struct quic_sealer_module_s {
     QUIC_MODULE_FIELDS
 
+    bool transport_parameter_processed;
     SSL_CTX *ssl_ctx;
     SSL *ssl;
 

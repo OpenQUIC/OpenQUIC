@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 Gscienty <gaoxiaochuan@hotmail.com>
+ * Copyright (c) 2020-2021 Gscienty <gaoxiaochuan@hotmail.com>
  *
  * Distributed under the MIT software license, see the accompanying
  * file LICENSE or https://www.opensource.org/licenses/mit-license.php .
@@ -25,16 +25,18 @@
 static quic_err_t quic_sealer_module_init(void *const module);
 static quic_err_t quic_sealer_module_start(void *const module);
 
-static int quic_sealer_module_set_read_secret(SSL *ssl, enum ssl_encryption_level_t level, const SSL_CIPHER *cipher, const uint8_t *secret, size_t secret_len);
-static int quic_sealer_module_set_write_secret(SSL *ssl, enum ssl_encryption_level_t level, const SSL_CIPHER *cipher, const uint8_t *secret, size_t secret_len);
-static int quic_sealer_module_write_handshake_data(SSL *ssl, enum ssl_encryption_level_t level, const uint8_t *data, size_t len);
-static int quic_sealer_module_flush_flight(SSL *ssl);
-static int quic_sealer_module_send_alert(SSL *ssl, enum ssl_encryption_level_t level, uint8_t alert);
-static int quic_sealer_module_alpn_select_proto_cb(SSL *ssl, const uint8_t **out, uint8_t *outlen, const uint8_t *in, uint32_t inlen, void *arg);
-static enum ssl_verify_result_t quic_sealer_module_custom_verify(SSL *ssl, uint8_t *const alert);
-static inline int quic_sealer_module_set_chains_and_key(quic_sealer_module_t *const module, const char *const chain_file, const char *const key_file);
-static inline quic_err_t quic_sealer_module_set_key_iv(quic_buf_t *const key, quic_buf_t *const iv, const SSL_CIPHER *cipher, const uint8_t *secret, size_t secret_len);
-static inline quic_err_t quic_sealer_module_hkdf_expand_label(uint8_t *out, const size_t outlen, const EVP_MD *prf, const uint8_t *secret, size_t secret_len, const uint8_t *label, size_t label_size);
+static int quic_sealer_set_read_secret(SSL *ssl, enum ssl_encryption_level_t level, const SSL_CIPHER *cipher, const uint8_t *secret, size_t secret_len);
+static int quic_sealer_set_write_secret(SSL *ssl, enum ssl_encryption_level_t level, const SSL_CIPHER *cipher, const uint8_t *secret, size_t secret_len);
+static int quic_sealer_write_handshake_data(SSL *ssl, enum ssl_encryption_level_t level, const uint8_t *data, size_t len);
+static int quic_sealer_flush_flight(SSL *ssl);
+static int quic_sealer_send_alert(SSL *ssl, enum ssl_encryption_level_t level, uint8_t alert);
+static int quic_sealer_alpn_select_proto_cb(SSL *ssl, const uint8_t **out, uint8_t *outlen, const uint8_t *in, uint32_t inlen, void *arg);
+static enum ssl_verify_result_t quic_sealer_custom_verify(SSL *ssl, uint8_t *const alert);
+static inline int quic_sealer_set_chains_and_key(quic_sealer_module_t *const module, const char *const chain_file, const char *const key_file);
+static inline quic_err_t quic_sealer_set_key_iv(quic_buf_t *const key, quic_buf_t *const iv, const SSL_CIPHER *cipher, const uint8_t *secret, size_t secret_len);
+static inline quic_err_t quic_sealer_hkdf_expand_label(uint8_t *out, const size_t outlen, const EVP_MD *prf, const uint8_t *secret, size_t secret_len, const uint8_t *label, size_t label_size);
+static quic_err_t quic_sealer_process_transport_parameters(quic_sealer_module_t *const module);
+static quic_err_t quic_sealer_process_peer_transport_parameters(quic_sealer_module_t *const module);
 
 static const uint16_t quic_signalg[] = {
     SSL_SIGN_ED25519,
@@ -44,14 +46,14 @@ static const uint16_t quic_signalg[] = {
 };
 
 static SSL_QUIC_METHOD ssl_quic_method = {
-    quic_sealer_module_set_read_secret,
-    quic_sealer_module_set_write_secret,
-    quic_sealer_module_write_handshake_data,
-    quic_sealer_module_flush_flight,
-    quic_sealer_module_send_alert
+    quic_sealer_set_read_secret,
+    quic_sealer_set_write_secret,
+    quic_sealer_write_handshake_data,
+    quic_sealer_flush_flight,
+    quic_sealer_send_alert
 }; 
 
-static inline quic_err_t quic_sealer_module_hkdf_expand_label(uint8_t *out, const size_t outlen, const EVP_MD *prf, const uint8_t *secret, size_t secret_len, const uint8_t *label, size_t label_size) {
+static inline quic_err_t quic_sealer_hkdf_expand_label(uint8_t *out, const size_t outlen, const EVP_MD *prf, const uint8_t *secret, size_t secret_len, const uint8_t *label, size_t label_size) {
     uint8_t hkdf_label[19] = { };
     size_t hkdf_label_size = 2 + 1 + 6 + label_size + 1;
 
@@ -68,13 +70,13 @@ static inline quic_err_t quic_sealer_module_hkdf_expand_label(uint8_t *out, cons
     return quic_err_success;
 }
 
-static inline quic_err_t quic_sealer_module_set_key_iv(quic_buf_t *const key, quic_buf_t *const iv, const SSL_CIPHER *cipher, const uint8_t *secret, size_t secret_len) {
+static inline quic_err_t quic_sealer_set_key_iv(quic_buf_t *const key, quic_buf_t *const iv, const SSL_CIPHER *cipher, const uint8_t *secret, size_t secret_len) {
     static const uint8_t key_label[] = "quic key";
     static const uint8_t iv_label[] = "quic iv";
 
     const EVP_MD *prf = EVP_get_digestbynid(SSL_CIPHER_get_prf_nid(cipher));
-    quic_sealer_module_hkdf_expand_label(key->buf, key->capa, prf, secret, secret_len, key_label, sizeof(key_label) - 1);
-    quic_sealer_module_hkdf_expand_label(iv->buf, iv->capa, prf, secret, secret_len, key_label, sizeof(iv_label) - 1);
+    quic_sealer_hkdf_expand_label(key->buf, key->capa, prf, secret, secret_len, key_label, sizeof(key_label) - 1);
+    quic_sealer_hkdf_expand_label(iv->buf, iv->capa, prf, secret, secret_len, key_label, sizeof(iv_label) - 1);
 
     return quic_err_success;
 }
@@ -87,7 +89,7 @@ static inline quic_err_t quic_sealer_module_set_key_iv(quic_buf_t *const key, qu
     quic_buf_setpl(&(_buf));                \
 }
 
-static int quic_sealer_module_set_read_secret(SSL *ssl, enum ssl_encryption_level_t level, const SSL_CIPHER *cipher, const uint8_t *secret, size_t secret_len) {
+static int quic_sealer_set_read_secret(SSL *ssl, enum ssl_encryption_level_t level, const SSL_CIPHER *cipher, const uint8_t *secret, size_t secret_len) {
     quic_sealer_module_t *const s_module = SSL_get_app_data(ssl);
     quic_sealer_t *sealer = NULL;
 
@@ -140,7 +142,7 @@ static int quic_sealer_module_set_read_secret(SSL *ssl, enum ssl_encryption_leve
         break;
     }
 
-    quic_sealer_module_set_key_iv(&sealer->r_key, &sealer->r_iv, cipher, secret, secret_len);
+    quic_sealer_set_key_iv(&sealer->r_key, &sealer->r_iv, cipher, secret, secret_len);
     if (sealer->r_ctx) {
         EVP_AEAD_CTX_free(sealer->r_ctx);
     }
@@ -149,7 +151,7 @@ static int quic_sealer_module_set_read_secret(SSL *ssl, enum ssl_encryption_leve
     return 1;
 }
 
-static int quic_sealer_module_set_write_secret(SSL *ssl, enum ssl_encryption_level_t level, const SSL_CIPHER *cipher, const uint8_t *secret, size_t secret_len) {
+static int quic_sealer_set_write_secret(SSL *ssl, enum ssl_encryption_level_t level, const SSL_CIPHER *cipher, const uint8_t *secret, size_t secret_len) {
     quic_sealer_module_t *const s_module = SSL_get_app_data(ssl);
     quic_sealer_t *sealer = NULL;
 
@@ -202,7 +204,7 @@ static int quic_sealer_module_set_write_secret(SSL *ssl, enum ssl_encryption_lev
         break;
     }
 
-    quic_sealer_module_set_key_iv(&sealer->w_key, &sealer->w_iv, cipher, secret, secret_len);
+    quic_sealer_set_key_iv(&sealer->w_key, &sealer->w_iv, cipher, secret, secret_len);
     if (sealer->w_ctx) {
         EVP_AEAD_CTX_free(sealer->w_ctx);
     }
@@ -213,7 +215,7 @@ static int quic_sealer_module_set_write_secret(SSL *ssl, enum ssl_encryption_lev
 
 #undef quic_sealer_alloc_buf
 
-static int quic_sealer_module_write_handshake_data(SSL *ssl, enum ssl_encryption_level_t level, const uint8_t *data, size_t len) {
+static int quic_sealer_write_handshake_data(SSL *ssl, enum ssl_encryption_level_t level, const uint8_t *data, size_t len) {
     quic_sealer_module_t *const s_module = SSL_get_app_data(ssl);
     quic_session_t *const session = quic_module_of_session(s_module);
 
@@ -233,12 +235,12 @@ static int quic_sealer_module_write_handshake_data(SSL *ssl, enum ssl_encryption
     return 1;
 }
 
-static int quic_sealer_module_flush_flight(SSL *ssl) {
+static int quic_sealer_flush_flight(SSL *ssl) {
     (void) ssl;
     return 1;
 }
 
-static int quic_sealer_module_send_alert(SSL *ssl, enum ssl_encryption_level_t level, uint8_t alert) {
+static int quic_sealer_send_alert(SSL *ssl, enum ssl_encryption_level_t level, uint8_t alert) {
     (void) level;
 
     quic_sealer_module_t *const module = SSL_get_app_data(ssl);
@@ -247,7 +249,7 @@ static int quic_sealer_module_send_alert(SSL *ssl, enum ssl_encryption_level_t l
     return 1;
 }
 
-static int quic_sealer_module_alpn_select_proto_cb(SSL *ssl, const uint8_t **out, uint8_t *outlen, const uint8_t *in, uint32_t inlen, void *arg) {
+static int quic_sealer_alpn_select_proto_cb(SSL *ssl, const uint8_t **out, uint8_t *outlen, const uint8_t *in, uint32_t inlen, void *arg) {
     (void) ssl;
     (void) arg;
 
@@ -257,7 +259,7 @@ static int quic_sealer_module_alpn_select_proto_cb(SSL *ssl, const uint8_t **out
     return SSL_TLSEXT_ERR_OK;
 }
 
-static inline int quic_sealer_module_set_chains_and_key(quic_sealer_module_t *const module, const char *const chain_file, const char *const key_file) {
+static inline int quic_sealer_set_chains_and_key(quic_sealer_module_t *const module, const char *const chain_file, const char *const key_file) {
     if (!chain_file || !key_file) {
         return quic_err_success;
     }
@@ -292,7 +294,7 @@ static inline int quic_sealer_module_set_chains_and_key(quic_sealer_module_t *co
     return quic_err_success;
 }
 
-static enum ssl_verify_result_t quic_sealer_module_custom_verify(SSL *ssl, uint8_t *const alert) {
+static enum ssl_verify_result_t quic_sealer_custom_verify(SSL *ssl, uint8_t *const alert) {
     // TODO
     (void) ssl;
     (void) alert;
@@ -302,6 +304,10 @@ static enum ssl_verify_result_t quic_sealer_module_custom_verify(SSL *ssl, uint8
 
 static quic_err_t quic_sealer_module_init(void *const module) {
     quic_sealer_module_t *const s_module = module;
+
+    s_module->transport_parameter_processed = false;
+    s_module->ssl_ctx = NULL;
+    s_module->ssl = NULL;
 
     s_module->tls_alert = 0;
     s_module->off = 0;
@@ -332,14 +338,14 @@ static quic_err_t quic_sealer_module_start(void *const module) {
         s_module->ssl_ctx = SSL_CTX_new(TLS_with_buffers_method());
         SSL_CTX_set_session_cache_mode(s_module->ssl_ctx, SSL_SESS_CACHE_CLIENT | SSL_SESS_CACHE_NO_INTERNAL_STORE);
         SSL_CTX_set_allow_unknown_alpn_protos(s_module->ssl_ctx, 1);
-        SSL_CTX_set_custom_verify(s_module->ssl_ctx, 0, quic_sealer_module_custom_verify);
+        SSL_CTX_set_custom_verify(s_module->ssl_ctx, 0, quic_sealer_custom_verify);
     }
     else {
         s_module->ssl_ctx = SSL_CTX_new(TLS_with_buffers_method());
         SSL_CTX_set_options(s_module->ssl_ctx, (SSL_OP_ALL & ~SSL_OP_DONT_INSERT_EMPTY_FRAGMENTS) | SSL_OP_SINGLE_ECDH_USE | SSL_OP_CIPHER_SERVER_PREFERENCE);
         SSL_CTX_set_mode(s_module->ssl_ctx, SSL_MODE_RELEASE_BUFFERS);
 
-        SSL_CTX_set_alpn_select_cb(s_module->ssl_ctx, quic_sealer_module_alpn_select_proto_cb, NULL);
+        SSL_CTX_set_alpn_select_cb(s_module->ssl_ctx, quic_sealer_alpn_select_proto_cb, NULL);
     }
 
     SSL_CTX_set_quic_method(s_module->ssl_ctx, &ssl_quic_method);
@@ -369,7 +375,7 @@ static quic_err_t quic_sealer_module_start(void *const module) {
         SSL_CTX_set_client_CA_list(s_module->ssl_ctx, certs);
     }
 
-    quic_sealer_module_set_chains_and_key(module, session->cfg.tls_cert_chain_file, session->cfg.tls_key_file);
+    quic_sealer_set_chains_and_key(module, session->cfg.tls_cert_chain_file, session->cfg.tls_key_file);
 
     int i;
     for (i = 0; session->cfg.tls_ca && session->cfg.tls_ca[i]; i++) {
@@ -386,9 +392,7 @@ static quic_err_t quic_sealer_module_start(void *const module) {
         static const uint8_t H3_ALPN[] = "\x5h3-29\x5h3-30\x5h3-31\x5h3-32";
         SSL_set_alpn_protos(s_module->ssl, H3_ALPN, sizeof(H3_ALPN) - 1);
 
-        // TODO transport parameters
-        static const uint8_t transport_parameter[] = "CLIENT";
-        SSL_set_quic_transport_params(s_module->ssl, transport_parameter, sizeof(transport_parameter));
+        quic_sealer_process_transport_parameters(s_module);
 
         SSL_set_connect_state(s_module->ssl);
         quic_sealer_handshake_process(s_module);
@@ -396,10 +400,40 @@ static quic_err_t quic_sealer_module_start(void *const module) {
     else {
         SSL_set_accept_state(s_module->ssl);
 
-        // TODO transport parameters
-        static const uint8_t transport_parameter[] = "SERVER";
-        SSL_set_quic_transport_params(s_module->ssl, transport_parameter, sizeof(transport_parameter));
+        quic_sealer_process_transport_parameters(s_module);
     }
+
+    return quic_err_success;
+}
+
+static quic_err_t quic_sealer_process_transport_parameters(quic_sealer_module_t *const module) {
+    quic_session_t *const session = quic_module_of_session(module);
+
+    if (session->cfg.is_cli) {
+        static const uint8_t transport_parameter[] = "CLIENT";
+        SSL_set_quic_transport_params(module->ssl, transport_parameter, sizeof(transport_parameter));
+    }
+    else {
+        static const uint8_t transport_parameter[] = "SERVER";
+        SSL_set_quic_transport_params(module->ssl, transport_parameter, sizeof(transport_parameter));
+    }
+
+    return quic_err_success;
+}
+
+static quic_err_t quic_sealer_process_peer_transport_parameters(quic_sealer_module_t *const module) {
+    const uint8_t *parameters = NULL;
+    size_t parameters_len = 0;
+
+    SSL_get_peer_quic_transport_params(module->ssl, &parameters, &parameters_len);
+
+    module->transport_parameter_processed = parameters_len != 0;
+
+    if (!module->transport_parameter_processed) {
+        return quic_err_success;
+    }
+
+    printf("%.*s\n", (int) parameters_len, parameters);
 
     return quic_err_success;
 }
@@ -457,6 +491,10 @@ quic_err_t quic_session_handle_crypto_frame(quic_session_t *const session, const
         free(fragment);
 
         quic_sealer_handshake_process(s_module);
+
+        if (!s_module->transport_parameter_processed) {
+            quic_sealer_process_peer_transport_parameters(s_module);
+        }
     }
 
     return quic_err_success;
