@@ -212,6 +212,12 @@ struct quic_short_header_s {
 #define quic_short_header_dst_conn_off(header) \
     (((void *) (header)) + 1)
 
+#define quic_short_header_dst_conn(header, len) { \
+    .ref = true,                                  \
+    .capa = len,                                  \
+    .buf = quic_short_header_dst_conn_off(header) \
+}
+
 #define quic_short_header_payload(header, len) \
     (quic_short_header_dst_conn_off(header) + len)
 
