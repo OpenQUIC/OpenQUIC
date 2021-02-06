@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 Gscienty <gaoxiaochuan@hotmail.com>
+ * Copyright (c) 2020-2021 Gscienty <gaoxiaochuan@hotmail.com>
  *
  * Distributed under the MIT software license, see the accompanying
  * file LICENSE or https://www.opensource.org/licenses/mit-license.php .
@@ -31,12 +31,16 @@ quic_session_t *quic_session_create(quic_transmission_t *const transmission, con
 
     session->transmission = transmission;
 
+    session->new_connid = NULL;
+    session->retire_connid = NULL;
+
     return session;
 }
 
-quic_err_t quic_session_run(quic_session_t *const session, liteco_eloop_t *const eloop, liteco_runtime_t *const rt, void *const st, const size_t st_len) {
+quic_err_t quic_session_init(quic_session_t *const session, liteco_eloop_t *const eloop, liteco_runtime_t *const rt, void *const st, const size_t st_len) {
     session->eloop = eloop;
     session->rt = rt;
+    session->st = st;
 
     liteco_chan_create(&session->mod_chan, 0, liteco_runtime_readycb, rt);
     liteco_chan_create(&session->timer_chan, 0, liteco_runtime_readycb, rt);
@@ -53,6 +57,12 @@ quic_err_t quic_session_run(quic_session_t *const session, liteco_eloop_t *const
 
         quic_module_init(module);
     }
+
+    return quic_err_success;
+}
+
+quic_err_t quic_session_finished(quic_session_t *const session, int (*finished_cb) (void *const args), void *const args) {
+    liteco_finished(&session->co, finished_cb, args);
 
     return quic_err_success;
 }
@@ -120,6 +130,16 @@ module_loop:
     }
 
     return 0;
+}
+
+quic_err_t quic_session_cert_file(quic_session_t *const session, const char *const cert_file) {
+    session->cfg.tls_cert_chain_file = cert_file;
+    return quic_err_success;
+}
+
+quic_err_t quic_session_key_file(quic_session_t *const session, const char *const key_file) {
+    session->cfg.tls_key_file = key_file;
+    return quic_err_success;
 }
 
 quic_err_t quic_session_accept(quic_session_t *const session, quic_err_t (*accept_cb) (quic_session_t *const, quic_stream_t *const)) {
