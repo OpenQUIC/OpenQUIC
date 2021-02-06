@@ -10,51 +10,56 @@
 #include "modules/framer.h"
 #include "format/frame.h"
 #include "session.h"
+#include "client.h"
+#include "server.h"
 #include <openssl/rand.h>
 
 static quic_err_t quic_connid_gen_init(void *const module);
 static quic_err_t quic_connid_gen_start(void *const module);
 
-static quic_err_t quic_connid_gen_issue(quic_connid_gen_module_t *const module);
-static inline quic_err_t quic_connid_gen(quic_buf_t *const connid, const size_t len);
+static inline quic_err_t quic_connid_gen(quic_buf_t *const connid);
 
-static inline quic_err_t quic_connid_gen(quic_buf_t *const connid, const size_t len) {
-    if (len == 0 || len > 20) {
+static inline quic_err_t quic_connid_gen(quic_buf_t *const connid) {
+    if (connid->capa == 0 || connid->capa > 20) {
         return quic_err_bad_format;
     }
 
-    connid->buf = malloc(len);
-    connid->capa = len;
-    RAND_bytes(connid->buf, len);
+    RAND_bytes(connid->buf, connid->capa);
     quic_buf_setpl(connid);
 
     return quic_err_success;
 }
 
-static quic_err_t quic_connid_gen_issue(quic_connid_gen_module_t *const module) {
+quic_err_t quic_connid_gen_issue(quic_connid_gen_module_t *const module) {
     quic_buf_t connid;
-    quic_connid_gened_t *gened = NULL;
     quic_frame_new_connection_id_t *frame = NULL;
     quic_session_t *const session = quic_module_of_session(module);
     quic_framer_module_t *const f_module = quic_session_module(quic_framer_module_t, session, quic_framer_module);
 
     quic_buf_init(&connid);
+    connid.buf = malloc(module->connid_len);
+    connid.capa = module->connid_len;
 
-    if (quic_connid_gen(&connid, module->connid_len) != quic_err_success) {
-        return quic_err_internal_error;
+    for ( ;; ) {
+        if (quic_connid_gen(&connid) != quic_err_success) {
+            return quic_err_internal_error;
+        }
+        if (!session->new_connid) {
+            break;
+        }
+        if (session->new_connid(session, connid)) {
+            break;
+        }
     }
 
-    gened = malloc(sizeof(quic_connid_gened_t));
+    // TODO generate TOKEN
+    
+    quic_connid_gened_t *const gened = malloc(sizeof(quic_connid_gened_t));
     if (!gened) {
         return quic_err_internal_error;
     }
-    quic_rbt_init(gened);
     gened->key = ++module->highest_seq;
     gened->connid = connid;
-
-    quic_connid_gened_insert(&module->src_gened, gened);
-
-    // TODO generate TOKEN
 
     if ((frame = malloc(sizeof(quic_frame_new_connection_id_t))) == NULL) {
         return quic_err_internal_error;
@@ -74,10 +79,18 @@ static quic_err_t quic_connid_gen_init(void *const module) {
     quic_connid_gen_module_t *const c_module = module;
     quic_session_t *const session = quic_module_of_session(c_module);
 
-    c_module->connid_len = quic_buf_size(&session->src);
+    if (session->cfg.is_cli) {
+        quic_client_t *const client = ((void *) session->transmission) - offsetof(quic_client_t, transmission);
+
+        c_module->connid_len = client->connid_len;
+    }
+    else {
+        quic_server_t *const server = ((void *) session->transmission) - offsetof(quic_server_t, transmission);
+
+        c_module->connid_len = server->connid_len;
+    }
     c_module->highest_seq = 0;
-    quic_rbt_tree_init(c_module->src_gened);
-    quic_buf_init(&c_module->initial_cli_dst_connid);
+    quic_rbt_tree_init(c_module->srcs);
 
     return quic_err_success;
 }
@@ -85,10 +98,6 @@ static quic_err_t quic_connid_gen_init(void *const module) {
 static quic_err_t quic_connid_gen_start(void *const module) {
     quic_connid_gen_module_t *const c_module = module;
     quic_session_t *const session = quic_module_of_session(c_module);
-
-    if (!session->cfg.is_cli) {
-        quic_buf_copy(&c_module->initial_cli_dst_connid, &session->dst);
-    }
 
     quic_connid_gened_t *gened = malloc(sizeof(quic_connid_gened_t));
     if (!gened) {
@@ -99,7 +108,7 @@ static quic_err_t quic_connid_gen_start(void *const module) {
     quic_buf_init(&gened->connid);
     quic_buf_copy(&gened->connid, &session->src);
 
-    quic_connid_gened_insert(&c_module->src_gened, gened);
+    quic_connid_gened_insert(&c_module->srcs, gened);
 
     return quic_err_success;
 }

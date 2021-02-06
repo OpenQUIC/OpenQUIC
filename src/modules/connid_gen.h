@@ -32,11 +32,11 @@ struct quic_connid_gen_module_s {
     int connid_len;
     uint64_t highest_seq;
 
-    quic_buf_t initial_cli_dst_connid;
-
-    quic_connid_gened_t *src_gened;
+    quic_connid_gened_t *srcs;
 };
 
 extern quic_module_t quic_connid_gen_module;
+
+quic_err_t quic_connid_gen_issue(quic_connid_gen_module_t *const module);
 
 #endif
