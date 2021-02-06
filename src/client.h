@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 Gscienty <gaoxiaochuan@hotmail.com>
+ * Copyright (c) 2020-2021 Gscienty <gaoxiaochuan@hotmail.com>
  *
  * Distributed under the MIT software license, see the accompanying
  * file LICENSE or https://www.opensource.org/licenses/mit-license.php .
@@ -21,16 +21,20 @@ struct quic_client_s {
     liteco_runtime_t rt;
 
     quic_transmission_t transmission;
+    size_t connid_len;
     quic_buf_t src;
     quic_session_t *session;
 };
 
 extern const quic_config_t quic_client_default_config;
 
-quic_err_t quic_client_init(quic_client_t *const client, const quic_config_t cfg, void *const st, const size_t st_size);
+quic_err_t quic_client_init(quic_client_t *const client, void *const st, const size_t st_size);
 quic_err_t quic_client_listen(quic_client_t *const client, const quic_addr_t local_addr, const uint32_t mtu);
 quic_err_t quic_client_path_use(quic_client_t *const client, const quic_path_t path); 
 quic_err_t quic_client_path_target_use(quic_client_t *const client, const quic_addr_t remote_addr);
+
+quic_err_t quic_client_cert_file(quic_client_t *const client, const char *const cert_file);
+quic_err_t quic_client_key_file(quic_client_t *const client, const char *const key_file);
 
 quic_err_t quic_client_accept(quic_client_t *const client, quic_err_t (*accept_cb) (quic_session_t *const, quic_stream_t *const));
 quic_stream_t *quic_client_open(quic_client_t *const client, bool bidi);
