@@ -6,6 +6,7 @@
  *
  */
 
+#include "format/transport_parameter.h"
 #include "format/header.h"
 #include "modules/sealer.h"
 #include "session.h"
@@ -408,32 +409,52 @@ static quic_err_t quic_sealer_module_start(void *const module) {
 
 static quic_err_t quic_sealer_process_transport_parameters(quic_sealer_module_t *const module) {
     quic_session_t *const session = quic_module_of_session(module);
+    const quic_transport_parameter_t params = quic_session_get_transport_parameter(session);
+    uint8_t buf[256];
 
-    if (session->cfg.is_cli) {
-        static const uint8_t transport_parameter[] = "CLIENT";
-        SSL_set_quic_transport_params(module->ssl, transport_parameter, sizeof(transport_parameter));
+    quic_buf_t format_buf = {};
+    format_buf.buf = buf;
+    format_buf.capa = quic_transport_parameter_size(params);
+    quic_buf_setpl(&format_buf);
+
+    quic_transport_parameter_format(&format_buf, params);
+
+    size_t i;
+    for (i = 0; i < format_buf.capa; i++) {
+        printf("%02x ", ((uint8_t *) format_buf.buf)[i]);
     }
-    else {
-        static const uint8_t transport_parameter[] = "SERVER";
-        SSL_set_quic_transport_params(module->ssl, transport_parameter, sizeof(transport_parameter));
-    }
+    printf("\n");
+
+    SSL_set_quic_transport_params(module->ssl, buf, format_buf.capa);
 
     return quic_err_success;
 }
 
 static quic_err_t quic_sealer_process_peer_transport_parameters(quic_sealer_module_t *const module) {
+    quic_session_t *const session = quic_module_of_session(module);
+
     const uint8_t *parameters = NULL;
     size_t parameters_len = 0;
 
     SSL_get_peer_quic_transport_params(module->ssl, &parameters, &parameters_len);
 
     module->transport_parameter_processed = parameters_len != 0;
-
     if (!module->transport_parameter_processed) {
         return quic_err_success;
     }
 
-    printf("%.*s\n", (int) parameters_len, parameters);
+    quic_buf_t buf = {};
+    buf.buf = (void *) parameters;
+    buf.capa = parameters_len;
+    quic_buf_setpl(&buf);
+
+    size_t i;
+    for (i = 0; i < parameters_len; i++) {
+        printf("%02x ", ((uint8_t *) parameters)[i]);
+    }
+    printf("\n");
+
+    quic_session_set_transport_parameter(session, quic_transport_parameter_parse(&buf));
 
     return quic_err_success;
 }

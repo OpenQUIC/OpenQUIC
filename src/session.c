@@ -181,3 +181,22 @@ quic_err_t quic_session_send(quic_session_t *const session, const void *const da
     return quic_transmission_send(session->transmission, session->path, data, len);
 }
 
+quic_transport_parameter_t quic_session_get_transport_parameter(quic_session_t *const session) {
+    (void) session;
+
+    quic_transport_parameter_t params;
+    quic_transport_parameter_init(&params);
+
+    // TODO
+
+    return params;
+}
+
+quic_err_t quic_session_set_transport_parameter(quic_session_t *const session, const quic_transport_parameter_t params) {
+    (void) session;
+    (void) params;
+
+    // TODO
+
+    return quic_err_success;
+}

@@ -16,6 +16,7 @@
 #include "utils/rbt.h"
 #include "utils/addr.h"
 #include "format/frame.h"
+#include "format/transport_parameter.h"
 #include "module.h"
 #include "lc_eloop.h"
 #include "lc_runtime.h"
@@ -122,5 +123,8 @@ uint32_t quic_session_path_mtu(quic_session_t *const session);
 quic_err_t quic_session_path_use(quic_session_t *const session, const quic_path_t path);
 quic_err_t quic_session_path_target_use(quic_session_t *const session, const quic_addr_t remote_addr);
 quic_err_t quic_session_send(quic_session_t *const session, const void *const data, const uint32_t len);
+
+quic_transport_parameter_t quic_session_get_transport_parameter(quic_session_t *const session);
+quic_err_t quic_session_set_transport_parameter(quic_session_t *const session, const quic_transport_parameter_t params);
 
 #endif
