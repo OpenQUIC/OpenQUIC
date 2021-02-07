@@ -419,12 +419,6 @@ static quic_err_t quic_sealer_process_transport_parameters(quic_sealer_module_t 
 
     quic_transport_parameter_format(&format_buf, params);
 
-    size_t i;
-    for (i = 0; i < format_buf.capa; i++) {
-        printf("%02x ", ((uint8_t *) format_buf.buf)[i]);
-    }
-    printf("\n");
-
     SSL_set_quic_transport_params(module->ssl, buf, format_buf.capa);
 
     return quic_err_success;
@@ -448,13 +442,15 @@ static quic_err_t quic_sealer_process_peer_transport_parameters(quic_sealer_modu
     buf.capa = parameters_len;
     quic_buf_setpl(&buf);
 
-    size_t i;
-    for (i = 0; i < parameters_len; i++) {
-        printf("%02x ", ((uint8_t *) parameters)[i]);
-    }
-    printf("\n");
+    const quic_transport_parameter_t params = quic_transport_parameter_parse(&buf);
+    quic_session_set_transport_parameter(session, params);
 
-    quic_session_set_transport_parameter(session, quic_transport_parameter_parse(&buf));
+    if (params.original_connid.buf) {
+        free(params.original_connid.buf);
+    }
+    if (params.stateless_reset_token.buf) {
+        free(params.stateless_reset_token.buf);
+    }
 
     return quic_err_success;
 }
