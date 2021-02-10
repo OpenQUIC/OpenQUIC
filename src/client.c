@@ -41,20 +41,22 @@ static quic_err_t quic_client_transmission_recv_cb(quic_transmission_t *const tr
 
 quic_err_t quic_client_init(quic_client_t *const client, void *const st, const size_t st_size) {
     uint8_t rand = 0;
+    quic_buf_t src;
 
     if (RAND_bytes(&rand, 1) <= 0) {
         return quic_err_internal_error;
     }
     client->connid_len = 8 + rand % 11;
 
-    client->src.capa = client->connid_len;
-    if (!(client->src.buf = malloc(client->src.capa))) {
+    quic_buf_init(&src);
+    src.capa = client->connid_len;
+    if (!(src.buf = malloc(src.capa))) {
         return quic_err_internal_error;
     }
-    if (RAND_bytes(client->src.buf, client->src.capa) <= 0) {
+    if (RAND_bytes(src.buf, src.capa) <= 0) {
         return quic_err_internal_error;
     }
-    quic_buf_setpl(&client->src);
+    quic_buf_setpl(&src);
 
     liteco_eloop_init(&client->eloop);
     liteco_runtime_init(&client->eloop, &client->rt);
@@ -62,7 +64,7 @@ quic_err_t quic_client_init(quic_client_t *const client, void *const st, const s
     quic_transmission_recv(&client->transmission, quic_client_transmission_recv_cb);
 
     client->session = quic_session_create(&client->transmission, quic_client_default_config);
-    client->session->src = client->src;
+    client->session->src = src;
 
     quic_buf_t *const dst = &client->session->dst;
     dst->capa = client->connid_len;

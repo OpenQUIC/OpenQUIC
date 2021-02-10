@@ -22,7 +22,6 @@ struct quic_client_s {
 
     quic_transmission_t transmission;
     size_t connid_len;
-    quic_buf_t src;
     quic_session_t *session;
 };
 
