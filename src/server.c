@@ -95,7 +95,7 @@ static quic_err_t quic_server_transmission_recv_cb(quic_transmission_t *const tr
         quic_buf_t cli_src = quic_long_header_src_conn(header);
 
         quic_session_t *const session = quic_session_create(&server->transmission, quic_server_default_config);
-        session->src = cli_dst;
+        quic_buf_copy(&session->src, &cli_dst);
         quic_buf_copy(&session->dst, &cli_src);
         session->cfg = server->cfg;
 
