@@ -30,9 +30,13 @@ struct quic_connid_gen_module_s {
     QUIC_MODULE_FIELDS
 
     int connid_len;
-    uint64_t highest_seq;
+    uint64_t src_hseq;
+    uint64_t dst_hretire;
 
     quic_connid_gened_t *srcs;
+    quic_connid_gened_t *dsts;
+
+    uint64_t dst_active;
 };
 
 extern quic_module_t quic_connid_gen_module;

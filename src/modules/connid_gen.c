@@ -18,6 +18,7 @@ static quic_err_t quic_connid_gen_init(void *const module);
 static quic_err_t quic_connid_gen_start(void *const module);
 
 static inline quic_err_t quic_connid_gen(quic_buf_t *const connid);
+static inline quic_err_t quic_connid_gen_update_dst(quic_connid_gen_module_t *const module);
 
 static inline quic_err_t quic_connid_gen(quic_buf_t *const connid) {
     if (connid->capa == 0 || connid->capa > 20) {
@@ -58,7 +59,7 @@ quic_err_t quic_connid_gen_issue(quic_connid_gen_module_t *const module) {
     if (!gened) {
         return quic_err_internal_error;
     }
-    gened->key = ++module->highest_seq;
+    gened->key = ++module->src_hseq;
     gened->connid = connid;
 
     if ((frame = malloc(sizeof(quic_frame_new_connection_id_t))) == NULL) {
@@ -89,8 +90,12 @@ static quic_err_t quic_connid_gen_init(void *const module) {
 
         c_module->connid_len = server->connid_len;
     }
-    c_module->highest_seq = 0;
+    c_module->src_hseq = 0;
+    c_module->dst_hretire = 0;
     quic_rbt_tree_init(c_module->srcs);
+    quic_rbt_tree_init(c_module->dsts);
+
+    c_module->dst_active = 0;
 
     return quic_err_success;
 }
@@ -99,16 +104,25 @@ static quic_err_t quic_connid_gen_start(void *const module) {
     quic_connid_gen_module_t *const c_module = module;
     quic_session_t *const session = quic_module_of_session(c_module);
 
-    quic_connid_gened_t *gened = malloc(sizeof(quic_connid_gened_t));
-    if (!gened) {
+    quic_connid_gened_t *src_gened = malloc(sizeof(quic_connid_gened_t));
+    if (!src_gened) {
         return quic_err_internal_error;
     }
-    quic_rbt_init(gened);
-    gened->key = 0;
-    quic_buf_init(&gened->connid);
-    quic_buf_copy(&gened->connid, &session->src);
+    quic_rbt_init(src_gened);
+    src_gened->key = 0;
+    src_gened->connid = session->src;
 
-    quic_connid_gened_insert(&c_module->srcs, gened);
+    quic_connid_gened_insert(&c_module->srcs, src_gened);
+
+    quic_connid_gened_t *dst_gened = malloc(sizeof(quic_connid_gened_t));
+    if (!dst_gened) {
+        return quic_err_internal_error;
+    }
+    quic_rbt_init(dst_gened);
+    dst_gened->key = 0;
+    dst_gened->connid = session->dst;
+
+    quic_connid_gened_insert(&c_module->dsts, dst_gened);
 
     return quic_err_success;
 }
@@ -122,3 +136,112 @@ quic_module_t quic_connid_gen_module = {
     .loop        = NULL,
     .destory     = NULL
 };
+
+quic_err_t quic_session_handle_new_connection_id_frame(quic_session_t *const session, const quic_frame_t *const frame) {
+    quic_connid_gen_module_t *g_module = quic_session_module(quic_connid_gen_module_t, session, quic_connid_gen_module);
+    quic_framer_module_t *const f_module = quic_session_module(quic_framer_module_t, session, quic_framer_module);
+    quic_frame_new_connection_id_t *const n_frame = (quic_frame_new_connection_id_t *) frame;
+
+    if (n_frame->seq < g_module->dst_hretire) {
+        quic_frame_retire_connection_id_t *const r_frame = malloc(sizeof(quic_frame_retire_connection_id_t));
+        if (!r_frame) {
+            return quic_err_internal_error;
+        }
+        quic_frame_init(r_frame, quic_frame_retire_connection_id_type);
+        r_frame->seq = n_frame->seq;
+        quic_framer_ctrl(f_module, (quic_frame_t *) r_frame);
+
+        return quic_err_success;
+    }
+
+    if (n_frame->retire > g_module->dst_hretire) {
+        quic_connid_gened_t *retire_gened = NULL;
+        for (retire_gened = quic_rbt_min(g_module->dsts);
+             !quic_rbt_is_nil(retire_gened) && retire_gened->key <= n_frame->retire;
+             retire_gened = quic_rbt_min(g_module->dsts)) {
+
+            quic_frame_retire_connection_id_t *const r_frame = malloc(sizeof(quic_frame_retire_connection_id_t));
+            if (!r_frame) {
+                return quic_err_internal_error;
+            }
+            quic_frame_init(r_frame, quic_frame_retire_connection_id_type);
+            r_frame->seq = retire_gened->key;
+            quic_framer_ctrl(f_module, (quic_frame_t *) r_frame);
+
+            quic_rbt_remove(&g_module->dsts, &retire_gened);
+            free(retire_gened->connid.buf);
+            free(retire_gened);
+        }
+        g_module->dst_hretire = n_frame->retire;
+    }
+
+    if (n_frame->seq == g_module->dst_active) {
+        return quic_err_success;
+    }
+
+    if (quic_rbt_is_nil(quic_connid_gened_find(&g_module->dsts, &n_frame->seq))) {
+        quic_connid_gened_t *dst_gened = malloc(sizeof(quic_connid_gened_t));
+        if (!dst_gened) {
+            return quic_err_internal_error;
+        }
+        quic_rbt_init(dst_gened);
+
+        quic_buf_init(&dst_gened->connid);
+        dst_gened->connid.capa = n_frame->len;
+        dst_gened->connid.buf = malloc(n_frame->len);
+        if (!dst_gened->connid.buf) {
+            free(dst_gened);
+            return quic_err_internal_error;
+        }
+        memcpy(dst_gened->connid.buf, n_frame->conn, n_frame->len);
+        quic_buf_setpl(&dst_gened->connid);
+        dst_gened->key = n_frame->seq;
+
+        quic_connid_gened_insert(&g_module->dsts, dst_gened);
+    }
+
+    if (g_module->dst_active < n_frame->retire) {
+        quic_connid_gen_update_dst(g_module);
+    }
+
+    return quic_err_success;
+}
+
+static inline quic_err_t quic_connid_gen_update_dst(quic_connid_gen_module_t *const module) {
+    quic_session_t *const session = quic_module_of_session(module);
+    quic_framer_module_t *const f_module = quic_session_module(quic_framer_module_t, session, quic_framer_module);
+
+    quic_frame_retire_connection_id_t *const r_frame = malloc(sizeof(quic_frame_retire_connection_id_t));
+    if (!r_frame) {
+        return quic_err_internal_error;
+    }
+    quic_frame_init(r_frame, quic_frame_retire_connection_id_type);
+    r_frame->seq = module->dst_active;
+    quic_framer_ctrl(f_module, (quic_frame_t *) r_frame);
+
+    if (module->dst_hretire < module->dst_active) {
+        module->dst_hretire = module->dst_active;
+    }
+
+    // TODO retire token
+    
+    quic_connid_gened_t *gened = quic_connid_gened_find(module->dsts, &module->dst_active);
+    if (!quic_rbt_is_nil(gened)) {
+        quic_rbt_remove(&module->dsts, &gened);
+        free(gened->connid.buf);
+        free(gened);
+        quic_buf_init(&session->dst);
+    }
+
+    gened = quic_rbt_min(module->dsts);
+    if (quic_rbt_is_nil(gened)) {
+        return quic_err_internal_error;
+    }
+
+    session->dst = gened->connid;
+    module->dst_active = gened->key;
+
+    // TODO add token
+
+    return quic_err_success;
+}
