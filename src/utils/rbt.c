@@ -95,6 +95,22 @@ quic_rbt_t *quic_rbt_find_inner(quic_rbt_t *const root, const void *const key, q
     return quic_rbt_nil;
 }
 
+quic_rbt_t *quic_rbt_min_inner(quic_rbt_t *const root) {
+    quic_rbt_t *ret = root;
+    while (!quic_rbt_is_nil(ret) && !quic_rbt_is_nil(ret->rb_l)) {
+        ret = ret->rb_l;
+    }
+    return ret;
+}
+
+quic_rbt_t *quic_rbt_max_inner(quic_rbt_t *const root) {
+    quic_rbt_t *ret = root;
+    while (!quic_rbt_is_nil(ret) && !quic_rbt_is_nil(ret->rb_r)) {
+        ret = ret->rb_r;
+    }
+    return ret;
+}
+
 typedef struct quic_rbt_uint64_key_s quic_rbt_uint64_key_t;
 struct quic_rbt_uint64_key_s {
     QUIC_RBT_UINT64_FIELDS

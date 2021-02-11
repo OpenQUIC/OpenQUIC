@@ -63,6 +63,10 @@ quic_err_t quic_rbt_remove_inner(quic_rbt_t **const root, quic_rbt_t **const nod
 #define quic_rbt_find(root, key, comparer) \
     quic_rbt_find_inner((quic_rbt_t *) (root), (const void *) (key), (comparer))
 quic_rbt_t *quic_rbt_find_inner(quic_rbt_t *const root, const void *const key, quic_rbt_key_comparer_t comparer);
+#define quic_rbt_min(root) ((typeof(root)) quic_rbt_min_inner((quic_rbt_t *) root))
+quic_rbt_t *quic_rbt_min_inner(quic_rbt_t *const root);
+#define quic_rbt_max(root) ((typeof(root)) quic_rbt_max_inner((quic_rbt_t *) root))
+quic_rbt_t *quic_rbt_max_inner(quic_rbt_t *const root);
 
 typedef struct quic_rbt_foreach_qnode_s quic_rbt_foreach_qnode_t;
 struct quic_rbt_foreach_qnode_s {
