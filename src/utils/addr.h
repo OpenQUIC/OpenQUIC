@@ -9,6 +9,7 @@
 #ifndef __OPENQUIC_ADDR_H__
 #define __OPENQUIC_ADDR_H__
 
+#include "lc_udp.h"
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <string.h>
@@ -20,11 +21,27 @@ union quic_addr_u {
 };
 
 static inline quic_addr_t quic_ipv4(const char *const addr, const uint16_t port) {
-    quic_addr_t ret = { };
+    quic_addr_t ret = {};
     ret.v4.sin_family = AF_INET;
     ret.v4.sin_addr.s_addr = inet_addr(addr);
     ret.v4.sin_port = htons(port);
     memset(ret.v4.sin_zero, 0, sizeof(ret.v4.sin_zero));
+
+    return ret;
+}
+
+static inline quic_addr_t quic_litecoaddr(const liteco_sockaddr_t addr) {
+    quic_addr_t ret = {};
+    switch (((struct sockaddr *) &addr)->sa_family) {
+    case AF_INET:
+        ret.v4 = addr.in;
+        memset(ret.v4.sin_zero, 0, sizeof(ret.v4.sin_zero));
+        break;
+
+    case AF_INET6:
+        ret.v6 = addr.in6;
+        break;
+    }
 
     return ret;
 }
