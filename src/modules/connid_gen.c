@@ -115,12 +115,10 @@ static quic_err_t quic_connid_gen_init(void *const module) {
 
     if (session->cfg.is_cli) {
         quic_client_t *const client = ((void *) session->transmission) - offsetof(quic_client_t, transmission);
-
         c_module->connid_len = client->connid_len;
     }
     else {
         quic_server_t *const server = ((void *) session->transmission) - offsetof(quic_server_t, transmission);
-
         c_module->connid_len = server->connid_len;
     }
     c_module->src_hseq = 0;

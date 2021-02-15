@@ -167,13 +167,11 @@ struct quic_stream_s {
 #define quic_stream_extend_flowctrl(str) \
     ((void *) ((str)->extends))
 
-__quic_extends quic_err_t quic_stream_write(liteco_eloop_t *const eloop,
-                                            quic_stream_t *const str,
+__quic_extends quic_err_t quic_stream_write(quic_stream_t *const str,
                                             void *const data, const uint64_t len,
                                             quic_err_t (*write_done_cb) (quic_stream_t *const, void *const, const size_t, const size_t));
 
-__quic_extends quic_err_t quic_stream_read(liteco_eloop_t *const eloop,
-                                           quic_stream_t *const str,
+__quic_extends quic_err_t quic_stream_read(quic_stream_t *const str,
                                            void *const data, const uint64_t len,
                                            quic_err_t (*read_done_cb) (quic_stream_t *const, void *const, const size_t, const size_t));
 

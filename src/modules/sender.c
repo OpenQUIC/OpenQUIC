@@ -119,7 +119,6 @@ static inline quic_err_t quic_sender_generate_retry_header(quic_sender_module_t 
 }
 
 static inline quic_err_t quic_sender_generate_short_header(quic_session_t *const session, const uint64_t num, quic_buf_t *const buf) {
-
     quic_short_header_t *const header = buf->pos;
     
     header->first_byte = quic_packet_short_type;

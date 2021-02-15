@@ -315,13 +315,13 @@ static quic_err_t quic_stream_module_init(void *const module) {
     return quic_err_success;
 }
 
-quic_err_t quic_stream_write(liteco_eloop_t *const eloop,
-                             quic_stream_t *const str,
+quic_err_t quic_stream_write(quic_stream_t *const str,
                              void *const data, const uint64_t len,
                              quic_err_t (*write_done_cb) (quic_stream_t *const, void *const, const size_t, const size_t)) {
     if (str->send.closed) {
         return quic_err_closed;
     }
+    quic_session_t *const session = str->session;
 
     quic_stream_io_t *const io = malloc(sizeof(quic_stream_io_t) + QUIC_STREAM_CO_STACK);
     if (!io) {
@@ -333,12 +333,12 @@ quic_err_t quic_stream_write(liteco_eloop_t *const eloop,
     io->str = str;
     io->data = data;
     io->len = len;
-    liteco_chan_create(&io->timer_chan, 0, liteco_runtime_readycb, str->session->rt);
-    liteco_timer_init(eloop, &io->timer, &io->timer_chan);
+    liteco_chan_create(&io->timer_chan, 0, liteco_runtime_readycb, session->rt);
+    liteco_timer_init(session->eloop, &io->timer, &io->timer_chan);
 
     liteco_create(&io->co, quic_stream_write_co, io, io->st, QUIC_STREAM_CO_STACK);
     liteco_finished(&io->co, quic_stream_write_done, io);
-    liteco_runtime_join(str->session->rt, &io->co, true);
+    liteco_runtime_join(session->rt, &io->co, true);
 
     return quic_err_success;
 }
@@ -358,13 +358,13 @@ static int quic_stream_write_done(void *const args) {
     return 0;
 }
 
-quic_err_t quic_stream_read(liteco_eloop_t *const eloop,
-                            quic_stream_t *const str,
+quic_err_t quic_stream_read(quic_stream_t *const str,
                             void *const data, const uint64_t len,
                             quic_err_t (*read_done_cb) (quic_stream_t *const, void *const, const size_t, const size_t)) {
     if (str->recv.closed) {
         return quic_err_closed;
     }
+    quic_session_t *const session = str->session;
 
     quic_stream_io_t *const io = malloc(sizeof(quic_stream_io_t) + QUIC_STREAM_CO_STACK);
     if (!io) {
@@ -376,13 +376,13 @@ quic_err_t quic_stream_read(liteco_eloop_t *const eloop,
     io->str = str;
     io->data = data;
     io->len = len;
-    liteco_chan_create(&io->timer_chan, 0, liteco_runtime_readycb, str->session->rt);
-    liteco_timer_init(eloop, &io->timer, &io->timer_chan);
+    liteco_chan_create(&io->timer_chan, 0, liteco_runtime_readycb, session->rt);
+    liteco_timer_init(session->eloop, &io->timer, &io->timer_chan);
 
     liteco_create(&io->co, quic_stream_read_co, io, io->st, QUIC_STREAM_CO_STACK);
     liteco_finished(&io->co, quic_stream_read_done, io);
 
-    liteco_runtime_join(str->session->rt, &io->co, true);
+    liteco_runtime_join(session->rt, &io->co, true);
 
     return quic_err_success;
 }
