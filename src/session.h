@@ -36,6 +36,8 @@ struct quic_config_s {
 
     uint64_t stream_recv_timeout;
 
+    uint32_t active_connid_count;
+
     bool disable_prr;
     uint64_t initial_cwnd;
     uint64_t max_cwnd;
@@ -90,8 +92,8 @@ struct quic_session_s {
     uint8_t modules[0];
 };
 
-#define quic_session_module(type, session, module) \
-    ((type *) ((session)->modules + (module).off))
+#define quic_session_module(session, module) \
+    ((void *) ((session)->modules + (module).off))
 
 #define quic_module_of_session(module) \
     ((quic_session_t *) (((void *) (module)) - ((quic_base_module_t *) (module))->module_declare->off - offsetof(quic_session_t, modules)))

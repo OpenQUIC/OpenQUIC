@@ -467,7 +467,7 @@ quic_module_t quic_sealer_module = {
 
 quic_err_t quic_session_handle_crypto_frame(quic_session_t *const session, const quic_frame_t *const frame) {
     quic_frame_crypto_t *const c_frame = (quic_frame_crypto_t *) frame;
-    quic_sealer_module_t *const s_module = quic_session_module(quic_sealer_module_t, session, quic_sealer_module);
+    quic_sealer_module_t *const s_module = quic_session_module(session, quic_sealer_module);
     quic_sorter_t *sorter = NULL;
 
     switch (c_frame->packet_type & 0xf0) {
@@ -519,7 +519,7 @@ quic_err_t quic_session_handle_crypto_frame(quic_session_t *const session, const
 
 quic_err_t quic_session_handle_handshake_done_frame(quic_session_t *const session, const quic_frame_t *const frame) {
     (void) frame;
-    quic_sealer_module_t *const s_module = quic_session_module(quic_sealer_module_t, session, quic_sealer_module);
+    quic_sealer_module_t *const s_module = quic_session_module(session, quic_sealer_module);
 
     if (!session->cfg.is_cli) {
         return quic_err_internal_error;

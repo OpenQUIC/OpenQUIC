@@ -25,7 +25,7 @@ extern quic_module_t quic_migrate_module;
 
 static inline quic_err_t quic_migrate_path_use(quic_migrate_module_t *const module, const quic_path_t path) {
     quic_session_t *const session = quic_module_of_session(module);
-    quic_congestion_module_t *c_module = quic_session_module(quic_congestion_module_t, session, quic_congestion_module);
+    quic_congestion_module_t *c_module = quic_session_module(session, quic_congestion_module);
 
     quic_congestion_migrate(c_module, path);
     if (module->setup) {

@@ -41,6 +41,6 @@ struct quic_connid_gen_module_s {
 
 extern quic_module_t quic_connid_gen_module;
 
-quic_err_t quic_connid_gen_issue(quic_connid_gen_module_t *const module);
+quic_err_t quic_connid_gen_issue_src(quic_connid_gen_module_t *const module);
 
 #endif

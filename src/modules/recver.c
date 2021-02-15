@@ -52,12 +52,12 @@ static inline quic_err_t quic_recver_handle_packet(quic_recver_module_t *const m
         switch (quic_packet_type(header)) {
         case quic_packet_initial_type:
             payload.initial = quic_initial_header(header);
-            ag_module = quic_session_module(quic_ack_generator_module_t, session, quic_initial_ack_generator_module);
+            ag_module = quic_session_module(session, quic_initial_ack_generator_module);
             break;
 
         case quic_packet_handshake_type:
             payload.handshake = quic_handshake_header(header);
-            ag_module = quic_session_module(quic_ack_generator_module_t, session, quic_handshake_ack_generator_module);
+            ag_module = quic_session_module(session, quic_handshake_ack_generator_module);
             break;
 
         case quic_packet_0rtt_type:
@@ -71,7 +71,7 @@ static inline quic_err_t quic_recver_handle_packet(quic_recver_module_t *const m
     else {
         payload.short_payload = quic_short_header(header, quic_buf_size(&session->src));
         payload.short_payload.payload_len = module->curr_packet->pkt.len - ((uint8_t *) payload.short_payload.payload - module->curr_packet->pkt.data);
-        ag_module = quic_session_module(quic_ack_generator_module_t, session, quic_app_ack_generator_module);
+        ag_module = quic_session_module(session, quic_app_ack_generator_module);
     }
 
     quic_recver_process_packet(session, module, ag_module, (quic_payload_t *) &payload, module->curr_packet->recv_time);

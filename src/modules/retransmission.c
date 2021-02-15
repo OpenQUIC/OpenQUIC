@@ -56,7 +56,7 @@ static quic_err_t quic_retransmission_find_newly_acked(quic_retransmission_modul
     }
 
     quic_session_t *const session = quic_module_of_session(module);
-    quic_congestion_module_t *const c_module = quic_session_module(quic_congestion_module_t, session, quic_congestion_module);
+    quic_congestion_module_t *const c_module = quic_session_module(session, quic_congestion_module);
 
     quic_sent_packet_rbt_t *pkt = NULL;
     quic_link_t acked_list;
@@ -110,7 +110,7 @@ quic_err_t quic_retransmission_find_newly_lost(quic_retransmission_module_t *con
     }
 
     quic_session_t *const session = quic_module_of_session(module);
-    quic_congestion_module_t *const c_module = quic_session_module(quic_congestion_module_t, session, quic_congestion_module);
+    quic_congestion_module_t *const c_module = quic_session_module(session, quic_congestion_module);
 
     quic_link_t lost_list;
     quic_sent_packet_rbt_t *pkt = NULL;
@@ -282,17 +282,17 @@ quic_module_t quic_app_retransmission_module = {
 quic_err_t quic_session_handle_ack_frame(quic_session_t *const session, const quic_frame_t *const frame) {
     const quic_frame_ack_t *const ack_frame = (const quic_frame_ack_t *) frame;
     quic_retransmission_module_t *r_module = NULL;
-    quic_congestion_module_t *const c_module = quic_session_module(quic_congestion_module_t, session, quic_congestion_module);
+    quic_congestion_module_t *const c_module = quic_session_module(session, quic_congestion_module);
 
     switch (ack_frame->packet_type) {
     case quic_packet_initial_type:
-        r_module = quic_session_module(quic_retransmission_module_t, session, quic_initial_retransmission_module);
+        r_module = quic_session_module(session, quic_initial_retransmission_module);
         break;
     case quic_packet_handshake_type:
-        r_module = quic_session_module(quic_retransmission_module_t, session, quic_handshake_retransmission_module);
+        r_module = quic_session_module(session, quic_handshake_retransmission_module);
         break;
     case quic_packet_short_type:
-        r_module = quic_session_module(quic_retransmission_module_t, session, quic_app_retransmission_module);
+        r_module = quic_session_module(session, quic_app_retransmission_module);
         break;
     default:
         return quic_err_internal_error;

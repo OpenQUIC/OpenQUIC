@@ -11,6 +11,7 @@
 #include "modules/stream.h"
 #include "modules/sealer.h"
 #include "modules/migrate.h"
+#include "modules/connid_gen.h"
 #include "utils/time.h"
 #include <malloc.h>
 
@@ -52,7 +53,7 @@ quic_err_t quic_session_init(quic_session_t *const session, liteco_eloop_t *cons
 
     uint32_t i;
     for (i = 0; quic_modules[i]; i++) {
-        quic_base_module_t *module = quic_session_module(quic_base_module_t, session, *quic_modules[i]);
+        quic_base_module_t *module = quic_session_module(session, *quic_modules[i]);
         module->module_declare = quic_modules[i];
 
         quic_module_init(module);
@@ -72,7 +73,7 @@ static int quic_session_run_co(void *const session_) {
     quic_session_t *const session = session_;
 
     for (i = 0; quic_modules[i]; i++) {
-        quic_base_module_t *module = quic_session_module(quic_base_module_t, session, *quic_modules[i]);
+        quic_base_module_t *module = quic_session_module(session, *quic_modules[i]);
         module->module_declare = quic_modules[i];
 
         quic_module_start(module);
@@ -113,19 +114,19 @@ module_loop:
         quic_session_reset_loop_deadline(session);
 
         if (active_module) {
-            void *module = quic_session_module(void, session, *active_module);
+            void *module = quic_session_module(session, *active_module);
             quic_module_process(module);
         }
 
         now = quic_now();
         for (i = 0; quic_modules[i]; i++) {
-            void *module = quic_session_module(void, session, *quic_modules[i]);
+            void *module = quic_session_module(session, *quic_modules[i]);
             quic_module_loop(module, now);
         }
     }
 
     for (i = 0; quic_modules[i]; i++) {
-        void *module = quic_session_module(void, session, *quic_modules[i]);
+        void *module = quic_session_module(session, *quic_modules[i]);
         quic_module_destory(module);
     }
 
@@ -143,17 +144,17 @@ quic_err_t quic_session_key_file(quic_session_t *const session, const char *cons
 }
 
 quic_err_t quic_session_accept(quic_session_t *const session, quic_err_t (*accept_cb) (quic_session_t *const, quic_stream_t *const)) {
-    quic_stream_module_t *const module = quic_session_module(quic_stream_module_t, session, quic_stream_module);
+    quic_stream_module_t *const module = quic_session_module(session, quic_stream_module);
     return quic_stream_accept(module, accept_cb);
 }
 
 quic_err_t quic_session_handshake_done(quic_session_t *const session, quic_err_t (*handshake_done_cb) (quic_session_t *const)) {
-    quic_sealer_module_t *const module = quic_session_module(quic_sealer_module_t, session, quic_sealer_module);
+    quic_sealer_module_t *const module = quic_session_module(session, quic_sealer_module);
     return quic_sealer_handshake_done(module, handshake_done_cb);
 }
 
 quic_stream_t *quic_session_open(quic_session_t *const session, const bool bidi) {
-    quic_stream_module_t *const module = quic_session_module(quic_stream_module_t, session, quic_stream_module);
+    quic_stream_module_t *const module = quic_session_module(session, quic_stream_module);
     return quic_stream_open(module, bidi);
 }
 
@@ -162,7 +163,7 @@ uint32_t quic_session_path_mtu(quic_session_t *const session) {
 }
 
 quic_err_t quic_session_path_use(quic_session_t *const session, const quic_path_t path) {
-    quic_migrate_module_t *const migrate = quic_session_module(quic_migrate_module_t, session, quic_migrate_module);
+    quic_migrate_module_t *const migrate = quic_session_module(session, quic_migrate_module);
     session->path = path;
     quic_migrate_path_use(migrate, session->path);
 
@@ -170,7 +171,7 @@ quic_err_t quic_session_path_use(quic_session_t *const session, const quic_path_
 }
 
 quic_err_t quic_session_path_target_use(quic_session_t *const session, const quic_addr_t remote_addr) {
-    quic_migrate_module_t *const migrate = quic_session_module(quic_migrate_module_t, session, quic_migrate_module);
+    quic_migrate_module_t *const migrate = quic_session_module(session, quic_migrate_module);
     session->path.remote_addr = remote_addr;
     quic_migrate_path_use(migrate, session->path);
 
@@ -182,10 +183,10 @@ quic_err_t quic_session_send(quic_session_t *const session, const void *const da
 }
 
 quic_transport_parameter_t quic_session_get_transport_parameter(quic_session_t *const session) {
-    (void) session;
-
     quic_transport_parameter_t params;
     quic_transport_parameter_init(&params);
+
+    params.active_connid = session->cfg.active_connid_count;
 
     // TODO
 
@@ -193,10 +194,15 @@ quic_transport_parameter_t quic_session_get_transport_parameter(quic_session_t *
 }
 
 quic_err_t quic_session_set_transport_parameter(quic_session_t *const session, const quic_transport_parameter_t params) {
-    (void) session;
-    (void) params;
-
     // TODO
+    if (params.active_connid) {
+        quic_connid_gen_module_t *const c_module = quic_session_module(session, quic_connid_gen_module);
+
+        uint64_t i;
+        for (i = 0; i < params.active_connid; i++) {
+            quic_connid_gen_issue_src(c_module);
+        }
+    }
 
     return quic_err_success;
 }

@@ -80,7 +80,7 @@ static inline quic_err_t quic_retransmission_update_alarm(quic_retransmission_mo
     }
 
     quic_session_t *const session = quic_module_of_session(module);
-    quic_congestion_module_t *const c_module = quic_session_module(quic_congestion_module_t, session, quic_congestion_module);
+    quic_congestion_module_t *const c_module = quic_session_module(session, quic_congestion_module);
 
     if (!module->unacked_len) {
         module->alarm = 0;

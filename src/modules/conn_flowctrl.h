@@ -55,7 +55,7 @@ static inline quic_err_t quic_conn_flowctrl_update_swnd(quic_conn_flowctrl_modul
 
 static inline void quic_conn_flowctrl_adjust_rwnd(quic_conn_flowctrl_module_t *const module) {
     quic_session_t *const session = quic_module_of_session(module);
-    quic_congestion_module_t *const c_module = quic_session_module(quic_congestion_module_t, session, quic_congestion_module);
+    quic_congestion_module_t *const c_module = quic_session_module(session, quic_congestion_module);
 
     uint64_t smoothed_rtt = quic_congestion_smoothed_rtt(c_module);
     uint64_t in_epoch_readed_bytes = module->read_off - module->epoch_off;

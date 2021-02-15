@@ -111,13 +111,13 @@ static inline quic_err_t quic_sealer_set_level(quic_sealer_module_t *const modul
 
     switch (level) {
     case ssl_encryption_handshake:
-        ag_module = quic_session_module(quic_ack_generator_module_t, session, quic_initial_ack_generator_module);
-        r_module = quic_session_module(quic_retransmission_module_t, session, quic_initial_retransmission_module);
+        ag_module = quic_session_module(session, quic_initial_ack_generator_module);
+        r_module = quic_session_module(session, quic_initial_retransmission_module);
         break;
 
     case ssl_encryption_application:
-        ag_module = quic_session_module(quic_ack_generator_module_t, session, quic_handshake_ack_generator_module);
-        r_module = quic_session_module(quic_retransmission_module_t, session, quic_handshake_retransmission_module);
+        ag_module = quic_session_module(session, quic_handshake_ack_generator_module);
+        r_module = quic_session_module(session, quic_handshake_retransmission_module);
 
         if (module->handshake_done_cb) {
             module->handshake_done_cb(session);
@@ -145,7 +145,7 @@ static inline quic_err_t quic_sealer_handshake_process(quic_sealer_module_t *con
         quic_session_t *const session = quic_module_of_session(module);
 
         if (!session->cfg.is_cli) {
-            quic_framer_module_t *const f_module = quic_session_module(quic_framer_module_t, session, quic_framer_module);
+            quic_framer_module_t *const f_module = quic_session_module(session, quic_framer_module);
             quic_sealer_set_level(module, ssl_encryption_application);
 
             quic_frame_handshake_done_t *frame = malloc(sizeof(quic_frame_handshake_done_t));

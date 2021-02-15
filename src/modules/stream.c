@@ -73,7 +73,7 @@ static int quic_stream_write_co(void *const args) {
     uint64_t len = io->len;
     bool notified = false;
     quic_stream_t *const p_str = quic_container_of_send_stream(str);
-    quic_framer_module_t *framer_module = quic_session_module(quic_framer_module_t, p_str->session, quic_framer_module);
+    quic_framer_module_t *framer_module = quic_session_module(p_str->session, quic_framer_module);
 
     pthread_mutex_lock(&str->mtx);
 
@@ -126,7 +126,7 @@ quic_frame_stream_t *quic_send_stream_generate(quic_send_stream_t *const str, bo
 
     quic_stream_t *const p_str = quic_container_of_send_stream(str);
     quic_stream_flowctrl_module_t *const flowctrl_module = p_str->flowctrl_module;
-    quic_framer_module_t *const framer = quic_session_module(quic_framer_module_t, p_str->session, quic_framer_module);
+    quic_framer_module_t *const framer = quic_session_module(p_str->session, quic_framer_module);
     *empty = false;
 
     pthread_mutex_lock(&str->mtx);
@@ -235,7 +235,7 @@ static int quic_stream_read_co(void *const args) {
 
     quic_recv_stream_t *const str = &io->str->recv;
     quic_stream_t *const p_str = quic_container_of_recv_stream(str);
-    quic_stream_flowctrl_module_t *sf_module = quic_session_module(quic_stream_flowctrl_module_t, p_str->session, quic_stream_flowctrl_module);
+    quic_stream_flowctrl_module_t *sf_module = quic_session_module(p_str->session, quic_stream_flowctrl_module);
     void *data = io->data;
     uint64_t len = io->len;
     uint64_t readed_len = 0;
@@ -403,7 +403,7 @@ static int quic_stream_read_done(void *const args) {
 }
 
 static inline quic_stream_t *quic_stream_create(quic_session_t *const session, const uint64_t sid, const uint32_t extends_size) {
-    quic_stream_flowctrl_module_t *const f_module = quic_session_module(quic_stream_flowctrl_module_t, session, quic_stream_flowctrl_module);
+    quic_stream_flowctrl_module_t *const f_module = quic_session_module(session, quic_stream_flowctrl_module);
 
     quic_stream_t *str = malloc(sizeof(quic_stream_t) + f_module->module_size + extends_size);
     if (str == NULL) {
@@ -426,7 +426,7 @@ static inline quic_stream_t *quic_stream_create(quic_session_t *const session, c
 }
 
 static inline quic_err_t quic_stream_destory(quic_stream_t *const str) {
-    quic_stream_flowctrl_module_t *const flowctrl_module = quic_session_module(quic_stream_flowctrl_module_t, str->session, quic_stream_flowctrl_module);
+    quic_stream_flowctrl_module_t *const flowctrl_module = quic_session_module(str->session, quic_stream_flowctrl_module);
 
     quic_send_stream_destory(&str->send);
     quic_recv_stream_destory(&str->recv);
@@ -540,7 +540,7 @@ end:
 
 static inline quic_err_t quic_send_stream_close(quic_send_stream_t *const str) {
     quic_stream_t *const p_str = quic_container_of_send_stream(str);
-    quic_framer_module_t *const framer_module = quic_session_module(quic_framer_module_t, p_str->session, quic_framer_module);
+    quic_framer_module_t *const framer_module = quic_session_module(p_str->session, quic_framer_module);
 
     pthread_mutex_lock(&str->mtx);
     if (str->closed) {
@@ -574,7 +574,7 @@ static inline quic_err_t quic_stream_destory_push(quic_stream_module_t *const mo
 }
 
 quic_err_t quic_stream_close(quic_stream_t *const str, quic_err_t (*closed_cb) (quic_stream_t *const)) {
-    quic_stream_module_t *const s_module = quic_session_module(quic_stream_module_t, str->session, quic_stream_module);
+    quic_stream_module_t *const s_module = quic_session_module(str->session, quic_stream_module);
 
     quic_send_stream_close(&str->send);
     quic_recv_stream_close(&str->recv);
@@ -709,7 +709,7 @@ static quic_err_t quic_session_stream_module_loop(void *const module, const uint
 
 quic_err_t quic_stream_module_process_rwnd(quic_stream_module_t *const module) {
     quic_session_t *const session = quic_module_of_session(module);
-    quic_framer_module_t *const framer = quic_session_module(quic_framer_module_t, session, quic_framer_module);
+    quic_framer_module_t *const framer = quic_session_module(session, quic_framer_module);
 
     quic_stream_rwnd_updated_sid_t *sid = NULL;
 
@@ -815,7 +815,7 @@ static inline quic_err_t quic_recv_stream_handle_frame(quic_recv_stream_t *const
 }
 
 quic_err_t quic_session_handle_stream_frame(quic_session_t *const session, const quic_frame_t *const frame) {
-    quic_stream_module_t *module = quic_session_module(quic_stream_module_t, session, quic_stream_module);
+    quic_stream_module_t *module = quic_session_module(session, quic_stream_module);
     const quic_frame_stream_t *const s_frame = (const quic_frame_stream_t *) frame;
 
     quic_stream_t *const stream = quic_stream_module_recv_relation_stream(module, s_frame->sid);
@@ -830,8 +830,8 @@ quic_err_t quic_session_handle_stream_frame(quic_session_t *const session, const
 
 static inline quic_err_t quic_send_stream_handle_max_stream_data_frame(quic_send_stream_t *const str, const quic_frame_max_stream_data_t *const frame) {
     quic_stream_t *const p_str = quic_container_of_send_stream(str);
-    quic_stream_flowctrl_module_t *const f_module = quic_session_module(quic_stream_flowctrl_module_t, p_str->session, quic_stream_flowctrl_module);
-    quic_framer_module_t *const framer_module = quic_session_module(quic_framer_module_t, p_str->session, quic_framer_module);
+    quic_stream_flowctrl_module_t *const f_module = quic_session_module(p_str->session, quic_stream_flowctrl_module);
+    quic_framer_module_t *const framer_module = quic_session_module(p_str->session, quic_framer_module);
 
     pthread_mutex_lock(&str->mtx);
     bool remain = str->reader_len != 0;
@@ -846,7 +846,7 @@ static inline quic_err_t quic_send_stream_handle_max_stream_data_frame(quic_send
 }
 
 quic_err_t quic_session_handle_max_stream_data_frame(quic_session_t *const session, const quic_frame_t *const frame) {
-    quic_stream_module_t *module = quic_session_module(quic_stream_module_t, session, quic_stream_module);
+    quic_stream_module_t *module = quic_session_module(session, quic_stream_module);
     const quic_frame_max_stream_data_t *const md_frame = (const quic_frame_max_stream_data_t *) frame;
 
     quic_stream_t *const stream = quic_stream_module_send_relation_stream(module, md_frame->sid);

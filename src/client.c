@@ -15,6 +15,7 @@
 const quic_config_t quic_client_default_config = {
     .is_cli = true,
     .stream_recv_timeout = 0,
+    .active_connid_count = 2,
     .disable_prr = false,
     .initial_cwnd = 1460,
     .min_cwnd = 1460,
@@ -43,9 +44,9 @@ quic_err_t quic_client_init(quic_client_t *const client, void *const st, const s
     uint8_t rand = 0;
     quic_buf_t src;
 
-    if (RAND_bytes(&rand, 1) <= 0) {
-        return quic_err_internal_error;
-    }
+    /*if (RAND_bytes(&rand, 1) <= 0) {*/
+        /*return quic_err_internal_error;*/
+    /*}*/
     client->connid_len = 8 + rand % 11;
 
     quic_buf_init(&src);
@@ -129,7 +130,7 @@ static quic_err_t quic_client_transmission_recv_cb(quic_transmission_t *const tr
 
     // TODO check client
 
-    quic_recver_module_t *const r_module = quic_session_module(quic_recver_module_t, client->session, quic_recver_module);
+    quic_recver_module_t *const r_module = quic_session_module(client->session, quic_recver_module);
 
     return quic_recver_push(r_module, recvpkt);
 }

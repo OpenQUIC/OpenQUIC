@@ -142,21 +142,20 @@ static quic_send_packet_t *quic_sender_pack_initial_packet(quic_sender_module_t 
         return NULL;
     }
 
-    quic_packet_number_generator_module_t *const numgen = quic_session_module(quic_packet_number_generator_module_t, session, quic_initial_packet_number_generator_module);
-    quic_framer_module_t *const f_module = quic_session_module(quic_framer_module_t, session, quic_framer_module);
-    quic_ack_generator_module_t *const ag_module = quic_session_module(quic_ack_generator_module_t, session, quic_initial_ack_generator_module);
-    quic_retransmission_module_t *const r_module = quic_session_module(quic_retransmission_module_t, session, quic_initial_retransmission_module);
-    quic_sealer_module_t *s_module = quic_session_module(quic_sealer_module_t, session, quic_sealer_module);
+    quic_packet_number_generator_module_t *const numgen = quic_session_module(session, quic_initial_packet_number_generator_module);
+    quic_ack_generator_module_t *const ag_module = quic_session_module(session, quic_initial_ack_generator_module);
+    quic_retransmission_module_t *const r_module = quic_session_module(session, quic_initial_retransmission_module);
+    quic_sealer_module_t *s_module = quic_session_module(session, quic_sealer_module);
     quic_frame_t *frame = NULL;
 
-    if (!quic_sealer_should_send(s_module, ssl_encryption_initial) && quic_framer_ctrl_empty(f_module) && quic_retransmission_empty(r_module)) {
+    if (!quic_sealer_should_send(s_module, ssl_encryption_initial) && quic_retransmission_empty(r_module)) {
         return NULL;
     }
 
     // init send_pkt
     quic_send_packet_t *pkt = NULL;
     quic_send_packet_init(pkt, mtu);
-    pkt->retransmission_module = quic_session_module(quic_retransmission_module_t, session, quic_initial_retransmission_module);
+    pkt->retransmission_module = quic_session_module(session, quic_initial_retransmission_module);
     pkt->num = numgen->next;
 
     uint32_t max_bytes = pkt->buf.capa - quic_sender_initial_header_max_size(session, pkt->num, mtu);
@@ -172,17 +171,6 @@ static quic_send_packet_t *quic_sender_pack_initial_packet(quic_sender_module_t 
         // serialize retransmission frames
         for ( ;; ) {
             frame_len = quic_retransmission_append_frame(&pkt->frames, max_bytes, pkt->retransmission_module);
-            max_bytes -= frame_len;
-            payload_len += frame_len;
-            if (frame_len == 0) {
-                break;
-            }
-            pkt->included_unacked = true;
-        }
-
-        // serialize ctrl frames
-        for ( ;; ) {
-            frame_len = quic_framer_append_ctrl_frame(&pkt->frames, max_bytes, f_module);
             max_bytes -= frame_len;
             payload_len += frame_len;
             if (frame_len == 0) {
@@ -224,11 +212,11 @@ static quic_send_packet_t *quic_sender_pack_handshake_packet(quic_sender_module_
         return NULL;
     }
 
-    quic_packet_number_generator_module_t *const numgen = quic_session_module(quic_packet_number_generator_module_t, session, quic_handshake_packet_number_generator_module);
-    quic_framer_module_t *const f_module = quic_session_module(quic_framer_module_t, session, quic_framer_module);
-    quic_ack_generator_module_t *const ag_module = quic_session_module(quic_ack_generator_module_t, session, quic_handshake_ack_generator_module);
-    quic_retransmission_module_t *const r_module = quic_session_module(quic_retransmission_module_t, session, quic_handshake_retransmission_module);
-    quic_sealer_module_t *s_module = quic_session_module(quic_sealer_module_t, session, quic_sealer_module);
+    quic_packet_number_generator_module_t *const numgen = quic_session_module(session, quic_handshake_packet_number_generator_module);
+    quic_framer_module_t *const f_module = quic_session_module(session, quic_framer_module);
+    quic_ack_generator_module_t *const ag_module = quic_session_module(session, quic_handshake_ack_generator_module);
+    quic_retransmission_module_t *const r_module = quic_session_module(session, quic_handshake_retransmission_module);
+    quic_sealer_module_t *s_module = quic_session_module(session, quic_sealer_module);
     quic_frame_t *frame = NULL;
 
     if (!quic_sealer_should_send(s_module, ssl_encryption_handshake) && quic_framer_ctrl_empty(f_module) && quic_retransmission_empty(r_module)) {
@@ -238,7 +226,7 @@ static quic_send_packet_t *quic_sender_pack_handshake_packet(quic_sender_module_
     // init send_pkt
     quic_send_packet_t *pkt = NULL;
     quic_send_packet_init(pkt, mtu);
-    pkt->retransmission_module = quic_session_module(quic_retransmission_module_t, session, quic_handshake_retransmission_module);
+    pkt->retransmission_module = quic_session_module(session, quic_handshake_retransmission_module);
     pkt->num = numgen->next;
 
     uint32_t max_bytes = pkt->buf.capa - quic_sender_handshake_header_max_size(session, pkt->num, mtu);
@@ -306,11 +294,11 @@ static quic_send_packet_t *quic_sender_pack_app_packet(quic_sender_module_t *con
         return NULL;
     }
 
-    quic_stream_module_t *const stream_module = quic_session_module(quic_stream_module_t, session, quic_stream_module);
-    quic_packet_number_generator_module_t *const numgen = quic_session_module(quic_packet_number_generator_module_t, session, quic_app_packet_number_generator_module);
-    quic_framer_module_t *const f_module = quic_session_module(quic_framer_module_t, session, quic_framer_module);
-    quic_ack_generator_module_t *const ag_module = quic_session_module(quic_ack_generator_module_t, session, quic_app_ack_generator_module);
-    quic_retransmission_module_t *const r_module = quic_session_module(quic_retransmission_module_t, session, quic_app_retransmission_module);
+    quic_stream_module_t *const stream_module = quic_session_module(session, quic_stream_module);
+    quic_packet_number_generator_module_t *const numgen = quic_session_module(session, quic_app_packet_number_generator_module);
+    quic_framer_module_t *const f_module = quic_session_module(session, quic_framer_module);
+    quic_ack_generator_module_t *const ag_module = quic_session_module(session, quic_app_ack_generator_module);
+    quic_retransmission_module_t *const r_module = quic_session_module(session, quic_app_retransmission_module);
 
     quic_frame_t *frame = NULL;
 
@@ -324,7 +312,7 @@ static quic_send_packet_t *quic_sender_pack_app_packet(quic_sender_module_t *con
     // init send_pkt
     quic_send_packet_t *pkt = NULL;
     quic_send_packet_init(pkt, mtu);
-    pkt->retransmission_module = quic_session_module(quic_retransmission_module_t, session, quic_app_retransmission_module);
+    pkt->retransmission_module = quic_session_module(session, quic_app_retransmission_module);
     pkt->num = numgen->next;
 
     // generate short header
@@ -392,7 +380,7 @@ static quic_err_t quic_sender_module_init(void *const module) {
 static quic_err_t quic_sender_module_loop(void *const module, const uint64_t now) {
     quic_sender_module_t *const sender_module = module;
     quic_session_t *const session = quic_module_of_session(sender_module);
-    quic_sealer_module_t *const sealer_module = quic_session_module(quic_sealer_module_t, session, quic_sealer_module);
+    quic_sealer_module_t *const sealer_module = quic_session_module(session, quic_sealer_module);
 
     bool probe = false;
 
@@ -402,10 +390,10 @@ static quic_err_t quic_sender_module_loop(void *const module, const uint64_t now
     }
     sender_module->next_send_time = 0;
 
-    quic_retransmission_module_t *const app_r_module = quic_session_module(quic_retransmission_module_t, session, quic_app_retransmission_module);
-    quic_retransmission_module_t *const hs_r_module = quic_session_module(quic_retransmission_module_t, session, quic_handshake_retransmission_module);
-    quic_retransmission_module_t *const init_r_module = quic_session_module(quic_retransmission_module_t, session, quic_initial_retransmission_module);
-    quic_congestion_module_t *const c_module = quic_session_module(quic_congestion_module_t, session, quic_congestion_module);
+    quic_retransmission_module_t *const app_r_module = quic_session_module(session, quic_app_retransmission_module);
+    quic_retransmission_module_t *const hs_r_module = quic_session_module(session, quic_handshake_retransmission_module);
+    quic_retransmission_module_t *const init_r_module = quic_session_module(session, quic_initial_retransmission_module);
+    quic_congestion_module_t *const c_module = quic_session_module(session, quic_congestion_module);
 
     quic_send_packet_t *pkt = NULL;
 
@@ -457,7 +445,7 @@ finished:
 
 static inline quic_err_t quic_sender_send_packet(quic_sender_module_t *const module, quic_send_packet_t *const pkt) {
     quic_session_t *const session = quic_module_of_session(module);
-    quic_congestion_module_t *const c_module = quic_session_module(quic_congestion_module_t, session, quic_congestion_module);
+    quic_congestion_module_t *const c_module = quic_session_module(session, quic_congestion_module);
 
     quic_sent_packet_rbt_t *sent_pkt = malloc(sizeof(quic_sent_packet_rbt_t));
     if (sent_pkt) {

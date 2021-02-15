@@ -68,7 +68,7 @@ static quic_err_t quic_stream_flowctrl_instance_init(quic_stream_flowctrl_module
 static void quic_stream_flowctrl_instance_update_rwnd(void *const instance, const uint64_t off, const bool fin) {
     quic_stream_flowctrl_t *const flowctrl = instance;
     quic_session_t *const session = quic_module_of_session(flowctrl->module);
-    quic_conn_flowctrl_module_t *const cf_module = quic_session_module(quic_conn_flowctrl_module_t, session, quic_conn_flowctrl_module);
+    quic_conn_flowctrl_module_t *const cf_module = quic_session_module(session, quic_conn_flowctrl_module);
 
     if (flowctrl->fin_flag && ((fin && off != flowctrl->recv_off) || off > flowctrl->recv_off)) {
         return;
@@ -93,7 +93,7 @@ static void quic_stream_flowctrl_instance_update_swnd(void *const instance, cons
 static void quic_stream_flowctrl_instance_abandon(void *const instance) {
     quic_stream_flowctrl_t *const flowctrl = instance;
     quic_session_t *const session = quic_module_of_session(flowctrl->module);
-    quic_conn_flowctrl_module_t *const cf_module = quic_session_module(quic_conn_flowctrl_module_t, session, quic_conn_flowctrl_module);
+    quic_conn_flowctrl_module_t *const cf_module = quic_session_module(session, quic_conn_flowctrl_module);
 
     uint64_t unread_bytes = flowctrl->recv_off - flowctrl->read_off;
     if (unread_bytes > 0) {
@@ -121,8 +121,8 @@ static void quic_stream_flowctrl_instance_sent(void *const instance, const uint6
 static void quic_stream_flowctrl_instance_read(void *const instance, const uint64_t sid, const uint64_t readed_bytes) {
     quic_stream_flowctrl_t *const flowctrl = instance;
     quic_session_t *const session = quic_module_of_session(flowctrl->module);
-    quic_stream_module_t *const s_module = quic_session_module(quic_stream_module_t, session, quic_stream_module);
-    quic_conn_flowctrl_module_t *const cf_module = quic_session_module(quic_conn_flowctrl_module_t, session, quic_conn_flowctrl_module);
+    quic_stream_module_t *const s_module = quic_session_module(session, quic_stream_module);
+    quic_conn_flowctrl_module_t *const cf_module = quic_session_module(session, quic_conn_flowctrl_module);
 
     if (!flowctrl->read_off) {
         flowctrl->epoch_off = 0;
@@ -152,8 +152,8 @@ static bool quic_stream_flowctrl_instance_newly_blocked(uint64_t *const limit, v
 
 static inline void quic_stream_flowctrl_adjust_rwnd(quic_stream_flowctrl_t *const flowctrl) {
     quic_session_t *const session = quic_module_of_session(flowctrl->module);
-    quic_conn_flowctrl_module_t *const cf_module = quic_session_module(quic_conn_flowctrl_module_t, session, quic_conn_flowctrl_module);
-    quic_congestion_module_t *const c_module = quic_session_module(quic_congestion_module_t, session, quic_congestion_module);
+    quic_conn_flowctrl_module_t *const cf_module = quic_session_module(session, quic_conn_flowctrl_module);
+    quic_congestion_module_t *const c_module = quic_session_module(session, quic_congestion_module);
 
     uint64_t smoothed_rtt = quic_congestion_smoothed_rtt(c_module);
     uint64_t in_epoch_readed_bytes = flowctrl->read_off - flowctrl->epoch_off;
