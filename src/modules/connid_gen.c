@@ -158,6 +158,23 @@ static quic_err_t quic_connid_gen_start(void *const module) {
     return quic_err_success;
 }
 
+quic_err_t quic_connid_gen_replace_close(quic_connid_gen_module_t *const module, const quic_buf_t pkt) {
+    quic_session_t *const session = quic_module_of_session(module);
+    quic_connid_gened_t *gened = NULL;
+    bool first = true;
+    quic_rbt_foreach(gened, module->srcs) {
+        if (session->retire_connid) {
+            session->retire_connid(session, gened->connid);
+        }
+        if (session->close) {
+            session->close(session, gened->connid, pkt, session->path, first);
+        }
+        first = false;
+    }
+
+    return quic_err_success;
+}
+
 quic_module_t quic_connid_gen_module = {
     .name        = "connid_gen",
     .module_size = sizeof(quic_connid_gen_module_t),
