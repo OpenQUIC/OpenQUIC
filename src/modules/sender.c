@@ -34,6 +34,10 @@ static quic_send_packet_t *quic_sender_pack_initial_packet(quic_sender_module_t 
 static quic_send_packet_t *quic_sender_pack_handshake_packet(quic_sender_module_t *const sender, const bool probe);
 static quic_send_packet_t *quic_sender_pack_app_packet(quic_sender_module_t *const sender, const bool probe);
 
+static quic_send_packet_t *quic_sender_pack_initial_connection_close(quic_sender_module_t *const sender, const quic_frame_connection_close_t *const frame);
+static quic_send_packet_t *quic_sender_pack_handshake_connection_close(quic_sender_module_t *const sender, const quic_frame_connection_close_t *const frame);
+static quic_send_packet_t *quic_sender_pack_app_connection_close(quic_sender_module_t *const sender, const quic_frame_connection_close_t *const frame);
+
 static inline quic_err_t quic_sender_send_packet(quic_sender_module_t *const module, quic_send_packet_t *const pkt);
 
 static quic_err_t quic_sender_module_init(void *const module);
@@ -201,6 +205,8 @@ static quic_send_packet_t *quic_sender_pack_initial_packet(quic_sender_module_t 
         quic_frame_format(&pkt->buf, frame);
     }
 
+    // TODO sealer
+
     return pkt;
 }
 
@@ -283,6 +289,8 @@ static quic_send_packet_t *quic_sender_pack_handshake_packet(quic_sender_module_
         quic_frame_format(&pkt->buf, frame);
     }
 
+    // TODO sealer
+
     return pkt;
 }
 
@@ -364,6 +372,8 @@ static quic_send_packet_t *quic_sender_pack_app_packet(quic_sender_module_t *con
     quic_link_foreach(frame, &pkt->frames) {
         quic_frame_format(&pkt->buf, frame);
     }
+
+    // TODO sealer
 
     return pkt;
 }
@@ -478,3 +488,104 @@ quic_module_t quic_sender_module = {
     .loop        = quic_sender_module_loop,
     .destory     = NULL
 };
+
+quic_send_packet_t *quic_sender_pack_connection_close(quic_sender_module_t *const sender, const uint64_t type, const uint64_t errcode, const quic_buf_t reason) {
+    quic_session_t *const session = quic_module_of_session(sender);
+    quic_sealer_module_t *const sealer = quic_session_module(session, quic_sealer_module);
+
+    quic_frame_connection_close_t *const frame = malloc(sizeof(quic_frame_connection_close_t) + quic_buf_size(&reason)); 
+    if (!frame) {
+        return NULL;
+    }
+    frame->type = type;
+    frame->err = errcode;
+    frame->len = quic_buf_size(&reason);
+    memcpy(frame->data, reason.pos, frame->len);
+
+    quic_send_packet_t *pkt = NULL;
+
+    switch (sealer->level) {
+    case ssl_encryption_initial:
+        pkt = quic_sender_pack_initial_connection_close(sender, frame);
+        break;
+    case ssl_encryption_handshake:
+        pkt = quic_sender_pack_handshake_connection_close(sender, frame);
+        break;
+    case ssl_encryption_application:
+        pkt = quic_sender_pack_app_connection_close(sender, frame);
+        break;
+    default:
+        break;
+    }
+
+    free(frame);
+
+    return pkt;
+}
+
+static quic_send_packet_t *quic_sender_pack_initial_connection_close(quic_sender_module_t *const sender, const quic_frame_connection_close_t *const frame) {
+    quic_session_t *const session = quic_module_of_session(sender);
+    const uint32_t mtu = quic_session_path_mtu(session);
+    if (!mtu) {
+        return NULL;
+    }
+
+    quic_packet_number_generator_module_t *const numgen = quic_session_module(session, quic_initial_packet_number_generator_module);
+
+    quic_send_packet_t *pkt = NULL;
+    quic_send_packet_init(pkt, mtu);
+    pkt->num = numgen->next;
+
+    size_t payload_len = quic_frame_size(frame);
+
+    quic_sender_generate_initial_header(session, pkt->num, payload_len, &pkt->buf);
+    quic_frame_format(&pkt->buf, frame);
+
+    // TODO sealer 
+
+    return pkt;
+}
+
+static quic_send_packet_t *quic_sender_pack_handshake_connection_close(quic_sender_module_t *const sender, const quic_frame_connection_close_t *const frame) {
+    quic_session_t *const session = quic_module_of_session(sender);
+    const uint32_t mtu = quic_session_path_mtu(session);
+    if (!mtu) {
+        return NULL;
+    }
+
+    quic_packet_number_generator_module_t *const numgen = quic_session_module(session, quic_handshake_packet_number_generator_module);
+
+    quic_send_packet_t *pkt = NULL;
+    quic_send_packet_init(pkt, mtu);
+    pkt->num = numgen->next;
+
+    size_t payload_len = quic_frame_size(frame);
+
+    quic_sender_generate_handshake_header(session, pkt->num, payload_len, &pkt->buf);
+    quic_frame_format(&pkt->buf, frame);
+
+    // TODO sealer 
+
+    return pkt;
+}
+
+static quic_send_packet_t *quic_sender_pack_app_connection_close(quic_sender_module_t *const sender, const quic_frame_connection_close_t *const frame) {
+    quic_session_t *const session = quic_module_of_session(sender);
+    const uint32_t mtu = quic_session_path_mtu(session);
+    if (!mtu) {
+        return NULL;
+    }
+
+    quic_packet_number_generator_module_t *const numgen = quic_session_module(session, quic_app_packet_number_generator_module);
+
+    quic_send_packet_t *pkt = NULL;
+    quic_send_packet_init(pkt, mtu);
+    pkt->num = numgen->next;
+
+    quic_sender_generate_short_header(session, pkt->num, &pkt->buf);
+    quic_frame_format(&pkt->buf, frame);
+
+    // TODO sealer 
+
+    return pkt;
+}

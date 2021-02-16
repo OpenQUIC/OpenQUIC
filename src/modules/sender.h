@@ -52,4 +52,6 @@ struct quic_sender_module_s {
 
 extern quic_module_t quic_sender_module;
 
+quic_send_packet_t *quic_sender_pack_connection_close(quic_sender_module_t *const sender, const uint64_t type, const uint64_t errcode, const quic_buf_t reason);
+
 #endif
