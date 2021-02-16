@@ -17,6 +17,8 @@
 
 static int quic_session_run_co(void *const session_);
 
+static quic_err_t quic_session_close_procedure(quic_session_t *const session);
+
 quic_session_t *quic_session_create(quic_transmission_t *const transmission, const quic_config_t cfg) {
     uint32_t modules_size = quic_modules_size();
 
@@ -34,6 +36,7 @@ quic_session_t *quic_session_create(quic_transmission_t *const transmission, con
 
     session->new_connid = NULL;
     session->retire_connid = NULL;
+    session->close = NULL;
 
     return session;
 }
@@ -125,12 +128,43 @@ module_loop:
         }
     }
 
+    quic_session_close_procedure(session);
+
     for (i = 0; quic_modules[i]; i++) {
         void *module = quic_session_module(session, *quic_modules[i]);
         quic_module_destory(module);
     }
 
     return 0;
+}
+
+static quic_err_t quic_session_close_procedure(quic_session_t *const session) {
+    quic_sender_module_t *const sender = quic_session_module(session, quic_sender_module);
+    quic_connid_gen_module_t *const connid_gen = quic_session_module(session, quic_connid_gen_module);
+    quic_buf_t reason = {};
+    quic_buf_init(&reason);
+
+    quic_send_packet_t *const close_pkt = quic_sender_pack_connection_close(sender, 0, 0, reason);
+    quic_buf_t buf = {};
+    quic_buf_init(&buf);
+    buf.buf = close_pkt->data;
+    buf.capa = close_pkt->buf.pos - close_pkt->buf.buf;
+    quic_buf_setpl(&buf);
+
+    quic_connid_gen_replace_close(connid_gen, buf);
+
+    free(close_pkt);
+
+    return quic_err_success;
+}
+
+quic_err_t quic_session_close(quic_session_t *const session) {
+    if (session->mod_chan.closed) {
+        return quic_err_success;
+    }
+    liteco_chan_close(&session->mod_chan);
+
+    return quic_err_success;
 }
 
 quic_err_t quic_session_cert_file(quic_session_t *const session, const char *const cert_file) {
@@ -205,4 +239,9 @@ quic_err_t quic_session_set_transport_parameter(quic_session_t *const session, c
     }
 
     return quic_err_success;
+}
+
+
+quic_err_t quic_closed_session_send_packet(quic_closed_session_t *const session) {
+    return quic_transmission_send(session->transmission, session->path, session->pkt.buf, quic_buf_size(&session->pkt));
 }

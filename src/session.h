@@ -87,6 +87,7 @@ struct quic_session_s {
 
     bool (*new_connid) (quic_session_t *const, const quic_buf_t);
     void (*retire_connid) (quic_session_t *const, const quic_buf_t);
+    void (*close) (quic_session_t *const, const quic_buf_t, const quic_buf_t, const quic_path_t, const bool);
 
     uint64_t loop_deadline;
     uint8_t modules[0];
@@ -109,10 +110,13 @@ struct quic_session_s {
         (session)->loop_deadline = (deadline);                                                     \
     }
 
+typedef quic_err_t (*quic_session_handler_t) (quic_session_t *const, const quic_frame_t *const);
+
 quic_session_t *quic_session_create(quic_transmission_t *const transmission, const quic_config_t cfg);
 quic_err_t quic_session_init(quic_session_t *const session, liteco_eloop_t *const eloop, liteco_runtime_t *const rt, void *const st, const size_t st_len);
 quic_err_t quic_session_finished(quic_session_t *const session, int (*finished_cb) (void *const args), void *const args);
-typedef quic_err_t (*quic_session_handler_t) (quic_session_t *const, const quic_frame_t *const);
+
+quic_err_t quic_session_close(quic_session_t *const session);
 
 quic_err_t quic_session_cert_file(quic_session_t *const session, const char *const cert_file);
 quic_err_t quic_session_key_file(quic_session_t *const session, const char *const key_file);
@@ -128,5 +132,22 @@ quic_err_t quic_session_send(quic_session_t *const session, const void *const da
 
 quic_transport_parameter_t quic_session_get_transport_parameter(quic_session_t *const session);
 quic_err_t quic_session_set_transport_parameter(quic_session_t *const session, const quic_transport_parameter_t params);
+
+typedef struct quic_closed_session_s quic_closed_session_t;
+struct quic_closed_session_s {
+    QUIC_RBT_STRING_FIELDS
+
+    quic_transmission_t *transmission;
+    quic_path_t path;
+    quic_buf_t pkt;
+};
+
+#define quic_closed_sessions_insert(store, session) \
+    quic_rbt_insert((store), (session), quic_rbt_string_comparer)
+
+#define quic_closed_sessions_find(store, key) \
+    ((quic_closed_session_t *) quic_rbt_find((store), (key), quic_rbt_string_key_comparer))
+
+quic_err_t quic_closed_session_send_packet(quic_closed_session_t *const session);
 
 #endif
