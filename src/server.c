@@ -42,6 +42,7 @@ static int quic_server_session_free_st_cb(void *const args);
 
 static bool quic_server_new_connid_cb(quic_session_t *const session, const quic_buf_t connid);
 static void quic_server_retire_connid_cb(quic_session_t *const session, const quic_buf_t connid);
+static void quic_server_session_close_cb(quic_session_t *const session, const quic_buf_t connid, const quic_buf_t pkt, const quic_path_t path, const bool send);
 
 quic_err_t quic_server_init(quic_server_t *const server, const size_t st_size) {
     uint8_t rand = 0;
@@ -59,6 +60,7 @@ quic_err_t quic_server_init(quic_server_t *const server, const size_t st_size) {
     server->cfg = quic_server_default_config;
 
     quic_rbt_tree_init(server->sessions);
+    quic_rbt_tree_init(server->closed_sessions);
 
     server->accept_cb = NULL;
 
@@ -110,6 +112,7 @@ static quic_err_t quic_server_transmission_recv_cb(quic_transmission_t *const tr
         session->cfg = server->cfg;
         session->new_connid = quic_server_new_connid_cb;
         session->retire_connid = quic_server_retire_connid_cb;
+        session->close = quic_server_session_close_cb;
 
         void *st = malloc(server->st_size);
         if (!st) {
@@ -186,4 +189,27 @@ static void quic_server_retire_connid_cb(quic_session_t *const session, const qu
 
     quic_rbt_remove(&server->sessions, &store);
     free(store);
+}
+
+static void quic_server_session_close_cb(quic_session_t *const session, const quic_buf_t connid, const quic_buf_t pkt, const quic_path_t path, const bool send) {
+    quic_server_t *const server = ((void *) session->transmission) - offsetof(quic_server_t, transmission);
+
+    quic_closed_session_t *const closed_session = malloc(sizeof(quic_closed_session_t));
+    if (!closed_session) {
+        return;
+    }
+    quic_rbt_init(closed_session);
+
+    quic_buf_init(&closed_session->key);
+    quic_buf_copy(&closed_session->key, &connid);
+    closed_session->transmission = &server->transmission;
+    closed_session->path = path;
+    quic_buf_init(&closed_session->pkt);
+    quic_buf_copy(&closed_session->pkt, &pkt);
+
+    quic_closed_sessions_insert(&server->closed_sessions, closed_session);
+
+    if (send) {
+        quic_closed_session_send_packet(closed_session);
+    }
 }

@@ -38,7 +38,9 @@ struct quic_server_s {
     size_t st_size;
     quic_config_t cfg;
     size_t connid_len;
+
     quic_session_store_t *sessions;
+    quic_closed_session_t *closed_sessions;
 
     quic_err_t (*accept_cb) (quic_server_t *const, quic_session_t *const);
 };

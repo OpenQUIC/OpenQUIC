@@ -41,4 +41,6 @@ quic_err_t quic_client_handshake_done(quic_client_t *const client, quic_err_t (*
 
 quic_err_t quic_client_start_loop(quic_client_t *const client);
 
+quic_client_t *quic_session_client(quic_session_t *const session);
+
 #endif

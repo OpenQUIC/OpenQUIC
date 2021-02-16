@@ -134,3 +134,7 @@ static quic_err_t quic_client_transmission_recv_cb(quic_transmission_t *const tr
 
     return quic_recver_push(r_module, recvpkt);
 }
+
+quic_client_t *quic_session_client(quic_session_t *const session) {
+    return ((void *) session->transmission) - offsetof(quic_client_t, transmission);
+}
