@@ -37,6 +37,8 @@ quic_session_t *quic_session_create(quic_transmission_t *const transmission, con
     session->new_connid = NULL;
     session->retire_connid = NULL;
     session->close = NULL;
+    session->quic_closed = true;
+    session->remote_closed = false;
 
     return session;
 }
@@ -151,7 +153,11 @@ static quic_err_t quic_session_close_procedure(quic_session_t *const session) {
     buf.capa = close_pkt->buf.pos - close_pkt->buf.buf;
     quic_buf_setpl(&buf);
 
-    quic_connid_gen_replace_close(connid_gen, buf);
+    quic_connid_gen_retire_all(connid_gen);
+
+    if (session->close) {
+        session->close(session, buf);
+    }
 
     free(close_pkt);
 
@@ -163,6 +169,8 @@ quic_err_t quic_session_close(quic_session_t *const session) {
         return quic_err_success;
     }
     liteco_chan_close(&session->mod_chan);
+    session->quic_closed = false;
+    session->remote_closed = false;
 
     return quic_err_success;
 }
@@ -241,7 +249,18 @@ quic_err_t quic_session_set_transport_parameter(quic_session_t *const session, c
     return quic_err_success;
 }
 
-
 quic_err_t quic_closed_session_send_packet(quic_closed_session_t *const session) {
     return quic_transmission_send(session->transmission, session->path, session->pkt.buf, quic_buf_size(&session->pkt));
+}
+
+quic_err_t quic_session_handle_connection_close_frame(quic_session_t *const session, const quic_frame_t *const frame) {
+    quic_frame_connection_close_t *const c_frame = (quic_frame_connection_close_t *) frame;
+    if (session->mod_chan.closed) {
+        return quic_err_success;
+    }
+    liteco_chan_close(&session->mod_chan);
+    session->quic_closed = c_frame->first_byte == quic_frame_quic_connection_close_type;
+    session->remote_closed = true;
+
+    return quic_err_success;
 }

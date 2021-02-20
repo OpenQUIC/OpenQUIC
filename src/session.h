@@ -87,7 +87,9 @@ struct quic_session_s {
 
     bool (*new_connid) (quic_session_t *const, const quic_buf_t);
     void (*retire_connid) (quic_session_t *const, const quic_buf_t);
-    void (*close) (quic_session_t *const, const quic_buf_t, const quic_buf_t, const quic_path_t, const bool);
+    void (*close) (quic_session_t *const, const quic_buf_t);
+    bool quic_closed;
+    bool remote_closed;
 
     uint64_t loop_deadline;
     uint8_t modules[0];
@@ -137,6 +139,7 @@ typedef struct quic_closed_session_s quic_closed_session_t;
 struct quic_closed_session_s {
     QUIC_RBT_STRING_FIELDS
 
+    uint64_t closed_at;
     quic_transmission_t *transmission;
     quic_path_t path;
     quic_buf_t pkt;
