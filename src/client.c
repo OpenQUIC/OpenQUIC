@@ -40,6 +40,9 @@ const quic_config_t quic_client_default_config = {
 
 static quic_err_t quic_client_transmission_recv_cb(quic_transmission_t *const transmission, quic_recv_packet_t *const recvpkt);
 
+static void quic_client_eloop_close_cb(liteco_event_t *const event, const uint64_t action);
+static void quic_client_session_close_cb(quic_session_t *const session, const quic_buf_t pkt);
+
 quic_err_t quic_client_init(quic_client_t *const client, void *const st, const size_t st_size) {
     uint8_t rand = 0;
     quic_buf_t src;
@@ -66,6 +69,7 @@ quic_err_t quic_client_init(quic_client_t *const client, void *const st, const s
 
     client->session = quic_session_create(&client->transmission, quic_client_default_config);
     client->session->src = src;
+    client->session->close = quic_client_session_close_cb;
 
     quic_buf_t *const dst = &client->session->dst;
     dst->capa = client->connid_len;
@@ -79,12 +83,23 @@ quic_err_t quic_client_init(quic_client_t *const client, void *const st, const s
 
     quic_session_init(client->session, &client->eloop, &client->rt, st, st_size);
 
+    client->closed = false;
+    liteco_event_init(&client->eloop, &client->closed_event, true);
+    liteco_event_setup(&client->closed_event, quic_client_eloop_close_cb);
+
     return quic_err_success;
 }
 
 quic_err_t quic_client_start_loop(quic_client_t *const client) {
+    if (client->closed) {
+        return quic_err_success;
+    }
+
     for ( ;; ) {
         liteco_eloop_run(&client->eloop, -1);
+        if (client->closed) {
+            break;
+        }
     }
     return quic_err_success;
 }
@@ -137,4 +152,23 @@ static quic_err_t quic_client_transmission_recv_cb(quic_transmission_t *const tr
 
 quic_client_t *quic_session_client(quic_session_t *const session) {
     return ((void *) session->transmission) - offsetof(quic_client_t, transmission);
+}
+
+static void quic_client_eloop_close_cb(liteco_event_t *const event, const uint64_t action) {
+    (void) action;
+
+    quic_client_t *const client = ((void *) event) - offsetof(quic_client_t, closed_event);
+    if (client->closed) {
+        return;
+    }
+
+    client->closed = true;
+    liteco_eloop_close(&client->eloop);
+}
+
+static void quic_client_session_close_cb(quic_session_t *const session, const quic_buf_t pkt) {
+    quic_client_t *const client = ((void *) session->transmission) - offsetof(quic_client_t, transmission);
+
+    quic_transmission_send(&client->transmission, session->path, pkt.buf, quic_buf_size(&pkt));
+    liteco_event_dispatch(&client->closed_event, 1);
 }
