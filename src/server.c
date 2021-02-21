@@ -8,6 +8,8 @@
 
 #include "format/header.h"
 #include "modules/recver.h"
+#include "modules/connid_gen.h"
+#include "utils/time.h"
 #include "server.h"
 #include <openssl/rand.h>
 
@@ -42,7 +44,9 @@ static int quic_server_session_free_st_cb(void *const args);
 
 static bool quic_server_new_connid_cb(quic_session_t *const session, const quic_buf_t connid);
 static void quic_server_retire_connid_cb(quic_session_t *const session, const quic_buf_t connid);
-static void quic_server_session_close_cb(quic_session_t *const session, const quic_buf_t connid, const quic_buf_t pkt, const quic_path_t path, const bool send);
+static void quic_server_session_close_cb(quic_session_t *const session, const quic_buf_t pkt);
+
+static void quic_session_close_foreach_src_cb(const quic_buf_t connid, void *args);
 
 quic_err_t quic_server_init(quic_server_t *const server, const size_t st_size) {
     uint8_t rand = 0;
@@ -191,7 +195,27 @@ static void quic_server_retire_connid_cb(quic_session_t *const session, const qu
     free(store);
 }
 
-static void quic_server_session_close_cb(quic_session_t *const session, const quic_buf_t connid, const quic_buf_t pkt, const quic_path_t path, const bool send) {
+typedef struct quic_connid_gen_foreach_src_param_s quic_connid_gen_foreach_src_param_t;
+struct quic_connid_gen_foreach_src_param_s {
+    quic_session_t *const session;
+    const quic_buf_t *const pkt;
+};
+
+static void quic_server_session_close_cb(quic_session_t *const session, const quic_buf_t pkt) {
+    quic_connid_gen_module_t *const g_module = quic_session_module(session, quic_connid_gen_module);
+
+    quic_connid_gen_foreach_src_param_t params = { .session = session, .pkt = &pkt };
+    quic_connid_gen_foreach_src(g_module, quic_session_close_foreach_src_cb, &params);
+
+    quic_transmission_send(session->transmission, session->path, pkt.buf, quic_buf_size(&pkt));
+}
+
+
+static void quic_session_close_foreach_src_cb(const quic_buf_t connid, void *args) {
+    quic_connid_gen_foreach_src_param_t *const param = args;
+    quic_session_t *const session = param->session;
+    const quic_buf_t *const pkt = param->pkt;
+
     quic_server_t *const server = ((void *) session->transmission) - offsetof(quic_server_t, transmission);
 
     quic_closed_session_t *const closed_session = malloc(sizeof(quic_closed_session_t));
@@ -200,16 +224,13 @@ static void quic_server_session_close_cb(quic_session_t *const session, const qu
     }
     quic_rbt_init(closed_session);
 
+    closed_session->closed_at = quic_now();
     quic_buf_init(&closed_session->key);
     quic_buf_copy(&closed_session->key, &connid);
     closed_session->transmission = &server->transmission;
-    closed_session->path = path;
+    closed_session->path = session->path;
     quic_buf_init(&closed_session->pkt);
-    quic_buf_copy(&closed_session->pkt, &pkt);
+    quic_buf_copy(&closed_session->pkt, pkt);
 
     quic_closed_sessions_insert(&server->closed_sessions, closed_session);
-
-    if (send) {
-        quic_closed_session_send_packet(closed_session);
-    }
 }
