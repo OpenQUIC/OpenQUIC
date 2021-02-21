@@ -11,6 +11,9 @@ quic_err_t read_done(quic_stream_t *const str, void *const data, const size_t ca
 
     quic_stream_close(str, NULL);
 
+    quic_session_t *session = quic_stream_session(str);
+    quic_session_close(session);
+
     return quic_err_success;
 }
 
