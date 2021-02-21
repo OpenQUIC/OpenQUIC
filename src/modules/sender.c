@@ -497,6 +497,7 @@ quic_send_packet_t *quic_sender_pack_connection_close(quic_sender_module_t *cons
     if (!frame) {
         return NULL;
     }
+    quic_frame_init(frame, session->quic_closed ? quic_frame_quic_connection_close_type : quic_frame_app_connection_close_type);
     frame->type = type;
     frame->err = errcode;
     frame->len = quic_buf_size(&reason);

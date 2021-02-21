@@ -158,18 +158,22 @@ static quic_err_t quic_connid_gen_start(void *const module) {
     return quic_err_success;
 }
 
-quic_err_t quic_connid_gen_replace_close(quic_connid_gen_module_t *const module, const quic_buf_t pkt) {
+quic_err_t quic_connid_gen_retire_all(quic_connid_gen_module_t *const module) {
     quic_session_t *const session = quic_module_of_session(module);
     quic_connid_gened_t *gened = NULL;
-    bool first = true;
     quic_rbt_foreach(gened, module->srcs) {
         if (session->retire_connid) {
             session->retire_connid(session, gened->connid);
         }
-        if (session->close) {
-            session->close(session, gened->connid, pkt, session->path, first);
-        }
-        first = false;
+    }
+
+    return quic_err_success;
+}
+
+quic_err_t quic_connid_gen_foreach_src(quic_connid_gen_module_t *const module, void (*cb) (const quic_buf_t connid, void *args), void *const args) {
+    quic_connid_gened_t *gened = NULL;
+    quic_rbt_foreach(gened, module->srcs) {
+        cb(gened->connid, args);
     }
 
     return quic_err_success;

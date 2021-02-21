@@ -42,6 +42,7 @@ struct quic_connid_gen_module_s {
 extern quic_module_t quic_connid_gen_module;
 
 quic_err_t quic_connid_gen_issue_src(quic_connid_gen_module_t *const module);
-quic_err_t quic_connid_gen_replace_close(quic_connid_gen_module_t *const module, const quic_buf_t pkt);
+quic_err_t quic_connid_gen_retire_all(quic_connid_gen_module_t *const module);
+quic_err_t quic_connid_gen_foreach_src(quic_connid_gen_module_t *const module, void (*cb) (const quic_buf_t connid, void *args), void *const args);
 
 #endif
