@@ -44,7 +44,7 @@ static int quic_server_session_free_st_cb(void *const args);
 
 static bool quic_server_new_connid_cb(quic_session_t *const session, const quic_buf_t connid);
 static void quic_server_retire_connid_cb(quic_session_t *const session, const quic_buf_t connid);
-static void quic_server_session_close_cb(quic_session_t *const session, const quic_buf_t pkt);
+static void quic_server_session_replace_close_cb(quic_session_t *const session, const quic_buf_t pkt);
 
 static void quic_session_close_foreach_src_cb(const quic_buf_t connid, void *args);
 
@@ -114,9 +114,7 @@ static quic_err_t quic_server_transmission_recv_cb(quic_transmission_t *const tr
         quic_buf_copy(&session->src, &cli_dst);
         quic_buf_copy(&session->dst, &cli_src);
         session->cfg = server->cfg;
-        session->new_connid = quic_server_new_connid_cb;
-        session->retire_connid = quic_server_retire_connid_cb;
-        session->close = quic_server_session_close_cb;
+        session->replace_close = quic_server_session_replace_close_cb;
 
         void *st = malloc(server->st_size);
         if (!st) {
@@ -124,6 +122,12 @@ static quic_err_t quic_server_transmission_recv_cb(quic_transmission_t *const tr
         }
         quic_session_init(session, &server->eloop, &server->rt, st, server->st_size);
         quic_session_finished(session, quic_server_session_free_st_cb, st);
+
+        quic_connid_gen_module_t *g_module = quic_session_module(session, quic_connid_gen_module);
+        g_module->new_connid = quic_server_new_connid_cb;
+        g_module->retire_connid = quic_server_retire_connid_cb;
+ 
+        liteco_runtime_join(&server->rt, &session->co, true);
 
         quic_session_path_use(session, quic_path_addr(quic_litecoaddr(recvpkt->pkt.local_addr), quic_litecoaddr(recvpkt->pkt.remote_addr)));
 
@@ -201,7 +205,7 @@ struct quic_connid_gen_foreach_src_param_s {
     const quic_buf_t *const pkt;
 };
 
-static void quic_server_session_close_cb(quic_session_t *const session, const quic_buf_t pkt) {
+static void quic_server_session_replace_close_cb(quic_session_t *const session, const quic_buf_t pkt) {
     quic_connid_gen_module_t *const g_module = quic_session_module(session, quic_connid_gen_module);
 
     quic_connid_gen_foreach_src_param_t params = { .session = session, .pkt = &pkt };

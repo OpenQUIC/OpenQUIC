@@ -85,9 +85,8 @@ struct quic_session_s {
     quic_transmission_t *transmission;
     quic_path_t path;
 
-    bool (*new_connid) (quic_session_t *const, const quic_buf_t);
-    void (*retire_connid) (quic_session_t *const, const quic_buf_t);
-    void (*close) (quic_session_t *const, const quic_buf_t);
+    void (*on_close) (quic_session_t *const);
+    void (*replace_close) (quic_session_t *const, const quic_buf_t);
     bool quic_closed;
     bool remote_closed;
 
@@ -119,6 +118,7 @@ quic_err_t quic_session_init(quic_session_t *const session, liteco_eloop_t *cons
 quic_err_t quic_session_finished(quic_session_t *const session, int (*finished_cb) (void *const args), void *const args);
 
 quic_err_t quic_session_close(quic_session_t *const session);
+quic_err_t quic_session_on_close(quic_session_t *const session, void (*cb) (quic_session_t *const));
 
 quic_err_t quic_session_cert_file(quic_session_t *const session, const char *const cert_file);
 quic_err_t quic_session_key_file(quic_session_t *const session, const char *const key_file);

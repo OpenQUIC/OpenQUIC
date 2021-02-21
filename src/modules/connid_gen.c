@@ -47,10 +47,10 @@ quic_err_t quic_connid_gen_issue_src(quic_connid_gen_module_t *const module) {
         if (quic_connid_gen(&connid) != quic_err_success) {
             return quic_err_internal_error;
         }
-        if (!session->new_connid) {
+        if (!module->new_connid) {
             break;
         }
-        if (session->new_connid(session, connid)) {
+        if (module->new_connid(session, connid)) {
             break;
         }
     }
@@ -92,8 +92,8 @@ static quic_err_t quic_connid_gen_retire_src(quic_connid_gen_module_t *const mod
         return quic_err_success;
     }
 
-    if (session->retire_connid) {
-        session->retire_connid(session, src_gened->connid);
+    if (module->retire_connid) {
+        module->retire_connid(session, src_gened->connid);
     }
 
     quic_rbt_remove(&module->srcs, &src_gened);
@@ -127,6 +127,9 @@ static quic_err_t quic_connid_gen_init(void *const module) {
     quic_rbt_tree_init(c_module->dsts);
 
     c_module->dst_active = 0;
+
+    c_module->new_connid = NULL;
+    c_module->retire_connid = NULL;
 
     return quic_err_success;
 }
@@ -162,8 +165,8 @@ quic_err_t quic_connid_gen_retire_all(quic_connid_gen_module_t *const module) {
     quic_session_t *const session = quic_module_of_session(module);
     quic_connid_gened_t *gened = NULL;
     quic_rbt_foreach(gened, module->srcs) {
-        if (session->retire_connid) {
-            session->retire_connid(session, gened->connid);
+        if (module->retire_connid) {
+            module->retire_connid(session, gened->connid);
         }
     }
 

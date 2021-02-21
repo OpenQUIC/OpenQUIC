@@ -34,9 +34,8 @@ quic_session_t *quic_session_create(quic_transmission_t *const transmission, con
 
     session->transmission = transmission;
 
-    session->new_connid = NULL;
-    session->retire_connid = NULL;
-    session->close = NULL;
+    session->on_close = NULL;
+    session->replace_close = NULL;
     session->quic_closed = true;
     session->remote_closed = false;
 
@@ -53,8 +52,6 @@ quic_err_t quic_session_init(quic_session_t *const session, liteco_eloop_t *cons
 
     liteco_create(&session->co, quic_session_run_co, session, st, st_len);
     liteco_timer_init(eloop, &session->timer, &session->timer_chan);
-
-    liteco_runtime_join(rt, &session->co, true);
 
     uint32_t i;
     for (i = 0; quic_modules[i]; i++) {
@@ -132,11 +129,6 @@ module_loop:
 
     quic_session_close_procedure(session);
 
-    for (i = 0; quic_modules[i]; i++) {
-        void *module = quic_session_module(session, *quic_modules[i]);
-        quic_module_destory(module);
-    }
-
     return 0;
 }
 
@@ -145,6 +137,10 @@ static quic_err_t quic_session_close_procedure(quic_session_t *const session) {
     quic_connid_gen_module_t *const connid_gen = quic_session_module(session, quic_connid_gen_module);
     quic_buf_t reason = {};
     quic_buf_init(&reason);
+
+    if (session->on_close) {
+        session->on_close(session);
+    }
 
     quic_send_packet_t *const close_pkt = quic_sender_pack_connection_close(sender, 0, 0, reason);
     quic_buf_t buf = {};
@@ -155,11 +151,17 @@ static quic_err_t quic_session_close_procedure(quic_session_t *const session) {
 
     quic_connid_gen_retire_all(connid_gen);
 
-    if (session->close) {
-        session->close(session, buf);
+    if (session->replace_close) {
+        session->replace_close(session, buf);
     }
 
     free(close_pkt);
+
+    int i;
+    for (i = 0; quic_modules[i]; i++) {
+        void *module = quic_session_module(session, *quic_modules[i]);
+        quic_module_destory(module);
+    }
 
     return quic_err_success;
 }
@@ -171,6 +173,12 @@ quic_err_t quic_session_close(quic_session_t *const session) {
     liteco_chan_close(&session->mod_chan);
     session->quic_closed = false;
     session->remote_closed = false;
+
+    return quic_err_success;
+}
+
+quic_err_t quic_session_on_close(quic_session_t *const session, void (*cb) (quic_session_t *const)) {
+    session->on_close = cb;
 
     return quic_err_success;
 }

@@ -9,6 +9,7 @@
 #ifndef __OPENQUIC_CONNID_GEN_H__
 #define __OPENQUIC_CONNID_GEN_H__
 
+#include "session.h"
 #include "module.h"
 #include "utils/rbt.h"
 
@@ -37,6 +38,9 @@ struct quic_connid_gen_module_s {
     quic_connid_gened_t *dsts;
 
     uint64_t dst_active;
+
+    bool (*new_connid) (quic_session_t *const, const quic_buf_t);
+    void (*retire_connid) (quic_session_t *const, const quic_buf_t);
 };
 
 extern quic_module_t quic_connid_gen_module;
