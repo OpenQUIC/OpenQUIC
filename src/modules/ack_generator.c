@@ -11,6 +11,7 @@
 #include <malloc.h>
 
 static quic_err_t quic_ack_generator_init(void *const module);
+static quic_err_t quic_ack_generator_destory(void *const module);
 
 bool quic_ack_generator_insert_ranges(quic_ack_generator_module_t *const module, const uint64_t num) {
     quic_ack_generator_range_t *range = NULL;
@@ -197,6 +198,10 @@ static quic_err_t quic_ack_generator_init(void *const module) {
     return quic_err_success;
 }
 
+static quic_err_t quic_ack_generator_destory(void *const module) {
+    return quic_ack_generator_drop(module);
+}
+
 quic_module_t quic_initial_ack_generator_module = {
     .name        = "initial_ack_generator",
     .module_size = sizeof(quic_ack_generator_module_t),
@@ -204,7 +209,7 @@ quic_module_t quic_initial_ack_generator_module = {
     .start       = NULL,
     .process     = NULL,
     .loop        = NULL,
-    .destory     = NULL
+    .destory     = quic_ack_generator_destory
 };
 
 quic_module_t quic_handshake_ack_generator_module = {
@@ -214,7 +219,7 @@ quic_module_t quic_handshake_ack_generator_module = {
     .start       = NULL,
     .process     = NULL,
     .loop        = NULL,
-    .destory     = NULL
+    .destory     = quic_ack_generator_destory
 };
 
 quic_module_t quic_app_ack_generator_module = {
@@ -224,5 +229,5 @@ quic_module_t quic_app_ack_generator_module = {
     .start       = NULL,
     .process     = NULL,
     .loop        = NULL,
-    .destory     = NULL
+    .destory     = quic_ack_generator_destory
 };
