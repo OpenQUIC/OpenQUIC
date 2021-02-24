@@ -9,6 +9,7 @@
 #include "modules/conn_flowctrl.h"
 
 static quic_err_t quic_conn_flowctrl_module_init(void *const module);
+static quic_err_t quic_conn_flowctrl_module_destory(void *const module);
 
 static quic_err_t quic_conn_flowctrl_module_init(void *const module) {
     quic_conn_flowctrl_module_t *const f_module = module;
@@ -31,11 +32,17 @@ static quic_err_t quic_conn_flowctrl_module_init(void *const module) {
     return quic_err_success;
 }
 
+static quic_err_t quic_conn_flowctrl_module_destory(void *const module) {
+    quic_conn_flowctrl_module_t *c_module = module;
+    pthread_mutex_destroy(&c_module->rwnd_updated_mtx);
+    return quic_err_success;
+}
+
 quic_module_t quic_conn_flowctrl_module = {
     .name        = "conn_flowctrl",
     .module_size = sizeof(quic_conn_flowctrl_module_t),
     .init        = NULL,
     .process     = NULL,
     .loop        = NULL,
-    .destory     = NULL
+    .destory     = quic_conn_flowctrl_module_destory
 };

@@ -106,6 +106,7 @@ static inline uint64_t quic_congestion_delta_bandwidth(const uint64_t bytes, con
 }
 
 static quic_err_t quic_congestion_module_init(void *const module);
+static quic_err_t quic_congestion_module_destory(void *const module);
 
 static quic_err_t quic_congestion_module_on_acked(quic_congestion_module_t *const module, const uint64_t num, const uint64_t acked_bytes, const uint64_t unacked_bytes, const uint64_t event_time);
 static quic_err_t quic_congestion_module_on_sent(quic_congestion_module_t *const module, const uint64_t sent_time, const uint64_t num, const uint64_t sent_bytes, const bool included_unacked);
@@ -660,6 +661,19 @@ static quic_err_t quic_congestion_module_migrate(quic_congestion_module_t *const
     return quic_err_success;
 }
 
+static quic_err_t quic_congestion_module_destory(void *const module) {
+    quic_congestion_module_t *const c_module = module;
+    quic_congestion_instance_t *const instance = quic_congestion_instance(c_module);
+
+    while (!quic_rbt_is_nil(instance->store)) {
+        quic_congestion_status_store_t *store = instance->store;
+        quic_rbt_remove(&instance->store, &store);
+        free(store);
+    }
+
+    return quic_err_success;
+}
+
 quic_module_t quic_congestion_module = {
     .name        = "congestion",
     .module_size = sizeof(quic_congestion_module_t) + sizeof(quic_congestion_instance_t),
@@ -667,5 +681,5 @@ quic_module_t quic_congestion_module = {
     .start       = NULL,
     .process     = NULL,
     .loop        = NULL,
-    .destory     = NULL
+    .destory     = quic_congestion_module_destory
 };

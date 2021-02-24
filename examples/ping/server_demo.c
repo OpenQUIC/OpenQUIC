@@ -41,10 +41,18 @@ quic_err_t handshake_done(quic_session_t *const session) {
     return quic_err_success;
 }
 
+void on_close(quic_session_t *const session) {
+    (void) session;
+
+    printf("closed\n");
+}
+
 quic_err_t accept_session(quic_server_t *const server, quic_session_t *const session) {
     (void) server;
 
     quic_session_handshake_done(session, handshake_done);
+
+    quic_session_on_close(session, on_close);
 
     return quic_err_success;
 }

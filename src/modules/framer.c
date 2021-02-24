@@ -10,6 +10,8 @@
 #include "modules/stream.h"
 
 static quic_err_t quic_framer_module_init(void *const module);
+static quic_err_t quic_framer_module_destory(void *const module);
+
 static quic_err_t quic_framer_stream_frame_on_lost(void *const lost_obj, const quic_frame_t *const frame);
 
 uint64_t quic_framer_append_stream_frame(quic_link_t *const frames, const uint64_t capa, const bool fill, quic_framer_module_t *const module, quic_retransmission_module_t *const retransmission_module) {
@@ -105,6 +107,32 @@ static quic_err_t quic_framer_module_init(void *const module) {
     return quic_err_success;
 }
 
+static quic_err_t quic_framer_module_destory(void *const module) {
+    quic_framer_module_t *const f_module = module;
+
+    pthread_mutex_destroy(&f_module->mtx);
+
+    while (!quic_link_empty(&f_module->active_queue)) {
+        quic_framer_que_sid_t *const que_sid = (quic_framer_que_sid_t *) quic_link_next(&f_module->active_queue);
+        quic_link_remove(que_sid);
+        free(que_sid);
+    }
+
+    while (!quic_link_empty(&f_module->ctrls)) {
+        quic_frame_t *frame = (quic_frame_t *) quic_link_next(&f_module->ctrls);
+        quic_link_remove(frame);
+        free(frame);
+    }
+
+    while (!quic_rbt_is_nil(f_module->active_set)) {
+        quic_framer_set_sid_t *sid = f_module->active_set;
+        quic_rbt_remove(&f_module->active_set, &sid);
+        free(sid);
+    }
+
+    return quic_err_success;
+}
+
 quic_module_t quic_framer_module = {
     .name        = "framer",
     .module_size = sizeof(quic_framer_module_t),
@@ -112,5 +140,5 @@ quic_module_t quic_framer_module = {
     .start       = NULL,
     .process     = NULL,
     .loop        = NULL,
-    .destory     = NULL
+    .destory     = quic_framer_module_destory
 };

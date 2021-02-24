@@ -25,6 +25,9 @@
 
 static quic_err_t quic_sealer_module_init(void *const module);
 static quic_err_t quic_sealer_module_start(void *const module);
+static quic_err_t quic_sealer_module_destory(void *const module);
+
+static quic_err_t quic_sealer_destory(quic_sealer_t *const sealer);
 
 static int quic_sealer_set_read_secret(SSL *ssl, enum ssl_encryption_level_t level, const SSL_CIPHER *cipher, const uint8_t *secret, size_t secret_len);
 static int quic_sealer_set_write_secret(SSL *ssl, enum ssl_encryption_level_t level, const SSL_CIPHER *cipher, const uint8_t *secret, size_t secret_len);
@@ -407,6 +410,54 @@ static quic_err_t quic_sealer_module_start(void *const module) {
     return quic_err_success;
 }
 
+static quic_err_t quic_sealer_module_destory(void *const module) {
+    quic_sealer_module_t *const s_module = module;
+
+    SSL_CTX_free(s_module->ssl_ctx);
+    SSL_free(s_module->ssl);
+
+    quic_sealer_destory(&s_module->initial_sealer);
+    quic_sealer_destory(&s_module->handshake_sealer);
+    quic_sealer_destory(&s_module->app_sealer);
+
+    quic_sorter_destory(&s_module->initial_r_sorter);
+    quic_sorter_destory(&s_module->initial_w_sorter);
+    quic_sorter_destory(&s_module->handshake_r_sorter);
+    quic_sorter_destory(&s_module->handshake_w_sorter);
+
+    return quic_err_success;
+}
+
+static quic_err_t quic_sealer_destory(quic_sealer_t *const sealer) {
+    if (sealer->w_ctx) {
+        EVP_AEAD_CTX_free(sealer->w_ctx);
+    }
+    if (sealer->w_sec.buf) {
+        free(sealer->w_sec.buf);
+    }
+    if (sealer->w_key.buf) {
+        free(sealer->w_key.buf);
+    }
+    if (sealer->w_iv.buf) {
+        free(sealer->w_iv.buf);
+    }
+
+    if (sealer->r_ctx) {
+        EVP_AEAD_CTX_free(sealer->r_ctx);
+    }
+    if (sealer->r_sec.buf) {
+        free(sealer->r_sec.buf);
+    }
+    if (sealer->r_key.buf) {
+        free(sealer->r_key.buf);
+    }
+    if (sealer->r_iv.buf) {
+        free(sealer->r_iv.buf);
+    }
+
+    return quic_err_success;
+}
+
 static quic_err_t quic_sealer_process_transport_parameters(quic_sealer_module_t *const module) {
     quic_session_t *const session = quic_module_of_session(module);
     const quic_transport_parameter_t params = quic_session_get_transport_parameter(session);
@@ -462,7 +513,7 @@ quic_module_t quic_sealer_module = {
     .start       = quic_sealer_module_start,
     .process     = NULL,
     .loop        = NULL,
-    .destory     = NULL
+    .destory     = quic_sealer_module_destory
 };
 
 quic_err_t quic_session_handle_crypto_frame(quic_session_t *const session, const quic_frame_t *const frame) {

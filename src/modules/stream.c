@@ -15,6 +15,11 @@
 #include "module.h"
 #include <stdbool.h>
 
+static quic_err_t quic_stream_module_init(void *const module);
+static quic_err_t quic_stream_module_loop(void *const module, const uint64_t now);
+static quic_err_t quic_stream_module_destory(void *const module);
+static quic_err_t quic_stream_set_destory(quic_stream_set_t *const set);
+
 static inline quic_stream_t *quic_session_open_recv_stream(quic_stream_module_t *const module, const uint64_t sid);
 static inline quic_stream_t *quic_stream_module_recv_relation_stream(quic_stream_module_t *const module, const uint64_t sid);
 
@@ -639,7 +644,7 @@ static inline bool quic_stream_destroable(quic_stream_t *const str) {
     return str->recv.closed && str->recv.fin_flag && str->send.closed && str->send.sent_fin;
 }
 
-static quic_err_t quic_session_stream_module_loop(void *const module, const uint64_t now) {
+static quic_err_t quic_stream_module_loop(void *const module, const uint64_t now) {
     quic_stream_module_t *const stream_module = module;
     quic_session_t *const session = quic_module_of_session(module);
     quic_stream_destory_sid_t *d_sid = NULL;
@@ -707,6 +712,45 @@ static quic_err_t quic_session_stream_module_loop(void *const module, const uint
     return quic_err_success;
 }
 
+static quic_err_t quic_stream_module_destory(void *const module) {
+    quic_stream_module_t *s_module = module;
+
+    quic_stream_set_destory(&s_module->inuni);
+    quic_stream_set_destory(&s_module->inbidi);
+    quic_stream_set_destory(&s_module->outuni);
+    quic_stream_set_destory(&s_module->outbidi);
+
+    pthread_mutex_destroy(&s_module->rwnd_updated_mtx);
+
+    while (!quic_rbt_is_nil(s_module->rwnd_updated)) {
+        quic_stream_rwnd_updated_sid_t *sid = s_module->rwnd_updated;
+        quic_rbt_remove(&s_module->rwnd_updated, &sid);
+        free(sid);
+    }
+
+    pthread_mutex_destroy(&s_module->destory_mtx);
+
+    while (!quic_rbt_is_nil(s_module->destory_set)) {
+        quic_stream_destory_sid_t *sid = s_module->destory_set;
+        quic_rbt_remove(&s_module->destory_set, &sid);
+        free(sid);
+    }
+
+    return quic_err_success;
+}
+
+static quic_err_t quic_stream_set_destory(quic_stream_set_t *const set) {
+    pthread_mutex_destroy(&set->mtx);
+
+    while (!quic_rbt_is_nil(set->streams)) {
+        quic_stream_t *str = set->streams;
+        quic_rbt_remove(&set->streams, &str);
+        quic_stream_destory(str);
+    }
+
+    return quic_err_success;
+}
+
 quic_err_t quic_stream_module_process_rwnd(quic_stream_module_t *const module) {
     quic_session_t *const session = quic_module_of_session(module);
     quic_framer_module_t *const framer = quic_session_module(session, quic_framer_module);
@@ -760,8 +804,8 @@ quic_module_t quic_stream_module = {
     .init        = quic_stream_module_init,
     .start       = NULL,
     .process     = NULL,
-    .loop        = quic_session_stream_module_loop,
-    .destory     = NULL,
+    .loop        = quic_stream_module_loop,
+    .destory     = quic_stream_module_destory
 };
 
 static inline quic_err_t quic_recv_stream_handle_frame(quic_recv_stream_t *const str, const quic_frame_stream_t *const frame) {

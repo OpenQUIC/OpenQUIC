@@ -14,8 +14,9 @@
 #include "server.h"
 #include <openssl/rand.h>
 
-static quic_err_t quic_connid_gen_init(void *const module);
-static quic_err_t quic_connid_gen_start(void *const module);
+static quic_err_t quic_connid_gen_module_init(void *const module);
+static quic_err_t quic_connid_gen_module_start(void *const module);
+static quic_err_t quic_connid_gen_module_destory(void *const module);
 
 static quic_err_t quic_connid_gen_retire_src(quic_connid_gen_module_t *const module, const uint64_t seq);
 
@@ -109,7 +110,7 @@ static quic_err_t quic_connid_gen_retire_src(quic_connid_gen_module_t *const mod
     return quic_err_success;
 }
 
-static quic_err_t quic_connid_gen_init(void *const module) {
+static quic_err_t quic_connid_gen_module_init(void *const module) {
     quic_connid_gen_module_t *const c_module = module;
     quic_session_t *const session = quic_module_of_session(c_module);
 
@@ -134,7 +135,7 @@ static quic_err_t quic_connid_gen_init(void *const module) {
     return quic_err_success;
 }
 
-static quic_err_t quic_connid_gen_start(void *const module) {
+static quic_err_t quic_connid_gen_module_start(void *const module) {
     quic_connid_gen_module_t *const c_module = module;
     quic_session_t *const session = quic_module_of_session(c_module);
 
@@ -157,6 +158,28 @@ static quic_err_t quic_connid_gen_start(void *const module) {
     dst_gened->connid = session->dst;
 
     quic_connid_gened_insert(&c_module->dsts, dst_gened);
+
+    return quic_err_success;
+}
+
+static quic_err_t quic_connid_gen_module_destory(void *const module) {
+    quic_connid_gen_module_t *c_module = module;
+
+    while (!quic_rbt_is_nil(c_module->srcs)) {
+        quic_connid_gened_t *gened = c_module->srcs;
+        quic_rbt_remove(&c_module->srcs, &gened);
+
+        free(gened->connid.buf);
+        free(gened);
+    }
+
+    while (!quic_rbt_is_nil(c_module->dsts)) {
+        quic_connid_gened_t *gened = c_module->dsts;
+        quic_rbt_remove(&c_module->dsts, &gened);
+
+        free(gened->connid.buf);
+        free(gened);
+    }
 
     return quic_err_success;
 }
@@ -185,11 +208,11 @@ quic_err_t quic_connid_gen_foreach_src(quic_connid_gen_module_t *const module, v
 quic_module_t quic_connid_gen_module = {
     .name        = "connid_gen",
     .module_size = sizeof(quic_connid_gen_module_t),
-    .init        = quic_connid_gen_init,
-    .start       = quic_connid_gen_start,
+    .init        = quic_connid_gen_module_init,
+    .start       = quic_connid_gen_module_start,
     .process     = NULL,
     .loop        = NULL,
-    .destory     = NULL
+    .destory     = quic_connid_gen_module_destory
 };
 
 quic_err_t quic_session_handle_new_connection_id_frame(quic_session_t *const session, const quic_frame_t *const frame) {

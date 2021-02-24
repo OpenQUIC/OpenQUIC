@@ -16,6 +16,7 @@ static quic_err_t quic_recver_process_packet_payload(quic_session_t *const sess,
 
 static quic_err_t quic_recver_module_init(void *const module);
 static quic_err_t quic_recver_module_process(void *const module);
+static quic_err_t quic_recver_module_destory(void *const module);
 
 extern quic_session_handler_t quic_session_handler[256];
 
@@ -177,6 +178,25 @@ static quic_err_t quic_recver_module_process(void *const module) {
     return quic_err_success;
 }
 
+static quic_err_t quic_recver_module_destory(void *const module) {
+    quic_recver_module_t *const ur_module = module;
+    
+    pthread_mutex_destroy(&ur_module->mtx);
+
+    while (!quic_link_empty(&ur_module->queue)) {
+        quic_recv_packet_t *recvpkt = (quic_recv_packet_t *) quic_link_next(&ur_module->queue);
+        quic_link_remove(recvpkt);
+        recvpkt->pkt.recovery(&recvpkt->pkt);
+    }
+
+    if (ur_module->curr_packet) {
+        ur_module->curr_packet->pkt.recovery(&ur_module->curr_packet->pkt);
+        ur_module->curr_packet = NULL;
+    }
+
+    return quic_err_success;
+}
+
 quic_module_t quic_recver_module = {
     .name        = "recver",
     .module_size = sizeof(quic_recver_module_t),
@@ -184,5 +204,5 @@ quic_module_t quic_recver_module = {
     .start       = NULL,
     .process     = quic_recver_module_process,
     .loop        = NULL,
-    .destory     = NULL
+    .destory     = quic_recver_module_destory
 };

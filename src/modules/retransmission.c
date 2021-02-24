@@ -21,6 +21,7 @@ struct quic_dropped_pkt_s {
 
 static quic_err_t quic_retransmission_module_init(void *const module);
 static quic_err_t quic_retransmission_module_loop(void *const module, const uint64_t now);
+static quic_err_t quic_retransmission_module_destory(void *const module);
 
 static quic_err_t quic_retransmission_find_newly_lost(quic_retransmission_module_t *const module);
 static quic_err_t quic_retransmission_find_newly_acked(quic_retransmission_module_t *const module, const quic_frame_ack_t *const frame);
@@ -231,7 +232,7 @@ static quic_err_t quic_retransmission_module_init(void *const module) {
 
 static quic_err_t quic_retransmission_module_loop(void *const module, const uint64_t now) {
     quic_session_t *const session = quic_module_of_session(module);
-    quic_retransmission_module_t *const r_module = (quic_retransmission_module_t *) module;
+    quic_retransmission_module_t *const r_module = module;
 
     if (r_module->alarm == 0 || r_module->dropped) {
         return quic_err_success;
@@ -249,6 +250,18 @@ static quic_err_t quic_retransmission_module_loop(void *const module, const uint
     return quic_err_success;
 }
 
+static quic_err_t quic_retransmission_module_destory(void *const module) {
+    quic_retransmission_module_t *const r_module = module;
+
+    while (!quic_link_empty(&r_module->retransmission_queue)) {
+        quic_frame_t *frame = (quic_frame_t *) quic_link_next(&r_module->retransmission_queue);
+        quic_link_remove(frame);
+        free(frame);
+    }
+
+    return quic_err_success;
+}
+
 quic_module_t quic_initial_retransmission_module = {
     .name        = "initial_retransmission",
     .module_size = sizeof(quic_retransmission_module_t),
@@ -256,7 +269,7 @@ quic_module_t quic_initial_retransmission_module = {
     .start       = NULL,
     .process     = NULL,
     .loop        = quic_retransmission_module_loop,
-    .destory     = NULL
+    .destory     = quic_retransmission_module_destory
 };
 
 quic_module_t quic_handshake_retransmission_module = {
@@ -266,7 +279,7 @@ quic_module_t quic_handshake_retransmission_module = {
     .start       = NULL,
     .process     = NULL,
     .loop        = quic_retransmission_module_loop,
-    .destory     = NULL
+    .destory     = quic_retransmission_module_destory
 };
 
 quic_module_t quic_app_retransmission_module = {
@@ -276,7 +289,7 @@ quic_module_t quic_app_retransmission_module = {
     .start       = NULL,
     .process     = NULL,
     .loop        = quic_retransmission_module_loop,
-    .destory     = NULL
+    .destory     = quic_retransmission_module_destory
 };
 
 quic_err_t quic_session_handle_ack_frame(quic_session_t *const session, const quic_frame_t *const frame) {
