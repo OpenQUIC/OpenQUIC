@@ -38,18 +38,25 @@ const quic_config_t quic_client_default_config = {
     .stream_destory_timeout = 0,
 };
 
+static int quic_client_session_free_st_cb(void *const args);
 static quic_err_t quic_client_transmission_recv_cb(quic_transmission_t *const transmission, quic_recv_packet_t *const recvpkt);
 
 static void quic_client_eloop_close_cb(liteco_event_t *const event, const uint64_t action);
 static void quic_client_session_replace_close_cb(quic_session_t *const session, const quic_buf_t pkt);
 
-quic_err_t quic_client_init(quic_client_t *const client, void *const st, const size_t st_size) {
+quic_err_t quic_client_init(quic_client_t *const client, const size_t st_size) {
     uint8_t rand = 0;
     quic_buf_t src;
+
+    void *st = malloc(st_size);
+    if (!st) {
+        return quic_err_internal_error;
+    }
 
     /*if (RAND_bytes(&rand, 1) <= 0) {*/
         /*return quic_err_internal_error;*/
     /*}*/
+    client->st_size = st_size;
     client->connid_len = 8 + rand % 11;
 
     quic_buf_init(&src);
@@ -82,6 +89,7 @@ quic_err_t quic_client_init(quic_client_t *const client, void *const st, const s
     quic_buf_setpl(dst);
 
     quic_session_init(client->session, &client->eloop, &client->rt, st, st_size);
+    quic_session_finished(client->session, quic_client_session_free_st_cb, st);
 
     liteco_runtime_join(&client->rt, &client->session->co, true);
 
@@ -173,4 +181,10 @@ static void quic_client_session_replace_close_cb(quic_session_t *const session, 
 
     quic_transmission_send(&client->transmission, session->path, pkt.buf, quic_buf_size(&pkt));
     liteco_event_dispatch(&client->closed_event, 1);
+}
+
+static int quic_client_session_free_st_cb(void *const args) {
+    free(args);
+
+    return 0;
 }

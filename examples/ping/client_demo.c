@@ -38,10 +38,9 @@ quic_err_t handshake_done_cb(quic_session_t *const session) {
     return quic_err_success;
 }
 
-uint8_t client_st[8192];
 int main() {
     quic_client_t client;
-    quic_client_init(&client, client_st, sizeof(client_st));
+    quic_client_init(&client, 8192);
 
     quic_client_path_use(&client, quic_path_ipv4("127.0.0.1", 11000, "127.0.0.1", 11001));
     quic_client_handshake_done(&client, handshake_done_cb);

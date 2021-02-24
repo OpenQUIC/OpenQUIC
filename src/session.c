@@ -16,6 +16,7 @@
 #include <malloc.h>
 
 static int quic_session_run_co(void *const session_);
+static int quic_session_destory(void *const session_);
 
 static quic_err_t quic_session_close_procedure(quic_session_t *const session);
 
@@ -51,6 +52,8 @@ quic_err_t quic_session_init(quic_session_t *const session, liteco_eloop_t *cons
     liteco_chan_create(&session->timer_chan, 0, liteco_runtime_readycb, rt);
 
     liteco_create(&session->co, quic_session_run_co, session, st, st_len);
+    liteco_finished(&session->co, quic_session_destory, session);
+
     liteco_timer_init(eloop, &session->timer, &session->timer_chan);
 
     uint32_t i;
@@ -62,6 +65,18 @@ quic_err_t quic_session_init(quic_session_t *const session, liteco_eloop_t *cons
     }
 
     return quic_err_success;
+}
+
+static int quic_session_destory(void *const session_) {
+    quic_session_t *const session = session_;
+
+    liteco_timer_close(&session->timer);
+    liteco_chan_destory(&session->timer_chan);
+    liteco_chan_destory(&session->mod_chan);
+
+    free(session);
+
+    return 0;
 }
 
 quic_err_t quic_session_finished(quic_session_t *const session, int (*finished_cb) (void *const args), void *const args) {
