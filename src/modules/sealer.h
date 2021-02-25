@@ -16,10 +16,27 @@
 #include "modules/framer.h"
 #include "modules/ack_generator.h"
 #include <openssl/ssl.h>
+#include <openssl/aes.h>
+#include <openssl/chacha.h>
 #include <malloc.h>
 #include <byteswap.h>
 
 #define quic_ssl_session_id_context "OpenQUIC server"
+
+typedef struct quic_header_protector_s quic_header_protector_t;
+struct quic_header_protector_s {
+    uint32_t suite_id;
+    quic_buf_t key;
+
+    uint8_t mask[32];
+};
+
+static inline quic_err_t quic_header_protector_init(quic_header_protector_t *const header_protector) {
+    quic_buf_init(&header_protector->key);
+    header_protector->suite_id = 0;
+
+    return quic_err_success;
+}
 
 typedef struct quic_sealer_s quic_sealer_t;
 struct quic_sealer_s {
@@ -29,6 +46,7 @@ struct quic_sealer_s {
     quic_buf_t w_sec;
     quic_buf_t w_key;
     quic_buf_t w_iv;
+    quic_header_protector_t w_hp;
 
     EVP_AEAD_CTX *r_ctx;
     const EVP_AEAD *(*r_aead)();
@@ -36,6 +54,8 @@ struct quic_sealer_s {
     quic_buf_t r_sec;
     quic_buf_t r_key;
     quic_buf_t r_iv;
+    quic_header_protector_t r_hp;
+
 };
 
 static inline quic_err_t quic_sealer_init(quic_sealer_t *const sealer) {
@@ -45,6 +65,7 @@ static inline quic_err_t quic_sealer_init(quic_sealer_t *const sealer) {
     quic_buf_init(&sealer->w_sec);
     quic_buf_init(&sealer->w_key);
     quic_buf_init(&sealer->w_iv);
+    quic_header_protector_init(&sealer->w_hp);
 
     sealer->r_ctx = NULL;
     sealer->r_aead = NULL;
@@ -52,24 +73,27 @@ static inline quic_err_t quic_sealer_init(quic_sealer_t *const sealer) {
     quic_buf_init(&sealer->r_sec);
     quic_buf_init(&sealer->r_key);
     quic_buf_init(&sealer->r_iv);
+    quic_header_protector_init(&sealer->r_hp);
 
     return quic_err_success;
 }
 
-static inline quic_err_t quic_sealer_set(quic_sealer_t *const sealer, const uint8_t *rsec, const uint8_t *wsec, const size_t len) {
-    sealer->r_sec.capa = len;
-    sealer->r_sec.buf = malloc(len);
-    if (!sealer->r_sec.buf) {
-        return quic_err_internal_error;
-    }
-    memcpy(sealer->r_sec.buf, rsec, len);
+static inline quic_err_t quic_sealer_set_header_simple(quic_header_protector_t *const hdr_p, const uint8_t *const simple, const uint32_t simple_len) {
+    switch (hdr_p->suite_id) {
+    case TLS1_CK_AES_128_GCM_SHA256:
+    case TLS1_CK_AES_256_GCM_SHA384:
+        {
+            AES_KEY key;
+            AES_set_encrypt_key(hdr_p->key.pos, quic_buf_size(&hdr_p->key), &key);
 
-    sealer->w_sec.capa = len;
-    sealer->w_sec.buf = malloc(len);
-    if (!sealer->w_sec.buf) {
-        return quic_err_internal_error;
+            AES_encrypt(simple, hdr_p->mask, &key);
+        }
+        break;
+
+    case TLS1_CK_CHACHA20_POLY1305_SHA256:
+        CRYPTO_chacha_20(hdr_p->mask, simple, simple_len, hdr_p->key.buf, simple + 4, *(uint32_t *) simple);
+        break;
     }
-    memcpy(sealer->w_sec.buf, wsec, len);
 
     return quic_err_success;
 }

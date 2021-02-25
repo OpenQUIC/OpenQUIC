@@ -15,6 +15,7 @@
 #include <openssl/pem.h>
 #include <openssl/bio.h>
 #include <openssl/hkdf.h>
+#include <openssl/kdf.h>
 #include <byteswap.h>
 
 #define QUIC_DEFAULT_TLE_CIPHERS                     \
@@ -28,6 +29,8 @@ static quic_err_t quic_sealer_module_start(void *const module);
 static quic_err_t quic_sealer_module_destory(void *const module);
 
 static quic_err_t quic_sealer_destory(quic_sealer_t *const sealer);
+
+static quic_err_t quic_sealer_set_header_protector(quic_header_protector_t *const header_protector, const uint32_t id, const uint8_t *secret, const uint32_t secret_len);
 
 static int quic_sealer_set_read_secret(SSL *ssl, enum ssl_encryption_level_t level, const SSL_CIPHER *cipher, const uint8_t *secret, size_t secret_len);
 static int quic_sealer_set_write_secret(SSL *ssl, enum ssl_encryption_level_t level, const SSL_CIPHER *cipher, const uint8_t *secret, size_t secret_len);
@@ -85,6 +88,51 @@ static inline quic_err_t quic_sealer_set_key_iv(quic_buf_t *const key, quic_buf_
     return quic_err_success;
 }
 
+static quic_err_t quic_sealer_set_header_protector(quic_header_protector_t *const header_protector, const uint32_t id, const uint8_t *secret, const uint32_t secret_len) {
+    const EVP_MD *digest = NULL;
+    uint32_t keylen = 0;
+    uint8_t info[] = "\x00\x00\x0dtls13 quic hp\x00";
+
+    header_protector->suite_id = id;
+
+    switch (id) {
+    case TLS1_CK_AES_128_GCM_SHA256:
+        digest = EVP_sha256();
+        keylen = 16;
+        info[1] = 16;
+
+        break;
+
+    case TLS1_CK_AES_256_GCM_SHA384:
+        digest = EVP_sha384();
+        keylen = 32;
+        info[1] = 32;
+
+        break;
+
+    case TLS1_CK_CHACHA20_POLY1305_SHA256:
+        digest = EVP_sha256();
+        keylen = 32;
+        info[1] = 32;
+
+        break;
+    }
+
+    if (header_protector->key.buf) {
+        free(header_protector->key.buf);
+    }
+    header_protector->key.buf = malloc(keylen);
+    if (!header_protector->key.buf) {
+        return quic_err_internal_error;
+    }
+    header_protector->key.capa = keylen;
+
+    HKDF_expand(header_protector->key.buf, header_protector->key.capa, digest, secret, secret_len, info, sizeof(info) - 1);
+    quic_buf_setpl(&header_protector->key);
+
+    return quic_err_success;
+}
+
 #define quic_sealer_alloc_buf(_buf, size) { \
     (_buf).capa = size;                     \
     if (!((_buf).buf = malloc(size))) {     \
@@ -96,6 +144,7 @@ static inline quic_err_t quic_sealer_set_key_iv(quic_buf_t *const key, quic_buf_
 static int quic_sealer_set_read_secret(SSL *ssl, enum ssl_encryption_level_t level, const SSL_CIPHER *cipher, const uint8_t *secret, size_t secret_len) {
     quic_sealer_module_t *const s_module = SSL_get_app_data(ssl);
     quic_sealer_t *sealer = NULL;
+    uint32_t cipher_id = SSL_CIPHER_get_id(cipher);
 
     switch (level) {
     case ssl_encryption_initial:
@@ -120,7 +169,7 @@ static int quic_sealer_set_read_secret(SSL *ssl, enum ssl_encryption_level_t lev
     quic_buf_setpl(&sealer->r_sec);
     s_module->r_level = level;
 
-    switch (SSL_CIPHER_get_id(cipher)) {
+    switch (cipher_id) {
     case TLS1_CK_AES_128_GCM_SHA256:
         sealer->r_aead = EVP_aead_aes_128_gcm;
         quic_sealer_alloc_buf(sealer->r_key, 16);
@@ -152,12 +201,15 @@ static int quic_sealer_set_read_secret(SSL *ssl, enum ssl_encryption_level_t lev
     }
     sealer->r_ctx = EVP_AEAD_CTX_new(sealer->r_aead(), sealer->r_key.buf, sealer->r_key.capa, sealer->r_aead_tag_size);
 
+    quic_sealer_set_header_protector(&sealer->r_hp, cipher_id, secret, secret_len);
+
     return 1;
 }
 
 static int quic_sealer_set_write_secret(SSL *ssl, enum ssl_encryption_level_t level, const SSL_CIPHER *cipher, const uint8_t *secret, size_t secret_len) {
     quic_sealer_module_t *const s_module = SSL_get_app_data(ssl);
     quic_sealer_t *sealer = NULL;
+    uint32_t cipher_id = SSL_CIPHER_get_id(cipher);
 
     switch (level) {
     case ssl_encryption_initial:
@@ -182,7 +234,7 @@ static int quic_sealer_set_write_secret(SSL *ssl, enum ssl_encryption_level_t le
     quic_buf_setpl(&sealer->w_sec);
     s_module->w_level = level;
 
-    switch (SSL_CIPHER_get_id(cipher)) {
+    switch (cipher_id) {
     case TLS1_CK_AES_128_GCM_SHA256:
         sealer->w_aead = EVP_aead_aes_128_gcm;
         quic_sealer_alloc_buf(sealer->w_key, 16);
@@ -213,6 +265,8 @@ static int quic_sealer_set_write_secret(SSL *ssl, enum ssl_encryption_level_t le
         EVP_AEAD_CTX_free(sealer->w_ctx);
     }
     sealer->w_ctx = EVP_AEAD_CTX_new(sealer->w_aead(), sealer->w_key.buf, sealer->w_key.capa, sealer->w_aead_tag_size);
+
+    quic_sealer_set_header_protector(&sealer->w_hp, cipher_id, secret, secret_len);
 
     return 1;
 }
@@ -441,6 +495,9 @@ static quic_err_t quic_sealer_destory(quic_sealer_t *const sealer) {
     if (sealer->w_iv.buf) {
         free(sealer->w_iv.buf);
     }
+    if (sealer->w_hp.key.buf) {
+        free(sealer->w_hp.key.buf);
+    }
 
     if (sealer->r_ctx) {
         EVP_AEAD_CTX_free(sealer->r_ctx);
@@ -453,6 +510,9 @@ static quic_err_t quic_sealer_destory(quic_sealer_t *const sealer) {
     }
     if (sealer->r_iv.buf) {
         free(sealer->r_iv.buf);
+    }
+    if (sealer->r_hp.key.buf) {
+        free(sealer->r_hp.key.buf);
     }
 
     return quic_err_success;
