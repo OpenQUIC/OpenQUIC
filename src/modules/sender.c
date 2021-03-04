@@ -148,8 +148,8 @@ static quic_send_packet_t *quic_sender_pack_initial_packet(quic_sender_module_t 
     quic_packet_number_generator_module_t *const numgen = quic_session_module(session, quic_initial_packet_number_generator_module);
     quic_ack_generator_module_t *const ag_module = quic_session_module(session, quic_initial_ack_generator_module);
     quic_retransmission_module_t *const r_module = quic_session_module(session, quic_initial_retransmission_module);
-    quic_sealer_module_t *s_module = quic_session_module(session, quic_sealer_module);
-    quic_frame_t *frame = NULL;
+    quic_sealer_module_t *const s_module = quic_session_module(session, quic_sealer_module);
+    quic_sealer_t *const sealer = &s_module->initial_sealer;
 
     if (!quic_sealer_should_send(s_module, ssl_encryption_initial) && quic_retransmission_empty(r_module)) {
         return NULL;
@@ -161,7 +161,7 @@ static quic_send_packet_t *quic_sender_pack_initial_packet(quic_sender_module_t 
     pkt->retransmission_module = quic_session_module(session, quic_initial_retransmission_module);
     pkt->num = numgen->next;
 
-    uint32_t max_bytes = pkt->buf.capa - quic_sender_initial_header_max_size(session, pkt->num, mtu);
+    uint32_t max_bytes = pkt->buf.capa - quic_sender_initial_header_max_size(session, pkt->num, mtu) - sealer->w_aead_tag_size;
     uint32_t frame_len = 0;
     uint32_t payload_len = 0;
 
@@ -200,12 +200,14 @@ static quic_send_packet_t *quic_sender_pack_initial_packet(quic_sender_module_t 
     }
 
     numgen->next++;
-    quic_sender_generate_initial_header(session, pkt->num, payload_len, &pkt->buf);
-    quic_link_foreach(frame, &pkt->frames) {
-        quic_frame_format(&pkt->buf, frame);
-    }
 
-    // TODO sealer
+    uint8_t hdr_slice[512 + 16] = { 0 };
+    quic_buf_t hdr = { .buf = hdr_slice, .capa = sizeof(hdr_slice) };
+    quic_buf_setpl(&hdr);
+    quic_sender_generate_initial_header(session, pkt->num, payload_len, &hdr);
+    quic_buf_write_complete(&hdr);
+
+    quic_sealer_seal(pkt, sealer, hdr);
 
     return pkt;
 }
@@ -221,8 +223,8 @@ static quic_send_packet_t *quic_sender_pack_handshake_packet(quic_sender_module_
     quic_framer_module_t *const f_module = quic_session_module(session, quic_framer_module);
     quic_ack_generator_module_t *const ag_module = quic_session_module(session, quic_handshake_ack_generator_module);
     quic_retransmission_module_t *const r_module = quic_session_module(session, quic_handshake_retransmission_module);
-    quic_sealer_module_t *s_module = quic_session_module(session, quic_sealer_module);
-    quic_frame_t *frame = NULL;
+    quic_sealer_module_t *const s_module = quic_session_module(session, quic_sealer_module);
+    quic_sealer_t *const sealer = &s_module->handshake_sealer;
 
     if (!quic_sealer_should_send(s_module, ssl_encryption_handshake) && quic_framer_ctrl_empty(f_module) && quic_retransmission_empty(r_module)) {
         return NULL;
@@ -234,7 +236,7 @@ static quic_send_packet_t *quic_sender_pack_handshake_packet(quic_sender_module_
     pkt->retransmission_module = quic_session_module(session, quic_handshake_retransmission_module);
     pkt->num = numgen->next;
 
-    uint32_t max_bytes = pkt->buf.capa - quic_sender_handshake_header_max_size(session, pkt->num, mtu);
+    uint32_t max_bytes = pkt->buf.capa - quic_sender_handshake_header_max_size(session, pkt->num, mtu) - sealer->w_aead_tag_size;
     uint32_t frame_len = 0;
     uint32_t payload_len = 0;
 
@@ -284,12 +286,15 @@ static quic_send_packet_t *quic_sender_pack_handshake_packet(quic_sender_module_
     }
 
     numgen->next++;
-    quic_sender_generate_handshake_header(session, pkt->num, payload_len, &pkt->buf);
-    quic_link_foreach(frame, &pkt->frames) {
-        quic_frame_format(&pkt->buf, frame);
-    }
 
-    // TODO sealer
+    uint8_t hdr_slice[512 + 16] = { 0 };
+    quic_buf_t hdr = { .buf = hdr_slice, .capa = sizeof(hdr_slice) };
+    quic_buf_setpl(&hdr);
+
+    quic_sender_generate_handshake_header(session, pkt->num, payload_len, &hdr);
+    quic_buf_write_complete(&hdr);
+
+    quic_sealer_seal(pkt, sealer, hdr);
 
     return pkt;
 }
@@ -306,8 +311,7 @@ static quic_send_packet_t *quic_sender_pack_app_packet(quic_sender_module_t *con
     quic_framer_module_t *const f_module = quic_session_module(session, quic_framer_module);
     quic_ack_generator_module_t *const ag_module = quic_session_module(session, quic_app_ack_generator_module);
     quic_retransmission_module_t *const r_module = quic_session_module(session, quic_app_retransmission_module);
-
-    quic_frame_t *frame = NULL;
+    quic_sealer_t *const sealer = &((quic_sealer_module_t *) quic_session_module(session, quic_sealer_module))->app_sealer;
 
     // generate max stream data
     quic_stream_module_process_rwnd(stream_module);
@@ -322,10 +326,15 @@ static quic_send_packet_t *quic_sender_pack_app_packet(quic_sender_module_t *con
     pkt->retransmission_module = quic_session_module(session, quic_app_retransmission_module);
     pkt->num = numgen->next;
 
-    // generate short header
-    quic_sender_generate_short_header(session, pkt->num, &pkt->buf);
+    uint8_t hdr_slice[256 + 16] = { 0 };
+    quic_buf_t hdr = { .buf = hdr_slice, .capa = sizeof(hdr_slice) };
+    quic_buf_setpl(&hdr);
 
-    uint32_t max_bytes = pkt->buf.capa - (pkt->buf.pos - pkt->buf.buf);
+    // generate short header
+    quic_sender_generate_short_header(session, pkt->num, &hdr);
+    quic_buf_write_complete(&hdr);
+
+    uint32_t max_bytes = pkt->buf.capa - quic_buf_size(&hdr) - sealer->w_aead_tag_size;
     uint32_t frame_len = 0;
 
     // generate ACK frame and serialize it
@@ -369,11 +378,8 @@ static quic_send_packet_t *quic_sender_pack_app_packet(quic_sender_module_t *con
     }
 
     numgen->next++;
-    quic_link_foreach(frame, &pkt->frames) {
-        quic_frame_format(&pkt->buf, frame);
-    }
 
-    // TODO sealer
+    quic_sealer_seal(pkt, sealer, hdr);
 
     return pkt;
 }
@@ -476,7 +482,7 @@ static inline quic_err_t quic_sender_send_packet(quic_sender_module_t *const mod
         quic_congestion_on_sent(c_module, sent_pkt->sent_time, sent_pkt->key, sent_pkt->pkt_len, sent_pkt->included_unacked);
     }
 
-    return quic_session_send(session, pkt->data, pkt->buf.pos - pkt->buf.buf);
+    return quic_session_send(session, pkt->data, quic_buf_size(&pkt->buf));
 }
 
 quic_module_t quic_sender_module = {

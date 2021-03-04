@@ -250,4 +250,6 @@ static inline quic_err_t quic_sealer_handshake_done(quic_sealer_module_t *const 
     return quic_err_success;
 }
 
+quic_err_t quic_sealer_seal(quic_send_packet_t *const pkt, quic_sealer_t *const sealer, const quic_buf_t hdr);
+
 #endif

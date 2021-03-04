@@ -30,6 +30,11 @@ struct quic_buf_s {
     (b)->last = (b)->pos + (b)->capa; \
 }
 
+#define quic_buf_write_complete(b) { \
+    (b)->last = (b)->pos;            \
+    (b)->pos = (b)->buf;             \
+}
+
 #define quic_buf_size(a) ((a)->last - (a)->pos)
 
 #define quic_buf_writed_len(a) ((a)->pos - (a)->buf)

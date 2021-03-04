@@ -515,6 +515,12 @@ static quic_err_t quic_sealer_module_start(void *const module) {
     quic_buf_init(&ser_sec);
 
     quic_sealer_initial_compute_security(&cli_sec, &ser_sec, session->cfg.is_cli ? session->dst : session->src);
+
+    s_module->initial_sealer.r_aead = EVP_aead_aes_256_gcm_tls13;
+    s_module->initial_sealer.w_aead = EVP_aead_aes_256_gcm_tls13;
+    s_module->initial_sealer.r_aead_tag_size = EVP_AEAD_max_tag_len(s_module->initial_sealer.r_aead());
+    s_module->initial_sealer.w_aead_tag_size = EVP_AEAD_max_tag_len(s_module->initial_sealer.w_aead());
+
     if (session->cfg.is_cli) {
         s_module->initial_sealer.w_sec = cli_sec;
         s_module->initial_sealer.r_sec = ser_sec;
@@ -531,6 +537,15 @@ static quic_err_t quic_sealer_module_start(void *const module) {
         quic_sealer_set_key_iv(&s_module->initial_sealer.r_key, &s_module->initial_sealer.r_iv,
                                EVP_sha256(), cli_sec.pos, quic_buf_size(&cli_sec));
     }
+
+    s_module->initial_sealer.r_ctx = EVP_AEAD_CTX_new(EVP_aead_aes_256_gcm_tls13(),
+                                                      s_module->initial_sealer.r_key.buf,
+                                                      quic_buf_size(&s_module->initial_sealer.r_key),
+                                                      s_module->initial_sealer.r_aead_tag_size);
+    s_module->initial_sealer.w_ctx = EVP_AEAD_CTX_new(EVP_aead_aes_256_gcm_tls13(),
+                                                      s_module->initial_sealer.w_key.buf,
+                                                      quic_buf_size(&s_module->initial_sealer.w_key),
+                                                      s_module->initial_sealer.w_aead_tag_size);
 
     quic_sealer_module_openssl_start(module);
 
@@ -648,6 +663,21 @@ quic_module_t quic_sealer_module = {
     .loop        = NULL,
     .destory     = quic_sealer_module_destory
 };
+
+quic_err_t quic_sealer_seal(quic_send_packet_t *const pkt, quic_sealer_t *const sealer, const quic_buf_t hdr) {
+    size_t hdr_size = quic_buf_size(&hdr);
+    memcpy(pkt->buf.pos, hdr.pos, hdr_size);
+    pkt->buf.pos += hdr_size;
+
+    quic_frame_t *frame = NULL;
+    quic_link_foreach(frame, &pkt->frames) {
+        quic_frame_format(&pkt->buf, frame);
+    }
+
+    quic_buf_write_complete(&pkt->buf);
+
+    return quic_err_success;
+}
 
 quic_err_t quic_session_handle_crypto_frame(quic_session_t *const session, const quic_frame_t *const frame) {
     quic_frame_crypto_t *const c_frame = (quic_frame_crypto_t *) frame;
