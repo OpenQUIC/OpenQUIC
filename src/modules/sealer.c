@@ -16,6 +16,7 @@
 #include <openssl/bio.h>
 #include <openssl/hkdf.h>
 #include <openssl/kdf.h>
+#include <openssl/digest.h>
 #include <byteswap.h>
 
 #define QUIC_DEFAULT_TLE_CIPHERS                     \
@@ -40,10 +41,14 @@ static int quic_sealer_send_alert(SSL *ssl, enum ssl_encryption_level_t level, u
 static int quic_sealer_alpn_select_proto_cb(SSL *ssl, const uint8_t **out, uint8_t *outlen, const uint8_t *in, uint32_t inlen, void *arg);
 static enum ssl_verify_result_t quic_sealer_custom_verify(SSL *ssl, uint8_t *const alert);
 static inline int quic_sealer_set_chains_and_key(quic_sealer_module_t *const module, const char *const chain_file, const char *const key_file);
-static inline quic_err_t quic_sealer_set_key_iv(quic_buf_t *const key, quic_buf_t *const iv, const SSL_CIPHER *cipher, const uint8_t *secret, size_t secret_len);
+static inline quic_err_t quic_sealer_set_key_iv(quic_buf_t *const key, quic_buf_t *const iv, const EVP_MD *const prf, const uint8_t *secret, size_t secret_len);
 static inline quic_err_t quic_sealer_hkdf_expand_label(uint8_t *out, const size_t outlen, const EVP_MD *prf, const uint8_t *secret, size_t secret_len, const uint8_t *label, size_t label_size);
 static quic_err_t quic_sealer_process_transport_parameters(quic_sealer_module_t *const module);
 static quic_err_t quic_sealer_process_peer_transport_parameters(quic_sealer_module_t *const module);
+
+static quic_err_t quic_sealer_module_openssl_start(quic_sealer_module_t *const module);
+
+static inline quic_err_t quic_sealer_initial_compute_security(quic_buf_t *const cli_sec, quic_buf_t *const ser_sec, const quic_buf_t connid);
 
 static const uint16_t quic_signalg[] = {
     SSL_SIGN_ED25519,
@@ -77,11 +82,10 @@ static inline quic_err_t quic_sealer_hkdf_expand_label(uint8_t *out, const size_
     return quic_err_success;
 }
 
-static inline quic_err_t quic_sealer_set_key_iv(quic_buf_t *const key, quic_buf_t *const iv, const SSL_CIPHER *cipher, const uint8_t *secret, size_t secret_len) {
+static inline quic_err_t quic_sealer_set_key_iv(quic_buf_t *const key, quic_buf_t *const iv, const EVP_MD *const prf, const uint8_t *secret, size_t secret_len) {
     static const uint8_t key_label[] = "quic key";
     static const uint8_t iv_label[] = "quic iv";
 
-    const EVP_MD *prf = EVP_get_digestbynid(SSL_CIPHER_get_prf_nid(cipher));
     quic_sealer_hkdf_expand_label(key->buf, key->capa, prf, secret, secret_len, key_label, sizeof(key_label) - 1);
     quic_sealer_hkdf_expand_label(iv->buf, iv->capa, prf, secret, secret_len, key_label, sizeof(iv_label) - 1);
 
@@ -195,7 +199,7 @@ static int quic_sealer_set_read_secret(SSL *ssl, enum ssl_encryption_level_t lev
         break;
     }
 
-    quic_sealer_set_key_iv(&sealer->r_key, &sealer->r_iv, cipher, secret, secret_len);
+    quic_sealer_set_key_iv(&sealer->r_key, &sealer->r_iv, EVP_get_digestbynid(SSL_CIPHER_get_prf_nid(cipher)), secret, secret_len);
     if (sealer->r_ctx) {
         EVP_AEAD_CTX_free(sealer->r_ctx);
     }
@@ -260,7 +264,7 @@ static int quic_sealer_set_write_secret(SSL *ssl, enum ssl_encryption_level_t le
         break;
     }
 
-    quic_sealer_set_key_iv(&sealer->w_key, &sealer->w_iv, cipher, secret, secret_len);
+    quic_sealer_set_key_iv(&sealer->w_key, &sealer->w_iv, EVP_get_digestbynid(SSL_CIPHER_get_prf_nid(cipher)), secret, secret_len);
     if (sealer->w_ctx) {
         EVP_AEAD_CTX_free(sealer->w_ctx);
     }
@@ -360,6 +364,44 @@ static enum ssl_verify_result_t quic_sealer_custom_verify(SSL *ssl, uint8_t *con
     return ssl_verify_ok;
 }
 
+static inline quic_err_t quic_sealer_initial_compute_security(quic_buf_t *const cli_sec, quic_buf_t *const ser_sec, const quic_buf_t connid) {
+    static const uint8_t salt[] = {
+        0x38, 0x76, 0x2c, 0xf7,
+        0xf5, 0x59, 0x34, 0xb3,
+        0x4d, 0x17, 0x9a, 0xe6,
+        0xa4, 0xc8, 0x0c, 0xad,
+        0xcc, 0xbb, 0x7f, 0x0a
+    };
+
+    uint8_t initial_secret[EVP_MAX_MD_SIZE] = { 0 };
+    size_t initial_secret_len = 0;
+
+    static const uint8_t cli_info[] = "\x00\x20\x0ftls13 client in\x00";
+    static const uint8_t ser_info[] = "\x00\x20\x0ftls13 server in\x00";
+
+    HKDF_extract(initial_secret, &initial_secret_len, EVP_sha256(), connid.pos, quic_buf_size(&connid), salt, sizeof(salt));
+
+    size_t sec_len = EVP_MD_size(EVP_sha256());
+    if (!(cli_sec->buf = malloc(sec_len))) {
+        return quic_err_internal_error;
+    }
+    cli_sec->capa = sec_len;
+
+    if (!(ser_sec->buf = malloc(sec_len))) {
+        free(cli_sec->buf);
+        return quic_err_internal_error;
+    }
+    ser_sec->capa = sec_len;
+
+    HKDF_expand(cli_sec->buf, cli_sec->capa, EVP_sha256(), initial_secret, initial_secret_len, cli_info, sizeof(cli_info) - 1);
+    HKDF_expand(ser_sec->buf, ser_sec->capa, EVP_sha256(), initial_secret, initial_secret_len, ser_info, sizeof(ser_info) - 1);
+
+    quic_buf_setpl(cli_sec);
+    quic_buf_setpl(ser_sec);
+
+    return quic_err_success;
+}
+
 static quic_err_t quic_sealer_module_init(void *const module) {
     quic_sealer_module_t *const s_module = module;
 
@@ -388,78 +430,109 @@ static quic_err_t quic_sealer_module_init(void *const module) {
     return quic_err_success;
 }
 
-static quic_err_t quic_sealer_module_start(void *const module) {
-    quic_sealer_module_t *const s_module = module;
-    quic_session_t *const session = quic_module_of_session(s_module);
+static quic_err_t quic_sealer_module_openssl_start(quic_sealer_module_t *const module) {
+    quic_session_t *const session = quic_module_of_session(module);
 
     if (session->cfg.is_cli) {
-        s_module->ssl_ctx = SSL_CTX_new(TLS_with_buffers_method());
-        SSL_CTX_set_session_cache_mode(s_module->ssl_ctx, SSL_SESS_CACHE_CLIENT | SSL_SESS_CACHE_NO_INTERNAL_STORE);
-        SSL_CTX_set_allow_unknown_alpn_protos(s_module->ssl_ctx, 1);
-        SSL_CTX_set_custom_verify(s_module->ssl_ctx, 0, quic_sealer_custom_verify);
+        module->ssl_ctx = SSL_CTX_new(TLS_with_buffers_method());
+        SSL_CTX_set_session_cache_mode(module->ssl_ctx, SSL_SESS_CACHE_CLIENT | SSL_SESS_CACHE_NO_INTERNAL_STORE);
+        SSL_CTX_set_allow_unknown_alpn_protos(module->ssl_ctx, 1);
+        SSL_CTX_set_custom_verify(module->ssl_ctx, 0, quic_sealer_custom_verify);
     }
     else {
-        s_module->ssl_ctx = SSL_CTX_new(TLS_with_buffers_method());
-        SSL_CTX_set_options(s_module->ssl_ctx, (SSL_OP_ALL & ~SSL_OP_DONT_INSERT_EMPTY_FRAGMENTS) | SSL_OP_SINGLE_ECDH_USE | SSL_OP_CIPHER_SERVER_PREFERENCE);
-        SSL_CTX_set_mode(s_module->ssl_ctx, SSL_MODE_RELEASE_BUFFERS);
+        module->ssl_ctx = SSL_CTX_new(TLS_with_buffers_method());
+        SSL_CTX_set_options(module->ssl_ctx, (SSL_OP_ALL & ~SSL_OP_DONT_INSERT_EMPTY_FRAGMENTS) | SSL_OP_SINGLE_ECDH_USE | SSL_OP_CIPHER_SERVER_PREFERENCE);
+        SSL_CTX_set_mode(module->ssl_ctx, SSL_MODE_RELEASE_BUFFERS);
 
-        SSL_CTX_set_alpn_select_cb(s_module->ssl_ctx, quic_sealer_alpn_select_proto_cb, NULL);
+        SSL_CTX_set_alpn_select_cb(module->ssl_ctx, quic_sealer_alpn_select_proto_cb, NULL);
     }
 
-    SSL_CTX_set_quic_method(s_module->ssl_ctx, &ssl_quic_method);
+    SSL_CTX_set_quic_method(module->ssl_ctx, &ssl_quic_method);
 
-    SSL_CTX_set_session_id_context(s_module->ssl_ctx, session->dst.buf, quic_buf_size(&session->dst));
+    SSL_CTX_set_session_id_context(module->ssl_ctx, session->dst.buf, quic_buf_size(&session->dst));
 
-    SSL_CTX_set_min_proto_version(s_module->ssl_ctx, TLS1_3_VERSION);
-    SSL_CTX_set_max_proto_version(s_module->ssl_ctx, TLS1_3_VERSION);
+    SSL_CTX_set_min_proto_version(module->ssl_ctx, TLS1_3_VERSION);
+    SSL_CTX_set_max_proto_version(module->ssl_ctx, TLS1_3_VERSION);
 
-    SSL_CTX_set_verify_algorithm_prefs(s_module->ssl_ctx, quic_signalg, sizeof(quic_signalg) / sizeof(uint16_t));
+    SSL_CTX_set_verify_algorithm_prefs(module->ssl_ctx, quic_signalg, sizeof(quic_signalg) / sizeof(uint16_t));
 
     if (session->cfg.tls_ciphers) {
-        SSL_CTX_set_cipher_list(s_module->ssl_ctx, session->cfg.tls_ciphers);
+        SSL_CTX_set_cipher_list(module->ssl_ctx, session->cfg.tls_ciphers);
     }
     else {
-        SSL_CTX_set_cipher_list(s_module->ssl_ctx, QUIC_DEFAULT_TLE_CIPHERS);
+        SSL_CTX_set_cipher_list(module->ssl_ctx, QUIC_DEFAULT_TLE_CIPHERS);
     }
     if (session->cfg.tls_curve_groups) {
-        SSL_CTX_set1_curves_list(s_module->ssl_ctx, session->cfg.tls_curve_groups);
+        SSL_CTX_set1_curves_list(module->ssl_ctx, session->cfg.tls_curve_groups);
     }
     else {
-        SSL_CTX_set1_curves_list(s_module->ssl_ctx, QUIC_DEFAULT_CURVE_GROUPS);
+        SSL_CTX_set1_curves_list(module->ssl_ctx, QUIC_DEFAULT_CURVE_GROUPS);
     }
 
     if (session->cfg.tls_verify_client_ca) {
         STACK_OF(X509_NAME) *certs = SSL_load_client_CA_file(session->cfg.tls_verify_client_ca);
-        SSL_CTX_set_client_CA_list(s_module->ssl_ctx, certs);
+        SSL_CTX_set_client_CA_list(module->ssl_ctx, certs);
     }
 
     quic_sealer_set_chains_and_key(module, session->cfg.tls_cert_chain_file, session->cfg.tls_key_file);
 
     int i;
     for (i = 0; session->cfg.tls_ca && session->cfg.tls_ca[i]; i++) {
-        SSL_CTX_load_verify_locations(s_module->ssl_ctx, session->cfg.tls_ca[i], NULL);
+        SSL_CTX_load_verify_locations(module->ssl_ctx, session->cfg.tls_ca[i], NULL);
     }
     for (i = 0; session->cfg.tls_capath && session->cfg.tls_capath[i]; i++) {
-        SSL_CTX_load_verify_locations(s_module->ssl_ctx, NULL, session->cfg.tls_capath[i]);
+        SSL_CTX_load_verify_locations(module->ssl_ctx, NULL, session->cfg.tls_capath[i]);
     }
 
-    s_module->ssl = SSL_new(s_module->ssl_ctx);
-    SSL_set_app_data(s_module->ssl, s_module);
+    module->ssl = SSL_new(module->ssl_ctx);
+    SSL_set_app_data(module->ssl, module);
 
     if (session->cfg.is_cli) {
         static const uint8_t H3_ALPN[] = "\x5h3-29\x5h3-30\x5h3-31\x5h3-32";
-        SSL_set_alpn_protos(s_module->ssl, H3_ALPN, sizeof(H3_ALPN) - 1);
+        SSL_set_alpn_protos(module->ssl, H3_ALPN, sizeof(H3_ALPN) - 1);
 
-        quic_sealer_process_transport_parameters(s_module);
+        quic_sealer_process_transport_parameters(module);
 
-        SSL_set_connect_state(s_module->ssl);
-        quic_sealer_handshake_process(s_module);
+        SSL_set_connect_state(module->ssl);
+        quic_sealer_handshake_process(module);
     }
     else {
-        SSL_set_accept_state(s_module->ssl);
+        SSL_set_accept_state(module->ssl);
 
-        quic_sealer_process_transport_parameters(s_module);
+        quic_sealer_process_transport_parameters(module);
     }
+
+    return quic_err_success;
+}
+
+static quic_err_t quic_sealer_module_start(void *const module) {
+    quic_sealer_module_t *const s_module = module;
+    quic_session_t *const session = quic_module_of_session(module);
+    quic_buf_t cli_sec;
+    quic_buf_t ser_sec;
+
+    quic_buf_init(&cli_sec);
+    quic_buf_init(&ser_sec);
+
+    quic_sealer_initial_compute_security(&cli_sec, &ser_sec, session->cfg.is_cli ? session->dst : session->src);
+    if (session->cfg.is_cli) {
+        s_module->initial_sealer.w_sec = cli_sec;
+        s_module->initial_sealer.r_sec = ser_sec;
+        quic_sealer_set_key_iv(&s_module->initial_sealer.w_key, &s_module->initial_sealer.w_iv,
+                               EVP_sha256(), cli_sec.pos, quic_buf_size(&cli_sec));
+        quic_sealer_set_key_iv(&s_module->initial_sealer.r_key, &s_module->initial_sealer.r_iv,
+                               EVP_sha256(), ser_sec.pos, quic_buf_size(&ser_sec));
+    }
+    else {
+        s_module->initial_sealer.w_sec = ser_sec;
+        s_module->initial_sealer.r_sec = cli_sec;
+        quic_sealer_set_key_iv(&s_module->initial_sealer.w_key, &s_module->initial_sealer.w_iv,
+                               EVP_sha256(), ser_sec.pos, quic_buf_size(&ser_sec));
+        quic_sealer_set_key_iv(&s_module->initial_sealer.r_key, &s_module->initial_sealer.r_iv,
+                               EVP_sha256(), cli_sec.pos, quic_buf_size(&cli_sec));
+    }
+
+    quic_sealer_module_openssl_start(module);
 
     return quic_err_success;
 }
