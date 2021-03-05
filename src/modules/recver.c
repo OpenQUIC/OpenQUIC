@@ -8,9 +8,10 @@
 
 #include "modules/recver.h"
 #include "modules/ack_generator.h"
+#include "modules/sealer.h"
 #include "format/header.h"
 
-static inline quic_err_t quic_recver_handle_packet(quic_recver_module_t *const module);
+static quic_err_t quic_recver_handle_packet(quic_recver_module_t *const module);
 static quic_err_t quic_recver_process_packet(quic_session_t *const sess, quic_recver_module_t *const r_module, quic_ack_generator_module_t *const a_module, const quic_payload_t *payload, const uint64_t recv_time);
 static quic_err_t quic_recver_process_packet_payload(quic_session_t *const sess, quic_recver_module_t *const r_module, quic_ack_generator_module_t *const a_module, const quic_payload_t *payload, const uint64_t recv_time);
 
@@ -20,9 +21,15 @@ static quic_err_t quic_recver_module_destory(void *const module);
 
 extern quic_session_handler_t quic_session_handler[256];
 
-static inline quic_err_t quic_recver_handle_packet(quic_recver_module_t *const module) {
+static quic_err_t quic_recver_handle_packet(quic_recver_module_t *const module) {
     quic_session_t *const session = quic_module_of_session(module);
     quic_ack_generator_module_t *ag_module = NULL;
+    quic_sealer_module_t *const sealer_module = quic_session_module(session, quic_sealer_module);
+
+    quic_err_t err = quic_sealer_open(module->curr_packet, sealer_module, quic_buf_size(&session->src));
+    if (err != quic_err_success) {
+        return err;
+    }
 
     quic_buf_t recv_buf = { .buf = module->curr_packet->pkt.data, .capa = module->curr_packet->pkt.len };
     quic_buf_setpl(&recv_buf);
@@ -47,7 +54,6 @@ static inline quic_err_t quic_recver_handle_packet(quic_recver_module_t *const m
 
     module->recv_first = true;
     module->last_recv_time = module->curr_packet->recv_time;
-
 
     if (quic_header_is_long(header)) {
         switch (quic_packet_type(header)) {

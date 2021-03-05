@@ -679,6 +679,47 @@ quic_err_t quic_sealer_seal(quic_send_packet_t *const pkt, quic_sealer_t *const 
     return quic_err_success;
 }
 
+quic_err_t quic_sealer_open(quic_recv_packet_t *const pkt, quic_sealer_module_t *const module, const size_t src_len) {
+    quic_header_t *const hdr = (quic_header_t *) pkt->pkt.data;
+    quic_sealer_t *sealer = NULL;
+    uint8_t *payload = NULL;
+    uint64_t tmp = 0;
+
+    if (quic_header_is_long(hdr)) {
+        switch (quic_packet_type(hdr)) {
+        case quic_packet_initial_type:
+            sealer = &module->initial_sealer;
+            payload = quic_long_header_payload(hdr);
+
+            // token
+            tmp = quic_varint_r(payload);
+            payload += quic_varint_len(payload) + tmp;
+
+            // payload len
+            payload += quic_varint_len(payload);
+
+            break;
+
+        case quic_packet_handshake_type:
+            sealer = &module->handshake_sealer;
+            payload = quic_long_header_payload(hdr);
+
+            // payload len
+            payload += quic_varint_len(payload);
+            break;
+
+        default:
+            return quic_err_success;
+        }
+    }
+    else {
+        sealer = &module->app_sealer;
+        payload = quic_short_header_payload(hdr, src_len);
+    }
+
+    return quic_err_success;
+}
+
 quic_err_t quic_session_handle_crypto_frame(quic_session_t *const session, const quic_frame_t *const frame) {
     quic_frame_crypto_t *const c_frame = (quic_frame_crypto_t *) frame;
     quic_sealer_module_t *const s_module = quic_session_module(session, quic_sealer_module);
