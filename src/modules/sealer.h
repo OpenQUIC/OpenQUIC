@@ -40,7 +40,7 @@ static inline quic_err_t quic_header_protector_init(quic_header_protector_t *con
 
 typedef struct quic_sealer_s quic_sealer_t;
 struct quic_sealer_s {
-    EVP_AEAD_CTX *w_ctx;
+    EVP_AEAD_CTX w_ctx;
     const EVP_AEAD *(*w_aead)();
     size_t w_aead_tag_size;
     quic_buf_t w_sec;
@@ -48,7 +48,7 @@ struct quic_sealer_s {
     quic_buf_t w_iv;
     quic_header_protector_t w_hp;
 
-    EVP_AEAD_CTX *r_ctx;
+    EVP_AEAD_CTX r_ctx;
     const EVP_AEAD *(*r_aead)();
     size_t r_aead_tag_size;
     quic_buf_t r_sec;
@@ -59,7 +59,7 @@ struct quic_sealer_s {
 };
 
 static inline quic_err_t quic_sealer_init(quic_sealer_t *const sealer) {
-    sealer->w_ctx = NULL;
+    EVP_AEAD_CTX_zero(&sealer->w_ctx);
     sealer->w_aead = NULL;
     sealer->w_aead_tag_size = 0;
     quic_buf_init(&sealer->w_sec);
@@ -67,7 +67,7 @@ static inline quic_err_t quic_sealer_init(quic_sealer_t *const sealer) {
     quic_buf_init(&sealer->w_iv);
     quic_header_protector_init(&sealer->w_hp);
 
-    sealer->r_ctx = NULL;
+    EVP_AEAD_CTX_zero(&sealer->r_ctx);
     sealer->r_aead = NULL;
     sealer->r_aead_tag_size = 0;
     quic_buf_init(&sealer->r_sec);
@@ -230,7 +230,7 @@ static inline quic_err_t quic_sealer_handshake_done(quic_sealer_module_t *const 
     return quic_err_success;
 }
 
-quic_err_t quic_sealer_seal(quic_send_packet_t *const pkt, quic_sealer_t *const sealer, const quic_buf_t hdr);
+quic_err_t quic_sealer_seal(quic_send_packet_t *const pkt, quic_sealer_t *const sealer, const quic_buf_t hdr, const size_t src_len);
 quic_err_t quic_sealer_open(quic_recv_packet_t *const pkt, quic_sealer_module_t *const module, const size_t src_len);
 
 #endif

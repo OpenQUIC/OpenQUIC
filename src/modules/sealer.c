@@ -51,6 +51,7 @@ static quic_err_t quic_sealer_module_openssl_start(quic_sealer_module_t *const m
 static inline quic_err_t quic_sealer_initial_compute_security(quic_buf_t *const cli_sec, quic_buf_t *const ser_sec, const quic_buf_t connid);
 static inline quic_err_t quic_sealer_set_header_simple(quic_header_protector_t *const hdr_p, const uint8_t *const simple, const uint32_t simple_len);
 static inline uint8_t quic_sealer_apply_first_byte(quic_header_protector_t *const hdr_p, const uint8_t first_byte);
+static quic_err_t quic_sealer_apply_packet_number(quic_header_protector_t *const hdr_p, uint8_t *const pnum, const size_t pnum_size);
 
 static const uint16_t quic_signalg[] = {
     SSL_SIGN_ED25519,
@@ -90,6 +91,9 @@ static inline quic_err_t quic_sealer_set_key_iv(quic_buf_t *const key, quic_buf_
 
     quic_sealer_hkdf_expand_label(key->buf, key->capa, prf, secret, secret_len, key_label, sizeof(key_label) - 1);
     quic_sealer_hkdf_expand_label(iv->buf, iv->capa, prf, secret, secret_len, key_label, sizeof(iv_label) - 1);
+
+    quic_buf_setpl(key);
+    quic_buf_setpl(iv);
 
     return quic_err_success;
 }
@@ -202,10 +206,8 @@ static int quic_sealer_set_read_secret(SSL *ssl, enum ssl_encryption_level_t lev
     }
 
     quic_sealer_set_key_iv(&sealer->r_key, &sealer->r_iv, EVP_get_digestbynid(SSL_CIPHER_get_prf_nid(cipher)), secret, secret_len);
-    if (sealer->r_ctx) {
-        EVP_AEAD_CTX_free(sealer->r_ctx);
-    }
-    sealer->r_ctx = EVP_AEAD_CTX_new(sealer->r_aead(), sealer->r_key.buf, sealer->r_key.capa, sealer->r_aead_tag_size);
+    EVP_AEAD_CTX_cleanup(&sealer->r_ctx);
+    EVP_AEAD_CTX_init(&sealer->r_ctx, sealer->r_aead(), sealer->r_key.pos, quic_buf_size(&sealer->r_key), sealer->r_aead_tag_size, NULL);
 
     quic_sealer_set_header_protector(&sealer->r_hp, cipher_id, secret, secret_len);
 
@@ -267,17 +269,13 @@ static int quic_sealer_set_write_secret(SSL *ssl, enum ssl_encryption_level_t le
     }
 
     quic_sealer_set_key_iv(&sealer->w_key, &sealer->w_iv, EVP_get_digestbynid(SSL_CIPHER_get_prf_nid(cipher)), secret, secret_len);
-    if (sealer->w_ctx) {
-        EVP_AEAD_CTX_free(sealer->w_ctx);
-    }
-    sealer->w_ctx = EVP_AEAD_CTX_new(sealer->w_aead(), sealer->w_key.buf, sealer->w_key.capa, sealer->w_aead_tag_size);
+    EVP_AEAD_CTX_cleanup(&sealer->w_ctx);
+    EVP_AEAD_CTX_init(&sealer->w_ctx, sealer->w_aead(), sealer->w_key.pos, quic_buf_size(&sealer->w_key), sealer->w_aead_tag_size, NULL);
 
     quic_sealer_set_header_protector(&sealer->w_hp, cipher_id, secret, secret_len);
 
     return 1;
 }
-
-#undef quic_sealer_alloc_buf
 
 static int quic_sealer_write_handshake_data(SSL *ssl, enum ssl_encryption_level_t level, const uint8_t *data, size_t len) {
     quic_sealer_module_t *const s_module = SSL_get_app_data(ssl);
@@ -523,6 +521,11 @@ static quic_err_t quic_sealer_module_start(void *const module) {
     s_module->initial_sealer.r_aead_tag_size = EVP_AEAD_max_tag_len(s_module->initial_sealer.r_aead());
     s_module->initial_sealer.w_aead_tag_size = EVP_AEAD_max_tag_len(s_module->initial_sealer.w_aead());
 
+    quic_sealer_alloc_buf(s_module->initial_sealer.w_key, 32);
+    quic_sealer_alloc_buf(s_module->initial_sealer.w_iv, 12);
+    quic_sealer_alloc_buf(s_module->initial_sealer.r_key, 32);
+    quic_sealer_alloc_buf(s_module->initial_sealer.r_iv, 12);
+
     if (session->cfg.is_cli) {
         s_module->initial_sealer.w_sec = cli_sec;
         s_module->initial_sealer.r_sec = ser_sec;
@@ -540,19 +543,31 @@ static quic_err_t quic_sealer_module_start(void *const module) {
                                EVP_sha256(), cli_sec.pos, quic_buf_size(&cli_sec));
     }
 
-    s_module->initial_sealer.r_ctx = EVP_AEAD_CTX_new(EVP_aead_aes_256_gcm_tls13(),
-                                                      s_module->initial_sealer.r_key.buf,
-                                                      quic_buf_size(&s_module->initial_sealer.r_key),
-                                                      s_module->initial_sealer.r_aead_tag_size);
-    s_module->initial_sealer.w_ctx = EVP_AEAD_CTX_new(EVP_aead_aes_256_gcm_tls13(),
-                                                      s_module->initial_sealer.w_key.buf,
-                                                      quic_buf_size(&s_module->initial_sealer.w_key),
-                                                      s_module->initial_sealer.w_aead_tag_size);
+    EVP_AEAD_CTX_init(&s_module->initial_sealer.r_ctx,
+                      EVP_aead_aes_256_gcm_tls13(),
+                      s_module->initial_sealer.r_key.pos,
+                      quic_buf_size(&s_module->initial_sealer.r_key),
+                      s_module->initial_sealer.r_aead_tag_size, NULL);
+
+
+    EVP_AEAD_CTX_init(&s_module->initial_sealer.w_ctx,
+                      EVP_aead_aes_256_gcm_tls13(),
+                      s_module->initial_sealer.w_key.pos,
+                      quic_buf_size(&s_module->initial_sealer.w_key),
+                      s_module->initial_sealer.w_aead_tag_size, NULL);
+
+    quic_sealer_set_header_protector(&s_module->initial_sealer.w_hp, TLS1_CK_AES_256_GCM_SHA384,
+                                     s_module->initial_sealer.w_sec.pos, quic_buf_size(&s_module->initial_sealer.w_sec));
+
+    quic_sealer_set_header_protector(&s_module->initial_sealer.r_hp, TLS1_CK_AES_256_GCM_SHA384,
+                                     s_module->initial_sealer.r_sec.pos, quic_buf_size(&s_module->initial_sealer.r_sec));
 
     quic_sealer_module_openssl_start(module);
 
     return quic_err_success;
 }
+
+#undef quic_sealer_alloc_buf
 
 static quic_err_t quic_sealer_module_destory(void *const module) {
     quic_sealer_module_t *const s_module = module;
@@ -573,9 +588,7 @@ static quic_err_t quic_sealer_module_destory(void *const module) {
 }
 
 static quic_err_t quic_sealer_destory(quic_sealer_t *const sealer) {
-    if (sealer->w_ctx) {
-        EVP_AEAD_CTX_free(sealer->w_ctx);
-    }
+    EVP_AEAD_CTX_cleanup(&sealer->w_ctx);
     if (sealer->w_sec.buf) {
         free(sealer->w_sec.buf);
     }
@@ -589,9 +602,7 @@ static quic_err_t quic_sealer_destory(quic_sealer_t *const sealer) {
         free(sealer->w_hp.key.buf);
     }
 
-    if (sealer->r_ctx) {
-        EVP_AEAD_CTX_free(sealer->r_ctx);
-    }
+    EVP_AEAD_CTX_cleanup(&sealer->r_ctx);
     if (sealer->r_sec.buf) {
         free(sealer->r_sec.buf);
     }
@@ -672,7 +683,7 @@ static inline quic_err_t quic_sealer_set_header_simple(quic_header_protector_t *
     case TLS1_CK_AES_256_GCM_SHA384:
         {
             AES_KEY key;
-            AES_set_encrypt_key(hdr_p->key.pos, quic_buf_size(&hdr_p->key), &key);
+            AES_set_encrypt_key(hdr_p->key.pos, quic_buf_size(&hdr_p->key) << 3, &key);
 
             AES_encrypt(simple, hdr_p->mask, &key);
         }
@@ -690,54 +701,72 @@ static inline uint8_t quic_sealer_apply_first_byte(quic_header_protector_t *cons
     return (first_byte & 0x80) ? (first_byte ^ (hdr_p->mask[0] & 0x0f)) : (first_byte ^ (hdr_p->mask[0] & 0x1f));
 }
 
-quic_err_t quic_sealer_seal(quic_send_packet_t *const pkt, quic_sealer_t *const sealer, const quic_buf_t hdr) {
-    *(uint8_t *) hdr.pos = quic_sealer_apply_first_byte(&sealer->w_hp, *(uint8_t *) hdr.pos);
+static quic_err_t quic_sealer_apply_packet_number(quic_header_protector_t *const hdr_p, uint8_t *const pnum, const size_t pnum_size) {
+    size_t i;
+    for (i = 0; i < pnum_size; i++) {
+        pnum[i] ^= hdr_p->mask[i + 1];
+    }
+
+    return quic_err_success;
+}
+
+quic_err_t quic_sealer_seal(quic_send_packet_t *const pkt, quic_sealer_t *const sealer, const quic_buf_t hdr, const size_t src_len) {
+    uint8_t *pnum_off = quic_header_packet_number_off(hdr.pos, src_len);
+    const size_t pnum_size = quic_packet_number_len(*(uint8_t *) hdr.pos);
 
     size_t hdr_size = quic_buf_size(&hdr);
-    memcpy(pkt->buf.pos, hdr.pos, hdr_size);
-    pkt->buf.pos += hdr_size;
 
+    size_t payload_len = 0;
     quic_frame_t *frame = NULL;
     quic_link_foreach(frame, &pkt->frames) {
-        quic_frame_format(&pkt->buf, frame);
+        payload_len += quic_frame_size(frame);
     }
+    uint8_t *const payload = malloc(payload_len);
+    if (!payload) {
+        return quic_err_internal_error;
+    }
+    quic_buf_t payload_buf = { .buf = payload, .capa = payload_len };
+    quic_buf_setpl(&payload_buf);
+    quic_link_foreach(frame, &pkt->frames) {
+        quic_frame_format(&payload_buf, frame);
+    }
+    quic_buf_write_complete(&payload_buf);
+
+    // AEAD seal
+    size_t sealed_outlen = quic_buf_size(&payload_buf);
+    EVP_AEAD_CTX_seal(&sealer->w_ctx,
+                      pkt->buf.pos + hdr_size, &sealed_outlen, quic_buf_size(&payload_buf) + sealer->w_aead_tag_size,
+                      sealer->w_iv.pos, quic_buf_size(&sealer->w_iv),
+                      payload_buf.pos, quic_buf_size(&payload_buf),
+                      hdr.pos, hdr_size);
+
+    // head protect
+    quic_sealer_set_header_simple(&sealer->w_hp, pkt->buf.pos + hdr_size - pnum_size + 4, 16);
+
+    *(uint8_t *) hdr.pos = quic_sealer_apply_first_byte(&sealer->w_hp, *(uint8_t *) hdr.pos);
+    quic_sealer_apply_packet_number(&sealer->w_hp, pnum_off, pnum_size);
+
+    memcpy(pkt->buf.pos, hdr.pos, hdr_size);
+    pkt->buf.pos += hdr_size + sealed_outlen;
 
     quic_buf_write_complete(&pkt->buf);
 
+    free(payload);
     return quic_err_success;
 }
 
 quic_err_t quic_sealer_open(quic_recv_packet_t *const pkt, quic_sealer_module_t *const module, const size_t src_len) {
     quic_header_t *const hdr = (quic_header_t *) pkt->pkt.data;
     quic_sealer_t *sealer = NULL;
-    uint8_t *payload = NULL;
-    uint64_t tmp = 0;
 
     if (quic_header_is_long(hdr)) {
         switch (quic_packet_type(hdr)) {
         case quic_packet_initial_type:
             sealer = &module->initial_sealer;
-            hdr->first_byte = quic_sealer_apply_first_byte(&sealer->w_hp, hdr->first_byte);
-
-            payload = quic_long_header_payload(hdr);
-
-            // token
-            tmp = quic_varint_r(payload);
-            payload += quic_varint_len(payload) + tmp;
-
-            // payload len
-            payload += quic_varint_len(payload);
-
             break;
 
         case quic_packet_handshake_type:
             sealer = &module->handshake_sealer;
-            hdr->first_byte = quic_sealer_apply_first_byte(&sealer->w_hp, hdr->first_byte);
-
-            payload = quic_long_header_payload(hdr);
-
-            // payload len
-            payload += quic_varint_len(payload);
             break;
 
         default:
@@ -746,10 +775,35 @@ quic_err_t quic_sealer_open(quic_recv_packet_t *const pkt, quic_sealer_module_t 
     }
     else {
         sealer = &module->app_sealer;
-        hdr->first_byte = quic_sealer_apply_first_byte(&sealer->w_hp, hdr->first_byte);
-
-        payload = quic_short_header_payload(hdr, src_len);
     }
+
+    uint8_t *pnum_off = quic_header_packet_number_off(pkt->pkt.data, src_len);
+
+    quic_sealer_set_header_simple(&sealer->r_hp, pnum_off + 4, 16);
+
+    // head protect
+    hdr->first_byte = quic_sealer_apply_first_byte(&sealer->r_hp, hdr->first_byte);
+    const size_t pnum_size = quic_packet_number_len(hdr->first_byte);
+    quic_sealer_apply_packet_number(&sealer->r_hp, pnum_off, pnum_size);
+
+    uint8_t *payload_off = pnum_off + pnum_size;
+    const size_t hdr_size = payload_off - pkt->pkt.data;
+    const size_t payload_size = pkt->pkt.len - hdr_size;
+
+    uint8_t *opened_payload = malloc(payload_size);
+    size_t opened_outlen = 0;
+    if (!opened_payload) {
+        return quic_err_internal_error;
+    }
+    // AEAD open
+    EVP_AEAD_CTX_open(&sealer->r_ctx,
+                      opened_payload, &opened_outlen, payload_size,
+                      sealer->r_iv.pos, quic_buf_size(&sealer->r_iv),
+                      payload_off, payload_size,
+                      pkt->pkt.data, hdr_size);
+
+    memcpy(payload_off, opened_payload, opened_outlen);
+    pkt->pkt.len -= sealer->r_aead_tag_size;
 
     return quic_err_success;
 }

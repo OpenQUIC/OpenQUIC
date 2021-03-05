@@ -102,6 +102,9 @@ struct quic_long_header_s {
 #define quic_packet_number_r(field, payload) \
     (quic_packet_number_r1(field & 0x03, payload) (quic_packet_number_r2(field & 0x03, payload) (quic_packet_number_r3(field & 0x03, payload) (quic_packet_number_r4(field & 0x03, payload)))))
 
+#define quic_packet_number_len(field) \
+    ((((uint8_t) field) & 0x03) + 1)
+
 #define quic_packet_number_format_len(num) \
     ((num) < 0x100 ? 1 : ((num) < 0x10000 ? 2 : (num) < 1000000 ? 3 : 4))
 
@@ -233,6 +236,40 @@ static inline quic_payload_t quic_short_header(quic_header_t *const header, size
     payload.type = quic_packet_short_type;
     payload.payload = ptr + (header->first_byte & 0x03) + 1;
 
+    return payload;
+}
+
+static inline uint8_t *quic_header_packet_number_off(const uint8_t *const buf, const size_t src_len) {
+    quic_header_t *const hdr = (quic_header_t *) buf;
+    uint8_t *payload = NULL;
+    uint64_t tmp = 0;
+
+    if (quic_header_is_long(hdr)) {
+        switch (quic_packet_type(hdr)) {
+        case quic_packet_initial_type:
+            payload = quic_long_header_payload(hdr);
+
+            // token
+            tmp = quic_varint_r(payload);
+            payload += quic_varint_len(payload) + tmp;
+
+            // payload len
+            payload += quic_varint_len(payload);
+
+            break;
+
+        case quic_packet_handshake_type:
+            payload = quic_long_header_payload(hdr);
+
+            // payload len
+            payload += quic_varint_len(payload);
+            break;
+        }
+    }
+    else {
+        payload = quic_short_header_payload(hdr, src_len);
+    }
+    
     return payload;
 }
 

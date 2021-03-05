@@ -207,7 +207,7 @@ static quic_send_packet_t *quic_sender_pack_initial_packet(quic_sender_module_t 
     quic_sender_generate_initial_header(session, pkt->num, payload_len, &hdr);
     quic_buf_write_complete(&hdr);
 
-    quic_sealer_seal(pkt, sealer, hdr);
+    quic_sealer_seal(pkt, sealer, hdr, quic_buf_size(&session->dst));
 
     return pkt;
 }
@@ -294,7 +294,7 @@ static quic_send_packet_t *quic_sender_pack_handshake_packet(quic_sender_module_
     quic_sender_generate_handshake_header(session, pkt->num, payload_len, &hdr);
     quic_buf_write_complete(&hdr);
 
-    quic_sealer_seal(pkt, sealer, hdr);
+    quic_sealer_seal(pkt, sealer, hdr, quic_buf_size(&session->dst));
 
     return pkt;
 }
@@ -379,7 +379,7 @@ static quic_send_packet_t *quic_sender_pack_app_packet(quic_sender_module_t *con
 
     numgen->next++;
 
-    quic_sealer_seal(pkt, sealer, hdr);
+    quic_sealer_seal(pkt, sealer, hdr, quic_buf_size(&session->dst));
 
     return pkt;
 }
@@ -555,7 +555,7 @@ static quic_send_packet_t *quic_sender_pack_initial_connection_close(quic_sender
     quic_buf_write_complete(&hdr);
 
     quic_link_insert_after(&pkt->frames, frame);
-    quic_sealer_seal(pkt, sealer, hdr);
+    quic_sealer_seal(pkt, sealer, hdr, quic_buf_size(&session->dst));
 
     return pkt;
 }
@@ -585,7 +585,7 @@ static quic_send_packet_t *quic_sender_pack_handshake_connection_close(quic_send
     quic_buf_write_complete(&hdr);
 
     quic_link_insert_after(&pkt->frames, frame);
-    quic_sealer_seal(pkt, sealer, hdr);
+    quic_sealer_seal(pkt, sealer, hdr, quic_buf_size(&session->dst));
 
     return pkt;
 }
@@ -612,7 +612,7 @@ static quic_send_packet_t *quic_sender_pack_app_connection_close(quic_sender_mod
     quic_buf_write_complete(&hdr);
 
     quic_link_insert_after(&pkt->frames, frame);
-    quic_sealer_seal(pkt, sealer, hdr);
+    quic_sealer_seal(pkt, sealer, hdr, quic_buf_size(&session->dst));
 
     return pkt;
 }
