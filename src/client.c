@@ -34,7 +34,6 @@ const quic_config_t quic_client_default_config = {
     .tls_verify_client_ca = NULL,
     .tls_ca = NULL,
     .tls_capath = NULL,
-    .stream_sync_close = true,
     .stream_destory_timeout = 0,
 };
 

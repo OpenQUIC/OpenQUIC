@@ -62,7 +62,6 @@ struct quic_config_s {
     const char **tls_ca;
     const char **tls_capath;
 
-    bool stream_sync_close;
     uint64_t stream_destory_timeout;
 };
 
