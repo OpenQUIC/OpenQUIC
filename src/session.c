@@ -158,16 +158,11 @@ static quic_err_t quic_session_close_procedure(quic_session_t *const session) {
     }
 
     quic_send_packet_t *const close_pkt = quic_sender_pack_connection_close(sender, 0, 0, reason);
-    quic_buf_t buf = {};
-    quic_buf_init(&buf);
-    buf.buf = close_pkt->data;
-    buf.capa = close_pkt->buf.pos - close_pkt->buf.buf;
-    quic_buf_setpl(&buf);
 
     quic_connid_gen_retire_all(connid_gen);
 
     if (session->replace_close) {
-        session->replace_close(session, buf);
+        session->replace_close(session, close_pkt->buf);
     }
 
     free(close_pkt);
