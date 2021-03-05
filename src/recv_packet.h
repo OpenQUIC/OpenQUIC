@@ -11,6 +11,7 @@
 
 #include "lc_udp.h"
 #include "utils/link.h"
+#include "utils/errno.h"
 #include <netinet/in.h>
 
 typedef struct quic_recv_packet_s quic_recv_packet_t;
@@ -31,5 +32,11 @@ struct quic_recv_packet_s {
 
     liteco_udp_pkt_t pkt;
 };
+
+static inline quic_err_t quic_recv_packet_recovery(quic_recv_packet_t *const recvpkt) {
+    recvpkt->pkt.recovery(&recvpkt->pkt);
+
+    return quic_err_success;
+}
 
 #endif

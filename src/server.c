@@ -152,7 +152,7 @@ static quic_err_t quic_server_transmission_recv_cb(quic_transmission_t *const tr
 
     quic_session_store_t *store = quic_session_store_find(server->sessions, &target);
     if (quic_rbt_is_nil(store)) {
-        recvpkt->pkt.recovery(&recvpkt->pkt);
+        quic_recv_packet_recovery(recvpkt);
         return quic_err_success;
     }
 

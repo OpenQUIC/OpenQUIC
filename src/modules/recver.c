@@ -173,7 +173,7 @@ static quic_err_t quic_recver_module_process(void *const module) {
         pthread_mutex_unlock(&ur_module->mtx);
 
         quic_recver_handle_packet(module);
-        ur_module->curr_packet->pkt.recovery(&ur_module->curr_packet->pkt);
+        quic_recv_packet_recovery(ur_module->curr_packet);
         ur_module->curr_packet = NULL;
 
         pthread_mutex_lock(&ur_module->mtx);
@@ -192,11 +192,11 @@ static quic_err_t quic_recver_module_destory(void *const module) {
     while (!quic_link_empty(&ur_module->queue)) {
         quic_recv_packet_t *recvpkt = (quic_recv_packet_t *) quic_link_next(&ur_module->queue);
         quic_link_remove(recvpkt);
-        recvpkt->pkt.recovery(&recvpkt->pkt);
+        quic_recv_packet_recovery(recvpkt);
     }
 
     if (ur_module->curr_packet) {
-        ur_module->curr_packet->pkt.recovery(&ur_module->curr_packet->pkt);
+        quic_recv_packet_recovery(ur_module->curr_packet);
         ur_module->curr_packet = NULL;
     }
 
