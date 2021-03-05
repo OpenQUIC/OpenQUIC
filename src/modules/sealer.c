@@ -49,6 +49,8 @@ static quic_err_t quic_sealer_process_peer_transport_parameters(quic_sealer_modu
 static quic_err_t quic_sealer_module_openssl_start(quic_sealer_module_t *const module);
 
 static inline quic_err_t quic_sealer_initial_compute_security(quic_buf_t *const cli_sec, quic_buf_t *const ser_sec, const quic_buf_t connid);
+static inline quic_err_t quic_sealer_set_header_simple(quic_header_protector_t *const hdr_p, const uint8_t *const simple, const uint32_t simple_len);
+static inline uint8_t quic_sealer_apply_first_byte(quic_header_protector_t *const hdr_p, const uint8_t first_byte);
 
 static const uint16_t quic_signalg[] = {
     SSL_SIGN_ED25519,
@@ -664,7 +666,33 @@ quic_module_t quic_sealer_module = {
     .destory     = quic_sealer_module_destory
 };
 
+static inline quic_err_t quic_sealer_set_header_simple(quic_header_protector_t *const hdr_p, const uint8_t *const simple, const uint32_t simple_len) {
+    switch (hdr_p->suite_id) {
+    case TLS1_CK_AES_128_GCM_SHA256:
+    case TLS1_CK_AES_256_GCM_SHA384:
+        {
+            AES_KEY key;
+            AES_set_encrypt_key(hdr_p->key.pos, quic_buf_size(&hdr_p->key), &key);
+
+            AES_encrypt(simple, hdr_p->mask, &key);
+        }
+        break;
+
+    case TLS1_CK_CHACHA20_POLY1305_SHA256:
+        CRYPTO_chacha_20(hdr_p->mask, simple, simple_len, hdr_p->key.buf, simple + 4, *(uint32_t *) simple);
+        break;
+    }
+
+    return quic_err_success;
+}
+
+static inline uint8_t quic_sealer_apply_first_byte(quic_header_protector_t *const hdr_p, const uint8_t first_byte) {
+    return (first_byte & 0x80) ? (first_byte ^ (hdr_p->mask[0] & 0x0f)) : (first_byte ^ (hdr_p->mask[0] & 0x1f));
+}
+
 quic_err_t quic_sealer_seal(quic_send_packet_t *const pkt, quic_sealer_t *const sealer, const quic_buf_t hdr) {
+    *(uint8_t *) hdr.pos = quic_sealer_apply_first_byte(&sealer->w_hp, *(uint8_t *) hdr.pos);
+
     size_t hdr_size = quic_buf_size(&hdr);
     memcpy(pkt->buf.pos, hdr.pos, hdr_size);
     pkt->buf.pos += hdr_size;
@@ -689,6 +717,8 @@ quic_err_t quic_sealer_open(quic_recv_packet_t *const pkt, quic_sealer_module_t 
         switch (quic_packet_type(hdr)) {
         case quic_packet_initial_type:
             sealer = &module->initial_sealer;
+            hdr->first_byte = quic_sealer_apply_first_byte(&sealer->w_hp, hdr->first_byte);
+
             payload = quic_long_header_payload(hdr);
 
             // token
@@ -702,6 +732,8 @@ quic_err_t quic_sealer_open(quic_recv_packet_t *const pkt, quic_sealer_module_t 
 
         case quic_packet_handshake_type:
             sealer = &module->handshake_sealer;
+            hdr->first_byte = quic_sealer_apply_first_byte(&sealer->w_hp, hdr->first_byte);
+
             payload = quic_long_header_payload(hdr);
 
             // payload len
@@ -714,6 +746,8 @@ quic_err_t quic_sealer_open(quic_recv_packet_t *const pkt, quic_sealer_module_t 
     }
     else {
         sealer = &module->app_sealer;
+        hdr->first_byte = quic_sealer_apply_first_byte(&sealer->w_hp, hdr->first_byte);
+
         payload = quic_short_header_payload(hdr, src_len);
     }
 

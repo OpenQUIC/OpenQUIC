@@ -78,26 +78,6 @@ static inline quic_err_t quic_sealer_init(quic_sealer_t *const sealer) {
     return quic_err_success;
 }
 
-static inline quic_err_t quic_sealer_set_header_simple(quic_header_protector_t *const hdr_p, const uint8_t *const simple, const uint32_t simple_len) {
-    switch (hdr_p->suite_id) {
-    case TLS1_CK_AES_128_GCM_SHA256:
-    case TLS1_CK_AES_256_GCM_SHA384:
-        {
-            AES_KEY key;
-            AES_set_encrypt_key(hdr_p->key.pos, quic_buf_size(&hdr_p->key), &key);
-
-            AES_encrypt(simple, hdr_p->mask, &key);
-        }
-        break;
-
-    case TLS1_CK_CHACHA20_POLY1305_SHA256:
-        CRYPTO_chacha_20(hdr_p->mask, simple, simple_len, hdr_p->key.buf, simple + 4, *(uint32_t *) simple);
-        break;
-    }
-
-    return quic_err_success;
-}
-
 typedef struct quic_sealer_module_s quic_sealer_module_t;
 struct quic_sealer_module_s {
     QUIC_MODULE_FIELDS
