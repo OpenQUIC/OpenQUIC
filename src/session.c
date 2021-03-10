@@ -224,6 +224,10 @@ uint32_t quic_session_path_mtu(quic_session_t *const session) {
 
 quic_err_t quic_session_path_use(quic_session_t *const session, const quic_path_t path) {
     quic_migrate_module_t *const migrate = quic_session_module(session, quic_migrate_module);
+    if (migrate->setup && session->cfg.disable_migrate) {
+        return quic_err_success;
+    }
+
     session->path = path;
     quic_migrate_path_use(migrate, session->path);
 
@@ -232,6 +236,10 @@ quic_err_t quic_session_path_use(quic_session_t *const session, const quic_path_
 
 quic_err_t quic_session_path_target_use(quic_session_t *const session, const quic_addr_t remote_addr) {
     quic_migrate_module_t *const migrate = quic_session_module(session, quic_migrate_module);
+    if (migrate->setup && session->cfg.disable_migrate) {
+        return quic_err_success;
+    }
+
     session->path.remote_addr = remote_addr;
     quic_migrate_path_use(migrate, session->path);
 
@@ -247,6 +255,7 @@ quic_transport_parameter_t quic_session_get_transport_parameter(quic_session_t *
     quic_transport_parameter_init(&params);
 
     params.active_connid = session->cfg.active_connid_count;
+    params.disable_migration = session->cfg.disable_migrate;
 
     // TODO
 
@@ -262,6 +271,9 @@ quic_err_t quic_session_set_transport_parameter(quic_session_t *const session, c
         for (i = 0; i < params.active_connid; i++) {
             quic_connid_gen_issue_src(c_module);
         }
+    }
+    if (params.disable_migration) {
+        session->cfg.disable_migrate = true;
     }
 
     return quic_err_success;

@@ -63,6 +63,8 @@ struct quic_config_s {
     const char **tls_capath;
 
     uint64_t stream_destory_timeout;
+
+    bool disable_migrate;
 };
 
 typedef struct quic_session_s quic_session_t;

@@ -16,6 +16,11 @@
 #include "lc_eloop.h"
 #include "lc_event.h"
 
+typedef struct quic_client_src_s quic_client_src_t;
+struct quic_client_src_s {
+    QUIC_RBT_STRING_FIELDS
+};
+
 typedef struct quic_client_s quic_client_t;
 struct quic_client_s {
     liteco_eloop_t eloop;
@@ -28,6 +33,8 @@ struct quic_client_s {
     size_t connid_len;
     size_t st_size;
     quic_session_t *session;
+
+    quic_client_src_t *srcs;
 };
 
 extern const quic_config_t quic_client_default_config;

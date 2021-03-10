@@ -36,6 +36,7 @@ const quic_config_t quic_server_default_config = {
     .tls_ca = NULL,
     .tls_capath = NULL,
     .stream_destory_timeout = 0,
+    .disable_migrate = false,
 };
 
 static quic_err_t quic_server_transmission_recv_cb(quic_transmission_t *const transmission, quic_recv_packet_t *const recvpkt);

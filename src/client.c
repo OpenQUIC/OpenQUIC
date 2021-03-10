@@ -35,6 +35,7 @@ const quic_config_t quic_client_default_config = {
     .tls_ca = NULL,
     .tls_capath = NULL,
     .stream_destory_timeout = 0,
+    .disable_migrate = false,
 };
 
 static int quic_client_session_free_st_cb(void *const args);
@@ -95,6 +96,8 @@ quic_err_t quic_client_init(quic_client_t *const client, const size_t st_size) {
     client->closed = false;
     liteco_event_init(&client->eloop, &client->closed_event, true);
     liteco_event_setup(&client->closed_event, quic_client_eloop_close_cb);
+
+    quic_rbt_tree_init(client->srcs);
 
     return quic_err_success;
 }
