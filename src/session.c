@@ -203,9 +203,9 @@ quic_err_t quic_session_key_file(quic_session_t *const session, const char *cons
     return quic_err_success;
 }
 
-quic_err_t quic_session_accept(quic_session_t *const session, quic_err_t (*accept_cb) (quic_session_t *const, quic_stream_t *const)) {
+quic_err_t quic_session_accept(quic_session_t *const session, const size_t extends_size, quic_err_t (*accept_cb) (quic_session_t *const, quic_stream_t *const)) {
     quic_stream_module_t *const module = quic_session_module(session, quic_stream_module);
-    return quic_stream_accept(module, accept_cb);
+    return quic_stream_accept(module, extends_size, accept_cb);
 }
 
 quic_err_t quic_session_handshake_done(quic_session_t *const session, quic_err_t (*handshake_done_cb) (quic_session_t *const)) {
@@ -213,9 +213,9 @@ quic_err_t quic_session_handshake_done(quic_session_t *const session, quic_err_t
     return quic_sealer_handshake_done(module, handshake_done_cb);
 }
 
-quic_stream_t *quic_session_open(quic_session_t *const session, const bool bidi) {
+quic_stream_t *quic_session_open(quic_session_t *const session, const size_t extends_size, const bool bidi) {
     quic_stream_module_t *const module = quic_session_module(session, quic_stream_module);
-    return quic_stream_open(module, bidi);
+    return quic_stream_open(module, extends_size, bidi);
 }
 
 uint32_t quic_session_path_mtu(quic_session_t *const session) {

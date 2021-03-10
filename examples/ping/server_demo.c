@@ -36,7 +36,7 @@ quic_err_t accept_stream(quic_session_t *const session, quic_stream_t *const str
 }
 
 quic_err_t handshake_done(quic_session_t *const session) {
-    quic_session_accept(session, accept_stream);
+    quic_session_accept(session, 0, accept_stream);
 
     return quic_err_success;
 }

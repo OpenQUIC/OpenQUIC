@@ -30,7 +30,7 @@ quic_err_t write_done(quic_stream_t *const str, void *data, const size_t capa, c
 }
 
 quic_err_t handshake_done_cb(quic_session_t *const session) {
-    quic_stream_t *stream = quic_session_open(session, true);
+    quic_stream_t *stream = quic_session_open(session, 0, true);
     quic_stream_write(stream, "ping", 5, write_done);
 
     return quic_err_success;

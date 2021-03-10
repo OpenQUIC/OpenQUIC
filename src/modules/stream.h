@@ -162,7 +162,7 @@ struct quic_stream_s {
     ((quic_stream_t *) quic_rbt_find((streams), (key), quic_rbt_uint64_key_comparer))
 
 #define quic_stream_extends(type, str) \
-    ((type *) ((str)->extends + (str)->flowctrl_module->size))
+    (*(type *) ((str)->extends + (str)->flowctrl_module->module_size))
 
 #define quic_stream_extend_flowctrl(str) \
     ((void *) ((str)->extends))
@@ -227,7 +227,7 @@ struct quic_stream_module_s {
     quic_stream_set_t outuni;
     quic_stream_set_t outbidi;
 
-    uint32_t extends_size;
+    uint32_t accepted_extends_size;
 
     pthread_mutex_t rwnd_updated_mtx;
     quic_stream_rwnd_updated_sid_t *rwnd_updated;
@@ -258,7 +258,7 @@ static inline quic_err_t quic_stream_module_update_rwnd(quic_stream_module_t *co
 
 quic_err_t quic_stream_module_process_rwnd(quic_stream_module_t *const module);
 
-__quic_extends quic_stream_t *quic_stream_open(quic_stream_module_t *const module, const bool bidi);
+__quic_extends quic_stream_t *quic_stream_open(quic_stream_module_t *const module, const size_t extends_size, const bool bidi);
 __quic_extends quic_err_t quic_stream_close(quic_stream_t *const str, quic_err_t (*closed_cb) (quic_stream_t *const));
 __quic_extends bool quic_stream_remote_closed(quic_stream_t *const str);
 
@@ -269,7 +269,8 @@ __quic_extends quic_session_t *quic_stream_session(quic_stream_t *const str);
 
 quic_stream_t *quic_stream_module_send_relation_stream(quic_stream_module_t *const module, const uint64_t sid);
 
-static inline quic_err_t quic_stream_accept(quic_stream_module_t *const module, quic_err_t (*accept_cb) (quic_session_t *const, quic_stream_t *const)) {
+static inline quic_err_t quic_stream_accept(quic_stream_module_t *const module, const size_t extends_size, quic_err_t (*accept_cb) (quic_session_t *const, quic_stream_t *const)) {
+    module->accepted_extends_size = extends_size;
     module->accept_cb = accept_cb;
     return quic_err_success;
 }

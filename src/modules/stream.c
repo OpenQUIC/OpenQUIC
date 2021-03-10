@@ -305,7 +305,7 @@ static quic_err_t quic_stream_module_init(void *const module) {
     quic_stream_set_init(&stream_module->outuni);
     quic_stream_set_init(&stream_module->outbidi);
 
-    stream_module->extends_size = 0;
+    stream_module->accepted_extends_size = 0;
 
     pthread_mutex_init(&stream_module->rwnd_updated_mtx, NULL);
     quic_rbt_tree_init(stream_module->rwnd_updated);
@@ -443,7 +443,7 @@ static inline quic_err_t quic_stream_destory(quic_stream_t *const str) {
     return quic_err_success;
 }
 
-quic_stream_t *quic_stream_open(quic_stream_module_t *const module, const bool bidi) {
+quic_stream_t *quic_stream_open(quic_stream_module_t *const module, const size_t extends_size, const bool bidi) {
     quic_session_t *const session = quic_module_of_session(module);
     
     pthread_mutex_t *const mtx = bidi ? &module->outbidi.mtx : &module->outuni.mtx;
@@ -461,7 +461,7 @@ quic_stream_t *quic_stream_open(quic_stream_module_t *const module, const bool b
         }
         quic_stream_destory(stream);
     }
-    stream = quic_stream_create(session, sid, module->extends_size);
+    stream = quic_stream_create(session, sid, extends_size);
     if (module->init) {
         module->init(stream);
     }
@@ -484,7 +484,7 @@ static inline quic_stream_t *quic_session_open_recv_stream(quic_stream_module_t 
     }
 
     pthread_mutex_lock(mtx);
-    stream = quic_stream_create(session, sid, module->extends_size);
+    stream = quic_stream_create(session, sid, module->accepted_extends_size);
     if (module->init) {
         module->init(stream);
     }
