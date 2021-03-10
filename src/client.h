@@ -47,8 +47,8 @@ quic_err_t quic_client_path_target_use(quic_client_t *const client, const quic_a
 quic_err_t quic_client_cert_file(quic_client_t *const client, const char *const cert_file);
 quic_err_t quic_client_key_file(quic_client_t *const client, const char *const key_file);
 
-quic_err_t quic_client_accept(quic_client_t *const client, quic_err_t (*accept_cb) (quic_session_t *const, quic_stream_t *const));
-quic_stream_t *quic_client_open(quic_client_t *const client, bool bidi);
+quic_err_t quic_client_accept(quic_client_t *const client, const size_t extends_size, quic_err_t (*accept_cb) (quic_stream_t *const));
+quic_stream_t *quic_client_open(quic_client_t *const client, const size_t extends_size, bool bidi);
 quic_err_t quic_client_handshake_done(quic_client_t *const client, quic_err_t (*handshake_done_cb) (quic_session_t *const));
 
 quic_err_t quic_client_start_loop(quic_client_t *const client);

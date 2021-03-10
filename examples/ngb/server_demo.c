@@ -3,38 +3,38 @@
 
 uint8_t buf[256];
 
-quic_err_t write_done(quic_stream_t *const str, void *data, const size_t capa, const size_t len) {
-    (void) data;
-    (void) capa;
-    (void) len;
-
-    printf("send: pong\n");
-
-    quic_stream_close(str, NULL);
-
-    return quic_err_success;
-}
-
-quic_err_t read_done(quic_stream_t *const str, void *const data, const size_t capa, const size_t len) {
+quic_err_t closed_cb(quic_stream_t *const str) {
     (void) str;
-    (void) capa;
-    (void) len;
 
-    printf("recv: %s\n", (char *) data);
-
-    quic_stream_write(str, "pong", 5, write_done);
+    printf("closed\n");
 
     return quic_err_success;
 }
 
-quic_err_t accept_stream(quic_stream_t *const str) {
+quic_err_t read_done(quic_stream_t *const str, void *const buf, const size_t capa, const size_t len) {
+    quic_stream_extends(int, str) += len;
+    printf("%d\n", quic_stream_extends(int, str));
+
+    if (len == 0 && quic_stream_fin(str)) {
+        quic_stream_close(str, closed_cb);
+        return quic_err_success;
+    }
+
+    quic_stream_read(str, buf, capa, read_done);
+
+    return quic_err_success;
+}
+
+quic_err_t accept_stream(quic_session_t *const session, quic_stream_t *const str) {
+    (void) session;
+
     quic_stream_read(str, buf, sizeof(buf), read_done);
 
     return quic_err_success;
 }
 
 quic_err_t handshake_done(quic_session_t *const session) {
-    quic_session_accept(session, 0, accept_stream);
+    quic_session_accept(session, sizeof(int), accept_stream);
 
     return quic_err_success;
 }
@@ -45,18 +45,15 @@ void on_close(quic_session_t *const session) {
     printf("closed\n");
 }
 
-quic_err_t accept_session(quic_server_t *const server, quic_session_t *const session) {
+quic_err_t accept_session_cb(quic_server_t *const server, quic_session_t *const session) {
     (void) server;
 
     quic_session_handshake_done(session, handshake_done);
-
     quic_session_on_close(session, on_close);
-
     return quic_err_success;
 }
 
 int main() {
-
     quic_server_t server;
     quic_server_init(&server, 8192);
 
@@ -65,7 +62,7 @@ int main() {
     quic_server_cert_file(&server, "./tests/crt.crt");
     quic_server_key_file(&server, "./tests/key.key");
 
-    quic_server_accept(&server, accept_session);
+    quic_server_accept(&server, accept_session_cb);
 
     quic_server_start_loop(&server);
 

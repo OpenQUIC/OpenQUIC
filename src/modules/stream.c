@@ -492,7 +492,7 @@ static inline quic_stream_t *quic_session_open_recv_stream(quic_stream_module_t 
     pthread_mutex_unlock(mtx);
 
     if (module->accept_cb) {
-        module->accept_cb(session, stream);
+        module->accept_cb(stream);
     }
 
     return stream;

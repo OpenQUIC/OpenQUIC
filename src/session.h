@@ -124,7 +124,7 @@ quic_err_t quic_session_on_close(quic_session_t *const session, void (*cb) (quic
 quic_err_t quic_session_cert_file(quic_session_t *const session, const char *const cert_file);
 quic_err_t quic_session_key_file(quic_session_t *const session, const char *const key_file);
 
-quic_err_t quic_session_accept(quic_session_t *const session, const size_t extends_size, quic_err_t (*accept_cb) (quic_session_t *const, quic_stream_t *const));
+quic_err_t quic_session_accept(quic_session_t *const session, const size_t extends_size, quic_err_t (*accept_cb) (quic_stream_t *const));
 quic_err_t quic_session_handshake_done(quic_session_t *const session, quic_err_t (*handshake_done_cb) (quic_session_t *const));
 quic_stream_t *quic_session_open(quic_session_t *const session, const size_t extends_size, const bool bidi);
 

@@ -1,6 +1,32 @@
 #include "client.h"
 #include "modules/stream.h"
 
+uint8_t data[1024] = { 0 };
+void stream_write_block(quic_stream_t *const stream);
+
+quic_err_t write_done_cb(quic_stream_t *const stream, void *const data, const size_t capa, const size_t len) {
+    (void) data;
+    (void) capa;
+    (void) len;
+
+    printf("yield %dKB\n", quic_stream_extends(int, stream));
+
+    stream_write_block(stream);
+
+    return quic_err_success;
+}
+
+void stream_write_block(quic_stream_t *const stream) {
+    if (quic_stream_extends(int, stream)) {
+        quic_stream_write(stream, data, sizeof(data), write_done_cb);
+
+        quic_stream_extends(int, stream)--;
+    }
+    else {
+        quic_stream_close(stream, NULL);
+    }
+}
+
 quic_err_t handshake_done_cb(quic_session_t *const session) {
     quic_stream_t *stream = quic_session_open(session, sizeof(int), true);
 

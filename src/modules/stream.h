@@ -236,7 +236,7 @@ struct quic_stream_module_s {
     quic_stream_destory_sid_t *destory_set;
 
     quic_err_t (*init) (quic_stream_t *const str);
-    quic_err_t (*accept_cb) (quic_session_t *const, quic_stream_t *const);
+    quic_err_t (*accept_cb) (quic_stream_t *const);
     void (*destory) (quic_stream_t *const str);
 };
 
@@ -269,7 +269,7 @@ __quic_extends quic_session_t *quic_stream_session(quic_stream_t *const str);
 
 quic_stream_t *quic_stream_module_send_relation_stream(quic_stream_module_t *const module, const uint64_t sid);
 
-static inline quic_err_t quic_stream_accept(quic_stream_module_t *const module, const size_t extends_size, quic_err_t (*accept_cb) (quic_session_t *const, quic_stream_t *const)) {
+static inline quic_err_t quic_stream_accept(quic_stream_module_t *const module, const size_t extends_size, quic_err_t (*accept_cb) (quic_stream_t *const)) {
     module->accepted_extends_size = extends_size;
     module->accept_cb = accept_cb;
     return quic_err_success;

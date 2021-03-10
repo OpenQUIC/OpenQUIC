@@ -203,7 +203,7 @@ quic_err_t quic_session_key_file(quic_session_t *const session, const char *cons
     return quic_err_success;
 }
 
-quic_err_t quic_session_accept(quic_session_t *const session, const size_t extends_size, quic_err_t (*accept_cb) (quic_session_t *const, quic_stream_t *const)) {
+quic_err_t quic_session_accept(quic_session_t *const session, const size_t extends_size, quic_err_t (*accept_cb) (quic_stream_t *const)) {
     quic_stream_module_t *const module = quic_session_module(session, quic_stream_module);
     return quic_stream_accept(module, extends_size, accept_cb);
 }

@@ -140,12 +140,12 @@ quic_err_t quic_client_key_file(quic_client_t *const client, const char *const k
     return quic_session_key_file(client->session, key_file);
 }
 
-quic_err_t quic_client_accept(quic_client_t *const client, quic_err_t (*accept_cb) (quic_session_t *const, quic_stream_t *const)) {
-    return quic_session_accept(client->session, accept_cb);
+quic_err_t quic_client_accept(quic_client_t *const client, const size_t extends_size, quic_err_t (*accept_cb) (quic_stream_t *const)) {
+    return quic_session_accept(client->session, extends_size, accept_cb);
 }
 
-quic_stream_t *quic_client_open(quic_client_t *const client, bool bidi) {
-    return quic_session_open(client->session, bidi);
+quic_stream_t *quic_client_open(quic_client_t *const client, const size_t extends_size, bool bidi) {
+    return quic_session_open(client->session, extends_size, bidi);
 }
 
 quic_err_t quic_client_handshake_done(quic_client_t *const client, quic_err_t (*handshake_done_cb) (quic_session_t *const)) {
