@@ -773,6 +773,7 @@ quic_err_t quic_stream_module_process_rwnd(quic_stream_module_t *const module) {
                 frame->sid = str->key;
                 frame->max_data = flowctrl->rwnd;
 
+                printf("process rwnd %ld\n", frame->max_data);
                 quic_framer_ctrl(framer, (quic_frame_t *) frame);
             }
         }
@@ -819,6 +820,7 @@ static inline quic_err_t quic_recv_stream_handle_frame(quic_recv_stream_t *const
     bool newly_fin = false;
 
     quic_stream_flowctrl_update_rwnd(flowctrl_module, quic_stream_extend_flowctrl(p_str), t_off, fin);
+    printf("recv: %ld\n", (frame->off + frame->len) / 1024);
 
     if (fin) {
         newly_fin = !str->fin_flag;
@@ -880,6 +882,8 @@ static inline quic_err_t quic_send_stream_handle_max_stream_data_frame(quic_send
     pthread_mutex_lock(&str->mtx);
     bool remain = str->reader_len != 0;
     pthread_mutex_unlock(&str->mtx);
+
+    printf("handle max stream data %ld\n", frame->max_data);
 
     quic_stream_flowctrl_update_swnd(f_module, quic_stream_extend_flowctrl(p_str), frame->max_data);
     if (remain) {

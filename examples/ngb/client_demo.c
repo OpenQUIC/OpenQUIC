@@ -9,7 +9,7 @@ quic_err_t write_done_cb(quic_stream_t *const stream, void *const data, const si
     (void) capa;
     (void) len;
 
-    printf("yield %dKB\n", quic_stream_extends(int, stream));
+    printf("sended %dKB\n", 1024 * 1024 - quic_stream_extends(int, stream));
 
     stream_write_block(stream);
 
@@ -31,6 +31,8 @@ quic_err_t handshake_done_cb(quic_session_t *const session) {
     quic_stream_t *stream = quic_session_open(session, sizeof(int), true);
 
     quic_stream_extends(int, stream) = 1024 * 1024;
+
+    stream_write_block(stream);
 
     return quic_err_success;
 }

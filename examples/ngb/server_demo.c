@@ -13,7 +13,7 @@ quic_err_t closed_cb(quic_stream_t *const str) {
 
 quic_err_t read_done(quic_stream_t *const str, void *const buf, const size_t capa, const size_t len) {
     quic_stream_extends(int, str) += len;
-    printf("%d\n", quic_stream_extends(int, str));
+    printf("%dKB\n", quic_stream_extends(int, str) / 1024);
 
     if (len == 0 && quic_stream_fin(str)) {
         quic_stream_close(str, closed_cb);

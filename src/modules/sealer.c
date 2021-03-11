@@ -716,6 +716,17 @@ quic_err_t quic_sealer_seal(quic_send_packet_t *const pkt, quic_sealer_t *const 
 
     size_t hdr_size = quic_buf_size(&hdr);
 
+    // TEST BEGIN
+    memcpy(pkt->buf.pos, hdr.pos, hdr_size);
+    pkt->buf.pos += hdr_size;
+    quic_frame_t *test_frame = NULL;
+    quic_link_foreach(test_frame, &pkt->frames) {
+        quic_frame_format(&pkt->buf, test_frame);
+    }
+    quic_buf_write_complete(&pkt->buf);
+    return quic_err_success;
+    // TEST END
+
     size_t payload_len = 0;
     quic_frame_t *frame = NULL;
     quic_link_foreach(frame, &pkt->frames) {
@@ -735,7 +746,7 @@ quic_err_t quic_sealer_seal(quic_send_packet_t *const pkt, quic_sealer_t *const 
     // AEAD seal
     size_t sealed_outlen = quic_buf_size(&payload_buf);
     EVP_AEAD_CTX_seal(&sealer->w_ctx,
-                      pkt->buf.pos + hdr_size, &sealed_outlen, quic_buf_size(&payload_buf) + sealer->w_aead_tag_size,
+                      pkt->buf.buf + hdr_size, &sealed_outlen, quic_buf_size(&payload_buf) + sealer->w_aead_tag_size,
                       sealer->w_iv.pos, quic_buf_size(&sealer->w_iv),
                       payload_buf.pos, quic_buf_size(&payload_buf),
                       hdr.pos, hdr_size);
@@ -756,6 +767,9 @@ quic_err_t quic_sealer_seal(quic_send_packet_t *const pkt, quic_sealer_t *const 
 }
 
 quic_err_t quic_sealer_open(quic_recv_packet_t *const pkt, quic_sealer_module_t *const module, const size_t src_len) {
+    // TEST BEGIN
+    return quic_err_success;
+    // TEST END
     quic_header_t *const hdr = (quic_header_t *) pkt->pkt.data;
     quic_sealer_t *sealer = NULL;
 
