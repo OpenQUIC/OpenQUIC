@@ -44,7 +44,7 @@ static quic_err_t quic_client_transmission_recv_cb(quic_transmission_t *const tr
 static void quic_client_eloop_close_cb(liteco_event_t *const event, const uint64_t action);
 static void quic_client_session_replace_close_cb(quic_session_t *const session, const quic_buf_t pkt);
 
-quic_err_t quic_client_init(quic_client_t *const client, const size_t st_size) {
+quic_err_t quic_client_init(quic_client_t *const client, const size_t extends_size, const size_t st_size) {
     uint8_t rand = 0;
     quic_buf_t src;
 
@@ -74,7 +74,7 @@ quic_err_t quic_client_init(quic_client_t *const client, const size_t st_size) {
     quic_transmission_init(&client->transmission, &client->rt);
     quic_transmission_recv(&client->transmission, quic_client_transmission_recv_cb);
 
-    client->session = quic_session_create(&client->transmission, quic_client_default_config);
+    client->session = quic_session_create(&client->transmission, quic_client_default_config, extends_size);
     client->session->src = src;
     client->session->replace_close = quic_client_session_replace_close_cb;
 

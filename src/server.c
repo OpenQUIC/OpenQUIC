@@ -48,7 +48,7 @@ static void quic_server_session_replace_close_cb(quic_session_t *const session, 
 
 static void quic_session_close_foreach_src_cb(const quic_buf_t connid, void *args);
 
-quic_err_t quic_server_init(quic_server_t *const server, const size_t st_size) {
+quic_err_t quic_server_init(quic_server_t *const server, const size_t extends_size, const size_t st_size) {
     uint8_t rand = 0;
     /*if (RAND_bytes(&rand, 1) <= 0) {*/
         /*return quic_err_internal_error;*/
@@ -66,6 +66,7 @@ quic_err_t quic_server_init(quic_server_t *const server, const size_t st_size) {
     quic_rbt_tree_init(server->sessions);
     quic_rbt_tree_init(server->closed_sessions);
 
+    server->session_extends_size = extends_size;
     server->accept_cb = NULL;
 
     return quic_err_success;
@@ -87,7 +88,7 @@ quic_err_t quic_server_listen(quic_server_t *const server, const quic_addr_t loc
     return quic_transmission_listen(&server->eloop, &server->transmission, local_addr, 1460);
 }
 
-quic_err_t quic_server_accept(quic_server_t *const server, quic_err_t (*accept_cb) (quic_server_t *const, quic_session_t *const)) {
+quic_err_t quic_server_accept(quic_server_t *const server, quic_err_t (*accept_cb) (quic_session_t *const)) {
     server->accept_cb = accept_cb;
 
     return quic_err_success;
@@ -100,6 +101,10 @@ quic_err_t quic_server_start_loop(quic_server_t *const server) {
     return quic_err_success;
 }
 
+quic_server_t *quic_session_server(quic_session_t *const session) {
+    return ((void *) session->transmission) - offsetof(quic_server_t, transmission);
+}
+
 static quic_err_t quic_server_transmission_recv_cb(quic_transmission_t *const transmission, quic_recv_packet_t *const recvpkt) {
     quic_server_t *const server = ((void *) transmission) - offsetof(quic_server_t, transmission);
 
@@ -110,7 +115,7 @@ static quic_err_t quic_server_transmission_recv_cb(quic_transmission_t *const tr
         quic_buf_setpl(&cli_dst);
         quic_buf_setpl(&cli_src);
 
-        quic_session_t *const session = quic_session_create(&server->transmission, quic_server_default_config);
+        quic_session_t *const session = quic_session_create(&server->transmission, quic_server_default_config, server->session_extends_size);
         quic_buf_copy(&session->src, &cli_dst);
         quic_buf_copy(&session->dst, &cli_src);
         session->cfg = server->cfg;
@@ -132,7 +137,7 @@ static quic_err_t quic_server_transmission_recv_cb(quic_transmission_t *const tr
         quic_session_path_use(session, quic_path_addr(quic_litecoaddr(recvpkt->pkt.local_addr), quic_litecoaddr(recvpkt->pkt.remote_addr)));
 
         if (server->accept_cb) {
-            server->accept_cb(server, session);
+            server->accept_cb(session);
         }
 
         quic_recver_module_t *const r_module = quic_session_module(session, quic_recver_module);

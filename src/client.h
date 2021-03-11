@@ -39,7 +39,7 @@ struct quic_client_s {
 
 extern const quic_config_t quic_client_default_config;
 
-quic_err_t quic_client_init(quic_client_t *const client, const size_t st_size);
+quic_err_t quic_client_init(quic_client_t *const client, const size_t extends_size, const size_t st_size);
 quic_err_t quic_client_listen(quic_client_t *const client, const quic_addr_t local_addr, const uint32_t mtu);
 quic_err_t quic_client_path_use(quic_client_t *const client, const quic_path_t path); 
 quic_err_t quic_client_path_target_use(quic_client_t *const client, const quic_addr_t remote_addr);
@@ -54,5 +54,8 @@ quic_err_t quic_client_handshake_done(quic_client_t *const client, quic_err_t (*
 quic_err_t quic_client_start_loop(quic_client_t *const client);
 
 quic_client_t *quic_session_client(quic_session_t *const session);
+
+#define quic_client_extends(type, client) \
+    quic_session_extends(type, (client)->session)
 
 #endif

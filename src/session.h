@@ -114,7 +114,7 @@ struct quic_session_s {
 
 typedef quic_err_t (*quic_session_handler_t) (quic_session_t *const, const quic_frame_t *const);
 
-quic_session_t *quic_session_create(quic_transmission_t *const transmission, const quic_config_t cfg);
+quic_session_t *quic_session_create(quic_transmission_t *const transmission, const quic_config_t cfg, const size_t extends_size);
 quic_err_t quic_session_init(quic_session_t *const session, liteco_eloop_t *const eloop, liteco_runtime_t *const rt, void *const st, const size_t st_len);
 quic_err_t quic_session_finished(quic_session_t *const session, int (*finished_cb) (void *const args), void *const args);
 
@@ -135,6 +135,10 @@ quic_err_t quic_session_send(quic_session_t *const session, const void *const da
 
 quic_transport_parameter_t quic_session_get_transport_parameter(quic_session_t *const session);
 quic_err_t quic_session_set_transport_parameter(quic_session_t *const session, const quic_transport_parameter_t params);
+
+#define quic_session_extends(type, session) \
+    (*(type *) quic_session_extends_inner(session))
+void *quic_session_extends_inner(quic_session_t *const session);
 
 typedef struct quic_closed_session_s quic_closed_session_t;
 struct quic_closed_session_s {

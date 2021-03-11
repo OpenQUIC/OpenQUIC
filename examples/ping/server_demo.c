@@ -45,9 +45,7 @@ void on_close(quic_session_t *const session) {
     printf("closed\n");
 }
 
-quic_err_t accept_session(quic_server_t *const server, quic_session_t *const session) {
-    (void) server;
-
+quic_err_t accept_session(quic_session_t *const session) {
     quic_session_handshake_done(session, handshake_done);
 
     quic_session_on_close(session, on_close);
@@ -58,7 +56,7 @@ quic_err_t accept_session(quic_server_t *const server, quic_session_t *const ses
 int main() {
 
     quic_server_t server;
-    quic_server_init(&server, 8192);
+    quic_server_init(&server, 0, 8192);
 
     quic_server_listen(&server, quic_ipv4("127.0.0.1", 11001));
 

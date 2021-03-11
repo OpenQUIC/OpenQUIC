@@ -25,9 +25,7 @@ quic_err_t read_done(quic_stream_t *const str, void *const buf, const size_t cap
     return quic_err_success;
 }
 
-quic_err_t accept_stream(quic_session_t *const session, quic_stream_t *const str) {
-    (void) session;
-
+quic_err_t accept_stream(quic_stream_t *const str) {
     quic_stream_read(str, buf, sizeof(buf), read_done);
 
     return quic_err_success;
@@ -45,9 +43,7 @@ void on_close(quic_session_t *const session) {
     printf("closed\n");
 }
 
-quic_err_t accept_session_cb(quic_server_t *const server, quic_session_t *const session) {
-    (void) server;
-
+quic_err_t accept_session_cb(quic_session_t *const session) {
     quic_session_handshake_done(session, handshake_done);
     quic_session_on_close(session, on_close);
     return quic_err_success;
@@ -55,7 +51,7 @@ quic_err_t accept_session_cb(quic_server_t *const server, quic_session_t *const 
 
 int main() {
     quic_server_t server;
-    quic_server_init(&server, 8192);
+    quic_server_init(&server, 0, 8192);
 
     quic_server_listen(&server, quic_ipv4("127.0.0.1", 11001));
 

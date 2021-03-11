@@ -20,10 +20,10 @@ static int quic_session_destory(void *const session_);
 
 static quic_err_t quic_session_close_procedure(quic_session_t *const session);
 
-quic_session_t *quic_session_create(quic_transmission_t *const transmission, const quic_config_t cfg) {
+quic_session_t *quic_session_create(quic_transmission_t *const transmission, const quic_config_t cfg, const size_t extends_size) {
     uint32_t modules_size = quic_modules_size();
 
-    quic_session_t *session = malloc(sizeof(quic_session_t) + modules_size);
+    quic_session_t *session = malloc(sizeof(quic_session_t) + modules_size + extends_size);
     if (session == NULL) {
         return NULL;
     }
@@ -277,6 +277,10 @@ quic_err_t quic_session_set_transport_parameter(quic_session_t *const session, c
     }
 
     return quic_err_success;
+}
+
+void *quic_session_extends_inner(quic_session_t *const session) {
+    return session->modules + quic_modules_size();
 }
 
 quic_err_t quic_closed_session_send_packet(quic_closed_session_t *const session) {
