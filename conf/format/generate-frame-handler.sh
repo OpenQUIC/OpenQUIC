@@ -22,6 +22,6 @@ BEGIN {
 }
 END {
     print "const quic_session_handler_t quic_session_handler[256] = {";
-    for (val in handler) print "    " handler[val] ",";
+    for (i = 0; i < 256; i++) print "    " handler[i] ",";
     print "};"
 }' $@ > gen/frame_handler.c

@@ -21,6 +21,6 @@ BEGIN {
 }
 END {
     print "const quic_frame_sizer_t quic_frame_sizer[256] = {";
-    for (val in sizer) print "    " sizer[val] ",";
+    for (i = 0; i < 256; i++) print "    " sizer[i] ",";
     print "};"
 }' $@ > gen/frame_sizer.c

@@ -21,6 +21,6 @@ BEGIN {
 }
 END {
     print "const quic_frame_formatter_t quic_frame_formatter[256] = {";
-    for (val in formatter) print "    " formatter[val] ",";
+    for (i = 0; i < 256; i++) print "    " formatter[i] ",";
     print "};"
 }' $@ > gen/frame_formatter.c

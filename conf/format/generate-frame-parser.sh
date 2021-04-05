@@ -21,6 +21,6 @@ BEGIN {
 }
 END {
     print "const quic_frame_parser_t quic_frame_parser[256] = {";
-    for (val in parser) print "    " parser[val] ",";
+    for (i = 0; i < 256; i++) print "    " parser[i] ",";
     print "};"
 }' $@ > gen/frame_parser.c
