@@ -15,7 +15,6 @@
 #include <openssl/pem.h>
 #include <openssl/bio.h>
 #include <openssl/hkdf.h>
-#include <openssl/kdf.h>
 #include <openssl/digest.h>
 #include <byteswap.h>
 
