@@ -16,7 +16,6 @@
 #include <openssl/bio.h>
 #include <openssl/hkdf.h>
 #include <openssl/digest.h>
-#include <byteswap.h>
 
 #define QUIC_DEFAULT_TLE_CIPHERS                     \
     "TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384:" \
@@ -71,7 +70,7 @@ static inline quic_err_t quic_sealer_hkdf_expand_label(uint8_t *out, const size_
     uint8_t hkdf_label[19] = { };
     size_t hkdf_label_size = 2 + 1 + 6 + label_size + 1;
 
-    *(uint16_t *) hkdf_label = bswap_16((uint16_t) outlen);
+    *(uint16_t *) hkdf_label = quic_bswap_16((uint16_t) outlen);
     *(uint8_t *) (hkdf_label + 2) = 6 + label_size + 1;
     memcpy(hkdf_label + 3, "tls13 ", 6);
     memcpy(hkdf_label + 3 + 6, label, label_size);
@@ -719,7 +718,7 @@ quic_err_t quic_sealer_seal(quic_send_packet_t *const pkt, quic_sealer_t *const 
     memcpy(pkt->buf.pos, hdr.pos, hdr_size);
     pkt->buf.pos += hdr_size;
     quic_frame_t *test_frame = NULL;
-    quic_link_foreach(test_frame, &pkt->frames) {
+    liteco_link_foreach(test_frame, &pkt->frames) {
         quic_frame_format(&pkt->buf, test_frame);
     }
     quic_buf_write_complete(&pkt->buf);
@@ -728,7 +727,7 @@ quic_err_t quic_sealer_seal(quic_send_packet_t *const pkt, quic_sealer_t *const 
 
     size_t payload_len = 0;
     quic_frame_t *frame = NULL;
-    quic_link_foreach(frame, &pkt->frames) {
+    liteco_link_foreach(frame, &pkt->frames) {
         payload_len += quic_frame_size(frame);
     }
     uint8_t *const payload = malloc(payload_len);
@@ -737,7 +736,7 @@ quic_err_t quic_sealer_seal(quic_send_packet_t *const pkt, quic_sealer_t *const 
     }
     quic_buf_t payload_buf = { .buf = payload, .capa = payload_len };
     quic_buf_setpl(&payload_buf);
-    quic_link_foreach(frame, &pkt->frames) {
+    liteco_link_foreach(frame, &pkt->frames) {
         quic_frame_format(&payload_buf, frame);
     }
     quic_buf_write_complete(&payload_buf);
@@ -769,7 +768,7 @@ quic_err_t quic_sealer_open(quic_recv_packet_t *const pkt, quic_sealer_module_t 
     // TEST BEGIN
     return quic_err_success;
     // TEST END
-    quic_header_t *const hdr = (quic_header_t *) pkt->pkt.data;
+    quic_header_t *const hdr = (quic_header_t *) pkt->pkt.buf;
     quic_sealer_t *sealer = NULL;
 
     if (quic_header_is_long(hdr)) {
@@ -790,7 +789,7 @@ quic_err_t quic_sealer_open(quic_recv_packet_t *const pkt, quic_sealer_module_t 
         sealer = &module->app_sealer;
     }
 
-    uint8_t *pnum_off = quic_header_packet_number_off(pkt->pkt.data, src_len);
+    uint8_t *pnum_off = quic_header_packet_number_off(pkt->pkt.buf, src_len);
 
     quic_sealer_set_header_simple(&sealer->r_hp, pnum_off + 4, 16);
 
@@ -800,8 +799,8 @@ quic_err_t quic_sealer_open(quic_recv_packet_t *const pkt, quic_sealer_module_t 
     quic_sealer_apply_packet_number(&sealer->r_hp, pnum_off, pnum_size);
 
     uint8_t *payload_off = pnum_off + pnum_size;
-    const size_t hdr_size = payload_off - pkt->pkt.data;
-    const size_t payload_size = pkt->pkt.len - hdr_size;
+    const size_t hdr_size = payload_off - pkt->pkt.buf;
+    const size_t payload_size = pkt->pkt.ret - hdr_size;
 
     uint8_t *opened_payload = malloc(payload_size);
     size_t opened_outlen = 0;
@@ -813,10 +812,10 @@ quic_err_t quic_sealer_open(quic_recv_packet_t *const pkt, quic_sealer_module_t 
                       opened_payload, &opened_outlen, payload_size,
                       sealer->r_iv.pos, quic_buf_size(&sealer->r_iv),
                       payload_off, payload_size,
-                      pkt->pkt.data, hdr_size);
+                      pkt->pkt.buf, hdr_size);
 
     memcpy(payload_off, opened_payload, opened_outlen);
-    pkt->pkt.len -= sealer->r_aead_tag_size;
+    pkt->pkt.ret -= sealer->r_aead_tag_size;
 
     return quic_err_success;
 }
@@ -847,7 +846,7 @@ quic_err_t quic_session_handle_crypto_frame(quic_session_t *const session, const
             return quic_err_success;
         }
         quic_sorter_peek(sorter, 4, &fragment_size);
-        fragment_size = bswap_32(fragment_size & 0xFFFFFF00);
+        fragment_size = quic_bswap_32(fragment_size & 0xFFFFFF00);
         fragment_size += 4;
 
         if (quic_sorter_readable(sorter) < fragment_size) {

@@ -8,7 +8,7 @@
 
 #include "modules/ack_generator.h"
 #include "utils/time.h"
-#include <malloc.h>
+#include "platform/platform.h"
 
 static quic_err_t quic_ack_generator_init(void *const module);
 static quic_err_t quic_ack_generator_destory(void *const module);
@@ -16,7 +16,7 @@ static quic_err_t quic_ack_generator_destory(void *const module);
 bool quic_ack_generator_insert_ranges(quic_ack_generator_module_t *const module, const uint64_t num) {
     quic_ack_generator_range_t *range = NULL;
 
-    quic_link_foreach(range, &module->ranges) {
+    liteco_link_foreach(range, &module->ranges) {
         if (range->start <= num && num <= range->end) {
             return false;
         }
@@ -32,17 +32,17 @@ bool quic_ack_generator_insert_ranges(quic_ack_generator_module_t *const module,
         }
 
         if (extends) {
-            if ((quic_link_t *) quic_link_prev(range) != &module->ranges && quic_link_prev(range)->end + 1 == range->start) {
-                quic_link_prev(range)->end = range->end;
-                quic_link_remove(range);
-                free(range);
+            if ((liteco_linknode_t *) liteco_link_prev(range) != &module->ranges && liteco_link_prev(range)->end + 1 == range->start) {
+                liteco_link_prev(range)->end = range->end;
+                liteco_link_remove(range);
+                quic_free(range);
 
                 module->ranges_count--;
             }
-            if ((quic_link_t *) quic_link_next(range) != &module->ranges && quic_link_next(range)->start - 1 == range->end) {
-                quic_link_next(range)->start = range->start;
-                quic_link_remove(range);
-                free(range);
+            if ((liteco_linknode_t *) liteco_link_next(range) != &module->ranges && liteco_link_next(range)->start - 1 == range->end) {
+                liteco_link_next(range)->start = range->start;
+                liteco_link_remove(range);
+                quic_free(range);
 
                 module->ranges_count--;
             }
@@ -51,27 +51,27 @@ bool quic_ack_generator_insert_ranges(quic_ack_generator_module_t *const module,
         }
 
         if (num < range->start) {
-            quic_ack_generator_range_t *new_range = malloc(sizeof(quic_ack_generator_range_t));
+            quic_ack_generator_range_t *new_range = quic_malloc(sizeof(quic_ack_generator_range_t));
             if (new_range == NULL) {
                 return false;
             }
-            quic_link_init(new_range);
+            liteco_link_init(new_range);
             new_range->start = new_range->end = num;
 
-            quic_link_insert_before(range, new_range);
+            liteco_link_insert_before(range, new_range);
             module->ranges_count++;
 
             return true;
         }
     }
 
-    if ((range = malloc(sizeof(quic_ack_generator_range_t))) == NULL) {
+    if ((range = quic_malloc(sizeof(quic_ack_generator_range_t))) == NULL) {
         return false;
     }
-    quic_link_init(range);
+    liteco_link_init(range);
     range->start = range->end = num;
 
-    quic_link_insert_before(&module->ranges, range);
+    liteco_link_insert_before(&module->ranges, range);
     module->ranges_count++;
 
     return true;
@@ -80,16 +80,16 @@ bool quic_ack_generator_insert_ranges(quic_ack_generator_module_t *const module,
 quic_err_t quic_ack_generator_ignore(quic_ack_generator_module_t *const module) {
     quic_ack_generator_range_t *range = NULL;
 
-    quic_link_foreach(range, &module->ranges) {
+    liteco_link_foreach(range, &module->ranges) {
         if (module->ignore_threhold <= range->start) {
             return quic_err_success;
         }
 
         if (module->ignore_threhold > range->end) {
-            quic_link_t *prev = range->prev;
+            liteco_linknode_t *prev = range->prev;
 
-            quic_link_remove(range);
-            free(range);
+            liteco_link_remove(range);
+            quic_free(range);
 
             range = (quic_ack_generator_range_t *) prev;
         }
@@ -112,7 +112,7 @@ quic_frame_ack_t *quic_ack_generator_generate(quic_ack_generator_module_t *const
         return NULL;
     }
 
-    quic_frame_ack_t *frame = malloc(sizeof(quic_frame_ack_t) + sizeof(quic_ack_range_t) * (module->ranges_count - 1));
+    quic_frame_ack_t *frame = quic_malloc(sizeof(quic_frame_ack_t) + sizeof(quic_ack_range_t) * (module->ranges_count - 1));
     if (frame == NULL) {
         return NULL;
     }
@@ -127,7 +127,7 @@ quic_frame_ack_t *quic_ack_generator_generate(quic_ack_generator_module_t *const
     bool first = true;
     quic_ack_generator_range_t *range = NULL;
     uint32_t rangeidx = 0;
-    quic_link_rforeach(range, &module->ranges) {
+    liteco_link_rforeach(range, &module->ranges) {
         if (first) {
             first = false;
 
@@ -153,11 +153,11 @@ quic_frame_ack_t *quic_ack_generator_generate(quic_ack_generator_module_t *const
 
 bool quic_ack_generator_check_is_lost(quic_ack_generator_module_t *const module, const uint64_t num) {
     quic_ack_generator_range_t *range = NULL;
-    if (num <= module->ignore_threhold || num >= ((quic_ack_generator_range_t *) quic_link_prev(&module->ranges))->start) {
+    if (num <= module->ignore_threhold || num >= ((quic_ack_generator_range_t *) liteco_link_prev(&module->ranges))->start) {
         return false;
     }
 
-    quic_link_foreach(range, &module->ranges) {
+    liteco_link_foreach(range, &module->ranges) {
         if (num < range->start) {
             return true;
         }
@@ -170,10 +170,10 @@ bool quic_ack_generator_check_is_lost(quic_ack_generator_module_t *const module,
 }
 
 quic_err_t quic_ack_generator_drop(quic_ack_generator_module_t *const module) {
-    while (!quic_link_empty(&module->ranges)) {
-        quic_ack_generator_range_t *range = (quic_ack_generator_range_t *) quic_link_next(&module->ranges);
-        quic_link_remove(range);
-        free(range);
+    while (!liteco_link_empty(&module->ranges)) {
+        quic_ack_generator_range_t *range = (quic_ack_generator_range_t *) liteco_link_next(&module->ranges);
+        liteco_link_remove(range);
+        quic_free(range);
     }
     module->ranges_count = 0;
 
@@ -185,7 +185,7 @@ static quic_err_t quic_ack_generator_init(void *const module) {
     quic_ack_generator_module_t *const ag_module = module;
     ag_module->ignore_threhold = 0;
     ag_module->ranges_count = 0;
-    quic_link_init(&ag_module->ranges);
+    liteco_link_init(&ag_module->ranges);
 
     ag_module->lg_obnum = 0;
     ag_module->lg_obtime = 0;

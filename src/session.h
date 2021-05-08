@@ -13,16 +13,12 @@
 #include "transmission.h"
 #include "utils/buf.h"
 #include "utils/errno.h"
-#include "utils/rbt.h"
 #include "utils/addr.h"
 #include "format/frame.h"
 #include "format/transport_parameter.h"
 #include "module.h"
-#include "lc_eloop.h"
-#include "lc_runtime.h"
-#include "lc_timer.h"
-#include "lc_coroutine.h"
-#include "lc_channel.h"
+#include "liteco.h"
+#include "utils/rbt_extend.h"
 #include <stdbool.h>
 #include <sys/time.h>
 #include <netinet/in.h>
@@ -80,8 +76,7 @@ struct quic_session_s {
     liteco_co_t co;
     void *st;
     liteco_chan_t mod_chan;
-    liteco_chan_t timer_chan;
-    liteco_timer_t timer;
+    liteco_timer_chan_t tchan;
 
     quic_transmission_t *transmission;
     quic_path_t path;
@@ -130,7 +125,7 @@ quic_stream_t *quic_session_open(quic_session_t *const session, const size_t ext
 
 uint32_t quic_session_path_mtu(quic_session_t *const session);
 quic_err_t quic_session_path_use(quic_session_t *const session, const quic_path_t path);
-quic_err_t quic_session_path_target_use(quic_session_t *const session, const quic_addr_t remote_addr);
+quic_err_t quic_session_path_target_use(quic_session_t *const session, const liteco_addr_t remote_addr);
 quic_err_t quic_session_send(quic_session_t *const session, const void *const data, const uint32_t len);
 
 quic_transport_parameter_t quic_session_get_transport_parameter(quic_session_t *const session);
@@ -142,7 +137,7 @@ void *quic_session_extends_inner(quic_session_t *const session);
 
 typedef struct quic_closed_session_s quic_closed_session_t;
 struct quic_closed_session_s {
-    QUIC_RBT_STRING_FIELDS
+    QUIC_RBT_KEY_STRING_FIELDS
 
     uint64_t closed_at;
     quic_transmission_t *transmission;

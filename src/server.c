@@ -63,8 +63,8 @@ quic_err_t quic_server_init(quic_server_t *const server, const size_t extends_si
     server->connid_len = 8 + rand % 11;
     server->cfg = quic_server_default_config;
 
-    quic_rbt_tree_init(server->sessions);
-    quic_rbt_tree_init(server->closed_sessions);
+    liteco_rbt_init(server->sessions);
+    liteco_rbt_init(server->closed_sessions);
 
     server->session_extends_size = extends_size;
     server->accept_cb = NULL;
@@ -84,7 +84,7 @@ quic_err_t quic_server_key_file(quic_server_t *const server, const char *const k
     return quic_err_success;
 }
 
-quic_err_t quic_server_listen(quic_server_t *const server, const quic_addr_t local_addr) {
+quic_err_t quic_server_listen(quic_server_t *const server, const liteco_addr_t local_addr) {
     return quic_transmission_listen(&server->eloop, &server->transmission, local_addr, 1460);
 }
 
@@ -96,7 +96,7 @@ quic_err_t quic_server_accept(quic_server_t *const server, quic_err_t (*accept_c
 
 quic_err_t quic_server_start_loop(quic_server_t *const server) {
     for ( ;; ) {
-        liteco_eloop_run(&server->eloop, -1);
+        liteco_eloop_run(&server->eloop);
     }
     return quic_err_success;
 }
@@ -108,7 +108,7 @@ quic_server_t *quic_session_server(quic_session_t *const session) {
 static quic_err_t quic_server_transmission_recv_cb(quic_transmission_t *const transmission, quic_recv_packet_t *const recvpkt) {
     quic_server_t *const server = ((void *) transmission) - offsetof(quic_server_t, transmission);
 
-    quic_header_t *const header = (quic_header_t *) recvpkt->pkt.data;
+    quic_header_t *const header = (quic_header_t *) recvpkt->pkt.buf;
     if (quic_packet_type(header) == quic_packet_initial_type) {
         quic_buf_t cli_dst = quic_long_header_dst_conn(header);
         quic_buf_t cli_src = quic_long_header_src_conn(header);
@@ -132,9 +132,9 @@ static quic_err_t quic_server_transmission_recv_cb(quic_transmission_t *const tr
         g_module->new_connid = quic_server_new_connid_cb;
         g_module->retire_connid = quic_server_retire_connid_cb;
  
-        liteco_runtime_join(&server->rt, &session->co, true);
+        liteco_runtime_join(&server->rt, &session->co);
 
-        quic_session_path_use(session, quic_path_addr(quic_litecoaddr(recvpkt->pkt.local_addr), quic_litecoaddr(recvpkt->pkt.remote_addr)));
+        quic_session_path_use(session, quic_path_addr(recvpkt->pkt.loc_addr, recvpkt->pkt.rmt_addr));
 
         if (server->accept_cb) {
             server->accept_cb(session);
@@ -156,8 +156,8 @@ static quic_err_t quic_server_transmission_recv_cb(quic_transmission_t *const tr
     }
     quic_buf_setpl(&target);
 
-    quic_session_store_t *store = quic_session_store_find(server->sessions, &target);
-    if (quic_rbt_is_nil(store)) {
+    quic_session_store_t *store = liteco_rbt_find(server->sessions, &target);
+    if (liteco_rbt_is_nil(store)) {
         quic_recv_packet_recovery(recvpkt);
         return quic_err_success;
     }
@@ -175,19 +175,19 @@ static int quic_server_session_free_st_cb(void *const args) {
 static bool quic_server_new_connid_cb(quic_session_t *const session, const quic_buf_t connid) {
     quic_server_t *const server = ((void *) session->transmission) - offsetof(quic_server_t, transmission);
 
-    quic_session_store_t *store = quic_session_store_find(server->sessions, &connid);
-    if (!quic_rbt_is_nil(store)) {
+    quic_session_store_t *store = liteco_rbt_find(server->sessions, &connid);
+    if (liteco_rbt_is_not_nil(store)) {
         return false;
     }
     store = malloc(sizeof(quic_session_store_t));
     if (!store) {
         return false;
     }
-    quic_rbt_init(store);
+    liteco_rbt_node_init(store);
     store->key = connid;
     store->session = session;
 
-    quic_session_store_insert(&server->sessions, store);
+    liteco_rbt_insert(&server->sessions, store);
 
     return true;
 }
@@ -195,12 +195,12 @@ static bool quic_server_new_connid_cb(quic_session_t *const session, const quic_
 static void quic_server_retire_connid_cb(quic_session_t *const session, const quic_buf_t connid) {
     quic_server_t *const server = ((void *) session->transmission) - offsetof(quic_server_t, transmission);
 
-    quic_session_store_t *store = quic_session_store_find(server->sessions, &connid);
-    if (quic_rbt_is_nil(store)) {
+    quic_session_store_t *store = liteco_rbt_find(server->sessions, &connid);
+    if (liteco_rbt_is_nil(store)) {
         return;
     }
 
-    quic_rbt_remove(&server->sessions, &store);
+    liteco_rbt_remove(&server->sessions, &store);
     free(store);
 }
 
@@ -231,7 +231,7 @@ static void quic_session_close_foreach_src_cb(const quic_buf_t connid, void *arg
     if (!closed_session) {
         return;
     }
-    quic_rbt_init(closed_session);
+    liteco_rbt_node_init(closed_session);
 
     closed_session->closed_at = quic_now();
     quic_buf_init(&closed_session->key);
@@ -241,5 +241,5 @@ static void quic_session_close_foreach_src_cb(const quic_buf_t connid, void *arg
     quic_buf_init(&closed_session->pkt);
     quic_buf_copy(&closed_session->pkt, pkt);
 
-    quic_closed_sessions_insert(&server->closed_sessions, closed_session);
+    liteco_rbt_insert(&server->closed_sessions, closed_session);
 }

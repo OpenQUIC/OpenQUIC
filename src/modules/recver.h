@@ -9,10 +9,11 @@
 #ifndef __OPENQUIC_RECVER_H__
 #define __OPENQUIC_RECVER_H__
 
+#include "platform/platform.h"
 #include "module.h"
 #include "recv_packet.h"
 #include "session.h"
-#include "utils/link.h"
+#include "liteco.h"
 #include <netinet/in.h>
 #include <pthread.h>
 
@@ -21,7 +22,7 @@ struct quic_recver_module_s {
     QUIC_MODULE_FIELDS
 
     pthread_mutex_t mtx;
-    quic_link_t queue;
+    liteco_linknode_t queue;
 
     bool curr_ack_eliciting;
     quic_recv_packet_t *curr_packet;
@@ -32,11 +33,11 @@ struct quic_recver_module_s {
 
 extern quic_module_t quic_recver_module;
 
-static inline quic_err_t quic_recver_push(quic_recver_module_t *const module, quic_recv_packet_t *const packet) {
+__quic_header_inline quic_err_t quic_recver_push(quic_recver_module_t *const module, quic_recv_packet_t *const packet) {
     quic_session_t *const session = quic_module_of_session(module);
 
     pthread_mutex_lock(&module->mtx);
-    quic_link_insert_before(&module->queue, packet);
+    liteco_link_insert_before(&module->queue, packet);
     pthread_mutex_unlock(&module->mtx);
 
     quic_module_activate(session, quic_recver_module);

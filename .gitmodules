@@ -3,4 +3,4 @@
 	url = https://github.com/google/boringssl.git
 [submodule "deps/liteco"]
 	path = deps/liteco
-	url = git@github.com:OpenQUIC/liteco.git
+	url = https://github.com/OpenQUIC/liteco.git

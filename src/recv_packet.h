@@ -9,14 +9,14 @@
 #ifndef __OPENQUIC_RECV_PACKET_H__
 #define __OPENQUIC_RECV_PACKET_H__
 
-#include "lc_udp.h"
-#include "utils/link.h"
+#include "liteco.h"
+#include "platform/platform.h"
 #include "utils/errno.h"
 #include <netinet/in.h>
 
 typedef struct quic_recv_packet_s quic_recv_packet_t;
 struct quic_recv_packet_s {
-    QUIC_LINK_FIELDS
+    LITECO_LINKNODE_BASE
 
     union {
         struct sockaddr_in v4;
@@ -30,11 +30,11 @@ struct quic_recv_packet_s {
 
     uint64_t recv_time;
 
-    liteco_udp_pkt_t pkt;
+    liteco_udp_chan_ele_t pkt;
 };
 
-static inline quic_err_t quic_recv_packet_recovery(quic_recv_packet_t *const recvpkt) {
-    recvpkt->pkt.recovery(&recvpkt->pkt);
+__quic_header_inline quic_err_t quic_recv_packet_recovery(quic_recv_packet_t *const recvpkt) {
+    quic_free(recvpkt);
 
     return quic_err_success;
 }

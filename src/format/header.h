@@ -11,9 +11,9 @@
 
 #include "utils/buf.h"
 #include "utils/varint.h"
+#include "platform/platform.h"
 #include <stdint.h>
 #include <stddef.h>
-#include <byteswap.h>
 
 typedef uint32_t quic_version_t;
 typedef uint32_t quic_packet_number_t;
@@ -91,13 +91,13 @@ struct quic_long_header_s {
     (field) == 0 ? (*(uint8_t *) (payload)) :
 
 #define quic_packet_number_r2(field, payload) \
-    (field) == 1 ? bswap_16(*(uint16_t *) (payload)) :
+    (field) == 1 ? quic_bswap_16(*(uint16_t *) (payload)) :
 
 #define quic_packet_number_r3(field, payload) \
-    (field) == 2 ? (bswap_32(*(uint32_t *) (payload)) >> 8) :
+    (field) == 2 ? (quic_bswap_32(*(uint32_t *) (payload)) >> 8) :
 
 #define quic_packet_number_r4(field, payload) \
-    (field) == 3 ? bswap_32(*(uint32_t *) (payload)) : 0
+    (field) == 3 ? quic_bswap_32(*(uint32_t *) (payload)) : 0
 
 #define quic_packet_number_r(field, payload) \
     (quic_packet_number_r1(field & 0x03, payload) (quic_packet_number_r2(field & 0x03, payload) (quic_packet_number_r3(field & 0x03, payload) (quic_packet_number_r4(field & 0x03, payload)))))
@@ -108,20 +108,20 @@ struct quic_long_header_s {
 #define quic_packet_number_format_len(num) \
     ((num) < 0x100 ? 1 : ((num) < 0x10000 ? 2 : (num) < 1000000 ? 3 : 4))
 
-#define quic_packet_number_format(off, num, len) {               \
-    if ((len) == 1) {                                            \
-        *(uint8_t *) (off) = (num);                              \
-    }                                                            \
-    else if ((len) == 2) {                                       \
-        *(uint16_t *) (off) = bswap_16((uint16_t) (num));        \
-    }                                                            \
-    else if ((len) == 3) {                                       \
-        *(uint16_t *) (off) = bswap_16((uint16_t) ((num) >> 8)); \
-        *(uint8_t *) ((off) + 2) = (uint8_t) (num);              \
-    }                                                            \
-    else if ((len) == 4) {                                       \
-        *(uint32_t *) (off) = bswap_32((uint32_t) (num));        \
-    }                                                            \
+#define quic_packet_number_format(off, num, len) {                    \
+    if ((len) == 1) {                                                 \
+        *(uint8_t *) (off) = (num);                                   \
+    }                                                                 \
+    else if ((len) == 2) {                                            \
+        *(uint16_t *) (off) = quic_bswap_16((uint16_t) (num));        \
+    }                                                                 \
+    else if ((len) == 3) {                                            \
+        *(uint16_t *) (off) = quic_bswap_16((uint16_t) ((num) >> 8)); \
+        *(uint8_t *) ((off) + 2) = (uint8_t) (num);                   \
+    }                                                                 \
+    else if ((len) == 4) {                                            \
+        *(uint32_t *) (off) = quic_bswap_32((uint32_t) (num));        \
+    }                                                                 \
 }
 
 #define QUIC_PAYLOAD_FIELDS     \
@@ -146,7 +146,7 @@ struct quic_initial_header_s {
 #define token_pos token.pos
 #define token_last token.last
 
-static inline quic_initial_header_t quic_initial_header(quic_header_t *const header) {
+__quic_header_inline quic_initial_header_t quic_initial_header(quic_header_t *const header) {
     void *ptr = quic_long_header_payload(header);
     quic_initial_header_t initial = { .token = { .ref = true } };
 
@@ -171,7 +171,7 @@ struct quic_0rtt_header_s {
     QUIC_PAYLOAD_FIELDS
 };
 
-static inline quic_0rtt_header_t quic_0rtt_header(quic_header_t *const header) {
+__quic_header_inline quic_0rtt_header_t quic_0rtt_header(quic_header_t *const header) {
     void *ptr = quic_long_header_payload(header);
     quic_0rtt_header_t zero_rtt = { };
 
@@ -191,7 +191,7 @@ struct quic_handshake_header_s {
     QUIC_PAYLOAD_FIELDS
 };
 
-static inline quic_handshake_header_t quic_handshake_header(quic_header_t *const header) {
+__quic_header_inline quic_handshake_header_t quic_handshake_header(quic_header_t *const header) {
     void *ptr = quic_long_header_payload(header);
     quic_handshake_header_t handshake = { };
 
@@ -227,7 +227,7 @@ struct quic_short_header_s {
 #define quic_short_header_len(header, len)     \
     ((size_t) (quic_short_header_payload(header, len) - (header)))
 
-static inline quic_payload_t quic_short_header(quic_header_t *const header, size_t len) {
+__quic_header_inline quic_payload_t quic_short_header(quic_header_t *const header, size_t len) {
     void *ptr = quic_short_header_payload(header, len);
 
     quic_payload_t payload = {};
@@ -239,7 +239,7 @@ static inline quic_payload_t quic_short_header(quic_header_t *const header, size
     return payload;
 }
 
-static inline uint8_t *quic_header_packet_number_off(const uint8_t *const buf, const size_t src_len) {
+__quic_header_inline uint8_t *quic_header_packet_number_off(const uint8_t *const buf, const size_t src_len) {
     quic_header_t *const hdr = (quic_header_t *) buf;
     uint8_t *payload = NULL;
     uint64_t tmp = 0;

@@ -41,7 +41,7 @@ static quic_err_t quic_conn_flowctrl_module_destory(void *const module) {
 quic_module_t quic_conn_flowctrl_module = {
     .name        = "conn_flowctrl",
     .module_size = sizeof(quic_conn_flowctrl_module_t),
-    .init        = NULL,
+    .init        = quic_conn_flowctrl_module_init,
     .process     = NULL,
     .loop        = NULL,
     .destory     = quic_conn_flowctrl_module_destory

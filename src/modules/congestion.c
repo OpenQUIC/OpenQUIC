@@ -9,7 +9,7 @@
 #include "modules/congestion.h"
 #include "session.h"
 #include "utils/time.h"
-#include "utils/rbt.h"
+#include "utils/rbt_extend.h"
 #include <math.h>
 
 typedef struct quic_congestion_base_s quic_congestion_base_t;
@@ -77,7 +77,7 @@ struct quic_congestion_rtt_s {
 
 typedef struct quic_congestion_status_store_s quic_congestion_status_store_t;
 struct quic_congestion_status_store_s {
-    QUIC_RBT_PATH_FIELDS
+    QUIC_RBT_KEY_PATH_FIELDS
 
     quic_congestion_base_t base;
     quic_congestion_slowstart_t slowstart;
@@ -87,12 +87,6 @@ struct quic_congestion_status_store_s {
     quic_congestion_rtt_t rtt;
 };
 
-#define quic_congestion_status_store_insert(store, status) \
-    quic_rbt_insert((store), (status), quic_rbt_path_comparer)
-
-#define quic_congestion_status_store_find(store, key) \
-    ((quic_congestion_status_store_t *) quic_rbt_find((store), (key), quic_rbt_path_key_comparer))
-
 typedef struct quic_congestion_instance_s quic_congestion_instance_t;
 struct quic_congestion_instance_s {
     quic_congestion_status_store_t *store;
@@ -101,9 +95,9 @@ struct quic_congestion_instance_s {
 
 #define quic_congestion_instance(module) ((quic_congestion_instance_t *) (module)->instance)
 
-static inline uint64_t quic_congestion_delta_bandwidth(const uint64_t bytes, const uint64_t delta) {
-    return bytes * 1000 * 1000 / delta * 8;
-}
+/*static inline uint64_t quic_congestion_delta_bandwidth(const uint64_t bytes, const uint64_t delta) {*/
+    /*return bytes * 1000 * 1000 / delta * 8;*/
+/*}*/
 
 static quic_err_t quic_congestion_module_init(void *const module);
 static quic_err_t quic_congestion_module_destory(void *const module);
@@ -170,8 +164,8 @@ static quic_err_t quic_congestion_module_init(void *const module) {
 }
 
 static inline quic_err_t quic_congestion_instance_init(quic_congestion_module_t *const module) {
-    quic_rbt_tree_init(quic_congestion_instance(module)->store);
-    quic_rbt_tree_init(quic_congestion_instance(module)->active_instance);
+    liteco_rbt_init(quic_congestion_instance(module)->store);
+    liteco_rbt_init(quic_congestion_instance(module)->active_instance);
 
     return quic_err_success;
 }
@@ -271,7 +265,7 @@ static inline uint64_t quic_congestion_cubic_on_acked(quic_congestion_cubic_t *c
             module->origin_cwnd_point = cwnd;
         }
         else {
-            module->origin_time_point = cbrt((1UL << 40) / (410 * 1460) * (module->max_cwnd - cwnd));
+            module->origin_time_point = cbrt(1.0 * (1UL << 40) / (410 * 1460) * (module->max_cwnd - cwnd));
             module->origin_cwnd_point = module->max_cwnd;
         }
     }
@@ -519,7 +513,7 @@ static inline uint64_t quic_congestion_tbp_next_send_time(quic_congestion_module
     if (tbp->budget >= 14600) {
         return 0;
     }
-    uint64_t delta = ceil((14600 - tbp->budget) * 1000000 / quic_congestion_tbp_bandwidth(module));
+    uint64_t delta = ceil(1.0f * (14600 - tbp->budget) * 1000000 / quic_congestion_tbp_bandwidth(module));
     return tbp->last_sent_time + (delta > 1000 ? delta : 1000);
 }
 
@@ -638,13 +632,13 @@ static bool quic_congestion_module_has_budget(quic_congestion_module_t *const mo
 
 static quic_err_t quic_congestion_module_migrate(quic_congestion_module_t *const module, const quic_path_t key) {
     quic_congestion_instance_t *const instance = quic_congestion_instance(module);
-    quic_congestion_status_store_t *store = quic_congestion_status_store_find(instance->store, &key);
-    if (quic_rbt_is_nil(store)) {
+    quic_congestion_status_store_t *store = liteco_rbt_find(instance->store, &key);
+    if (liteco_rbt_is_nil(store)) {
         store = malloc(sizeof(quic_congestion_status_store_t));
         if (!store) {
             return quic_err_internal_error;
         }
-        quic_rbt_init(store);
+        liteco_rbt_node_init(store);
         store->key = key;
 
         quic_congestion_base_init(module, store);
@@ -654,7 +648,7 @@ static quic_err_t quic_congestion_module_migrate(quic_congestion_module_t *const
         quic_congestion_tbp_init(module, store);
         quic_congestion_rtt_init(module, store);
 
-        quic_congestion_status_store_insert(&instance->store, store);
+        liteco_rbt_insert(&instance->store, store);
     }
     instance->active_instance = store;
 
@@ -665,9 +659,9 @@ static quic_err_t quic_congestion_module_destory(void *const module) {
     quic_congestion_module_t *const c_module = module;
     quic_congestion_instance_t *const instance = quic_congestion_instance(c_module);
 
-    while (!quic_rbt_is_nil(instance->store)) {
+    while (liteco_rbt_is_not_nil(instance->store)) {
         quic_congestion_status_store_t *store = instance->store;
-        quic_rbt_remove(&instance->store, &store);
+        liteco_rbt_remove(&instance->store, &store);
         free(store);
     }
 

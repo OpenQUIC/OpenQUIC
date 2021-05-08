@@ -6,9 +6,10 @@
  *
  */
 
+#include "liteco.h"
+#include "utils/rbt_extend.h"
 #include "utils/time.h"
 #include "transmission.h"
-#include "lc_coroutine.h"
 
 typedef struct quic_transmission_recver_s quic_treansmission_recver_t;
 struct quic_transmission_recver_s {
@@ -22,25 +23,24 @@ struct quic_transmission_recver_s {
 
 static int quic_transmission_recver_process_co(void *const args);
 static int quic_transmission_recver_process_finish(void *const args);
-static int quic_transmission_recv_alloc(liteco_udp_pkt_t **const pkt, liteco_udp_t *const udp);
-static void quic_transmission_pkt_recovery(liteco_udp_pkt_t *const pkt);
+static void quic_transmission_recv_alloc(liteco_udp_chan_t *const uchan, liteco_udp_chan_ele_t **const ele);
 
 quic_err_t quic_transmission_init(quic_transmission_t *const trans, liteco_runtime_t *const rt) {
 
-    liteco_chan_create(&trans->rchan, 1, liteco_runtime_readycb, rt);
+    liteco_chan_init(&trans->rchan, 1, rt);
 
     trans->cb = NULL;
-    quic_rbt_tree_init(trans->sockets);
+    liteco_rbt_init(trans->sockets);
 
     quic_treansmission_recver_t *const recver = malloc(sizeof(quic_treansmission_recver_t) + 4096);
     if (!recver) {
         return quic_err_internal_error;
     }
     recver->trans = trans;
-    liteco_create(&recver->co, quic_transmission_recver_process_co, recver, recver->st, 4096);
-    liteco_finished(&recver->co, quic_transmission_recver_process_finish, recver);
+    liteco_co_init(&recver->co, quic_transmission_recver_process_co, recver, recver->st, 4096);
+    liteco_co_finished(&recver->co, quic_transmission_recver_process_finish, recver);
 
-    liteco_runtime_join(rt, &recver->co, true);
+    liteco_runtime_join(rt, &recver->co);
 
     return quic_err_success;
 }
@@ -49,7 +49,7 @@ static int quic_transmission_recver_process_co(void *const args) {
     quic_treansmission_recver_t *const recver = args;
 
     for ( ;; ) {
-        liteco_udp_pkt_t *const pkt = liteco_chan_pop(&recver->trans->rchan, true);
+        liteco_udp_chan_ele_t *const pkt = liteco_chan_pop(&recver->trans->rchan, true);
         if (pkt == liteco_chan_pop_failed) {
             return 0;
         }
@@ -74,40 +74,32 @@ static int quic_transmission_recver_process_finish(void *const args) {
     return 0;
 }
 
-quic_err_t quic_transmission_listen(liteco_eloop_t *const eloop, quic_transmission_t *const trans, const quic_addr_t local_addr, const uint32_t mtu) {
-    if (!quic_rbt_is_nil(quic_transmission_socket_find(trans->sockets, &local_addr))) {
+quic_err_t quic_transmission_listen(liteco_eloop_t *const eloop, quic_transmission_t *const trans, const liteco_addr_t local_addr, const uint32_t mtu) {
+    if (liteco_rbt_is_not_nil(liteco_rbt_find(trans->sockets, &local_addr))) {
         return quic_err_conflict;
     }
-    quic_transmission_socket_t *const socket = malloc(sizeof(quic_transmission_socket_t));
+    quic_transmission_socket_t *const socket = quic_malloc(sizeof(quic_transmission_socket_t));
     if (!socket) {
         return quic_err_internal_error;
     }
-    quic_rbt_init(socket);
+    liteco_rbt_node_init(socket);
 
-    liteco_udp_init(eloop, &socket->udp, AF_INET);
-    liteco_udp_bind(&socket->udp, (struct sockaddr *) &local_addr, sizeof(local_addr));
-    liteco_udp_set_recv(&socket->udp, quic_transmission_recv_alloc, &trans->rchan);
+    liteco_udp_chan_init(eloop, &socket->udp);
+    liteco_udp_chan_bind(&socket->udp, (struct sockaddr *) &local_addr, &trans->rchan);
+    liteco_udp_chan_recv(&socket->udp, quic_transmission_recv_alloc);
     socket->key = local_addr;
     socket->mtu = mtu;
 
-    quic_transmission_socket_insert(&trans->sockets, socket);
+    liteco_rbt_insert(&trans->sockets, socket);
 
     return quic_err_success;
 }
 
-static int quic_transmission_recv_alloc(liteco_udp_pkt_t **const pkt, liteco_udp_t *const udp) {
-    quic_transmission_socket_t *const socket = ((void *) udp) - offsetof(quic_transmission_socket_t, udp);
+static void quic_transmission_recv_alloc(liteco_udp_chan_t *const uchan, liteco_udp_chan_ele_t **const ele) {
+    quic_transmission_socket_t *const socket = ((void *) uchan) - offsetof(quic_transmission_socket_t, udp);
     quic_recv_packet_t *const recvpkt = malloc(sizeof(quic_recv_packet_t) + socket->mtu);
-    *pkt = &recvpkt->pkt;
 
-    (*pkt)->cap = socket->mtu;
-    (*pkt)->recovery = quic_transmission_pkt_recovery;
-    (*pkt)->len = 0;
-
-    return 0;
-}
-
-static void quic_transmission_pkt_recovery(liteco_udp_pkt_t *const pkt) {
-    quic_recv_packet_t *recvpkt = ((void *) pkt) - offsetof(quic_recv_packet_t, pkt);
-    free(recvpkt);
+    *ele = &recvpkt->pkt;
+    (*ele)->b_size = socket->mtu;
+    (*ele)->ret = 0;
 }

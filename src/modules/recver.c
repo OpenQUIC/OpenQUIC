@@ -31,7 +31,7 @@ static quic_err_t quic_recver_handle_packet(quic_recver_module_t *const module) 
         return err;
     }
 
-    quic_buf_t recv_buf = { .buf = module->curr_packet->pkt.data, .capa = module->curr_packet->pkt.len };
+    quic_buf_t recv_buf = { .buf = module->curr_packet->pkt.buf, .capa = module->curr_packet->pkt.ret };
     quic_buf_setpl(&recv_buf);
 
     union {
@@ -41,7 +41,7 @@ static quic_err_t quic_recver_handle_packet(quic_recver_module_t *const module) 
         quic_payload_t short_payload;
     } payload;
 
-    quic_header_t *const header = (quic_header_t *) module->curr_packet->pkt.data;
+    quic_header_t *const header = (quic_header_t *) module->curr_packet->pkt.buf;
 
     if (session->cfg.is_cli && !module->recv_first && quic_header_is_long(header)) {
         quic_buf_t src = quic_long_header_src_conn(header);
@@ -77,7 +77,7 @@ static quic_err_t quic_recver_handle_packet(quic_recver_module_t *const module) 
     }
     else {
         payload.short_payload = quic_short_header(header, quic_buf_size(&session->src));
-        payload.short_payload.payload_len = module->curr_packet->pkt.len - ((uint8_t *) payload.short_payload.payload - module->curr_packet->pkt.data);
+        payload.short_payload.payload_len = module->curr_packet->pkt.ret - ((uint8_t *) payload.short_payload.payload - module->curr_packet->pkt.buf);
         ag_module = quic_session_module(session, quic_app_ack_generator_module);
     }
 
@@ -153,7 +153,7 @@ static quic_err_t quic_recver_module_init(void *const module) {
     quic_recver_module_t *const ur_module = module;
 
     pthread_mutex_init(&ur_module->mtx, NULL);
-    quic_link_init(&ur_module->queue);
+    liteco_link_init(&ur_module->queue);
     ur_module->curr_packet = NULL;
     ur_module->curr_ack_eliciting = false;
 
@@ -167,9 +167,9 @@ static quic_err_t quic_recver_module_process(void *const module) {
     quic_recver_module_t *const ur_module = module;
 
     pthread_mutex_lock(&ur_module->mtx);
-    while (!quic_link_empty(&ur_module->queue)) {
-        ur_module->curr_packet = (quic_recv_packet_t *) quic_link_next(&ur_module->queue);
-        quic_link_remove(ur_module->curr_packet);
+    while (!liteco_link_empty(&ur_module->queue)) {
+        ur_module->curr_packet = (quic_recv_packet_t *) liteco_link_next(&ur_module->queue);
+        liteco_link_remove(ur_module->curr_packet);
         pthread_mutex_unlock(&ur_module->mtx);
 
         quic_recver_handle_packet(module);
@@ -189,9 +189,9 @@ static quic_err_t quic_recver_module_destory(void *const module) {
     
     pthread_mutex_destroy(&ur_module->mtx);
 
-    while (!quic_link_empty(&ur_module->queue)) {
-        quic_recv_packet_t *recvpkt = (quic_recv_packet_t *) quic_link_next(&ur_module->queue);
-        quic_link_remove(recvpkt);
+    while (!liteco_link_empty(&ur_module->queue)) {
+        quic_recv_packet_t *recvpkt = (quic_recv_packet_t *) liteco_link_next(&ur_module->queue);
+        liteco_link_remove(recvpkt);
         quic_recv_packet_recovery(recvpkt);
     }
 

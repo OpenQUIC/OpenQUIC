@@ -6,25 +6,25 @@
  *
  */
 
+#include "platform/platform.h"
 #include "sorter.h"
 #include <string.h>
-#include <malloc.h>
 
 static quic_err_t quic_sorter_write_cluster(quic_sorter_t *const sorter, uint64_t off, uint64_t len, const void *data);
 static uint64_t quic_sorter_read_cluster(quic_sorter_t *const sorter, bool consume, uint64_t len, void *data);
 
 quic_err_t quic_sorter_init(quic_sorter_t *const sorter) {
-    quic_rbt_tree_init(sorter->clusters);
-    quic_link_init(&sorter->gaps);
+    liteco_rbt_init(sorter->clusters);
+    liteco_link_init(&sorter->gaps);
 
     quic_sorter_gap_t *gap = malloc(sizeof(quic_sorter_gap_t));
     if (gap == NULL) {
         return quic_err_internal_error;
     }
-    quic_link_init(gap);
+    liteco_link_init(gap);
     gap->off = 0;
     gap->len = QUIC_SORTER_MAX_SIZE;
-    quic_link_insert_after(&sorter->gaps, gap);
+    liteco_link_insert_after(&sorter->gaps, gap);
 
     sorter->avail_size = 0;
     sorter->readed_size = 0;
@@ -33,15 +33,15 @@ quic_err_t quic_sorter_init(quic_sorter_t *const sorter) {
 }
 
 quic_err_t quic_sorter_destory(quic_sorter_t *const sorter) {
-    while (!quic_link_empty(&sorter->gaps)) {
-        quic_sorter_gap_t *gap = (quic_sorter_gap_t *) quic_link_next(&sorter->gaps);
-        quic_link_remove(gap);
+    while (!liteco_link_empty(&sorter->gaps)) {
+        quic_sorter_gap_t *gap = (quic_sorter_gap_t *) liteco_link_next(&sorter->gaps);
+        liteco_link_remove(gap);
         free(gap);
     }
 
-    while (!quic_rbt_is_nil(sorter->clusters)) {
+    while (liteco_rbt_is_not_nil(sorter->clusters)) {
         quic_sorter_cluster_t *cluster = sorter->clusters;
-        quic_rbt_remove(&sorter->clusters, &cluster);
+        liteco_rbt_remove(&sorter->clusters, &cluster);
         free(cluster);
     }
 
@@ -58,7 +58,7 @@ quic_err_t quic_sorter_write(quic_sorter_t *const sorter, uint64_t off, uint64_t
     uint64_t end = off + len - 1;
     uint64_t start = off;
 
-    quic_link_foreach(start_gap, &sorter->gaps) {
+    liteco_link_foreach(start_gap, &sorter->gaps) {
         if (end < quic_sorter_gap_start(start_gap)) {
             return quic_err_success;
         }
@@ -73,13 +73,13 @@ quic_err_t quic_sorter_write(quic_sorter_t *const sorter, uint64_t off, uint64_t
 
     end_gap = start_gap;
     while (end > quic_sorter_gap_end(end_gap)) {
-        quic_sorter_gap_t *next_end_gap = quic_link_next(end_gap);
+        quic_sorter_gap_t *next_end_gap = liteco_link_next(end_gap);
         if (end < quic_sorter_gap_start(next_end_gap)) {
             break;
         }
 
         if (end_gap != start_gap) {
-            quic_link_remove(end_gap);
+            liteco_link_remove(end_gap);
             free(end_gap);
         }
         end_gap = next_end_gap;
@@ -90,7 +90,7 @@ quic_err_t quic_sorter_write(quic_sorter_t *const sorter, uint64_t off, uint64_t
 
     if (start == quic_sorter_gap_start(start_gap)) {
         if (end >= quic_sorter_gap_end(start_gap)) {
-            quic_link_remove(start_gap);
+            liteco_link_remove(start_gap);
             free(start_gap);
         }
 
@@ -110,7 +110,7 @@ quic_err_t quic_sorter_write(quic_sorter_t *const sorter, uint64_t off, uint64_t
         }
         quic_sorter_gap_start(gap) = end + 1;
         gap->len = quic_sorter_gap_end(start_gap) - quic_sorter_gap_start(gap) + 1;
-        quic_link_insert_after(start_gap, gap);
+        liteco_link_insert_after(start_gap, gap);
 
         start_gap->len = start - 1 - quic_sorter_gap_start(start_gap) + 1;
     }
@@ -119,7 +119,7 @@ quic_err_t quic_sorter_write(quic_sorter_t *const sorter, uint64_t off, uint64_t
         quic_sorter_gap_start(end_gap) = end + 1;
     }
 
-    sorter->avail_size = ((quic_sorter_gap_t *) quic_link_next(&sorter->gaps))->off;
+    sorter->avail_size = ((quic_sorter_gap_t *) liteco_link_next(&sorter->gaps))->off;
 
     return quic_sorter_write_cluster(sorter, start, (end - start + 1), data + (start - off));
 }
@@ -151,14 +151,14 @@ static quic_err_t quic_sorter_write_cluster(quic_sorter_t *const sorter, uint64_
             cluster_len = len;
         }
 
-        quic_sorter_cluster_t *cluster = quic_sorter_cluster_find(sorter->clusters, &cluster_key);
-        if (quic_rbt_is_nil(cluster)) {
+        quic_sorter_cluster_t *cluster = liteco_rbt_find(sorter->clusters, &cluster_key);
+        if (liteco_rbt_is_nil(cluster)) {
             if ((cluster = malloc(sizeof(quic_sorter_cluster_t) + QUIC_SORTER_CLUSTER_SIZE)) == NULL) {
                 return quic_err_internal_error;
             }
-            quic_rbt_init(cluster);
+            liteco_rbt_node_init(cluster);
             cluster->key = cluster_key;
-            quic_sorter_cluster_insert(&sorter->clusters, cluster);
+            liteco_rbt_insert(&sorter->clusters, cluster);
         }
         memcpy(cluster->data + cluster_off, data, cluster_len);
 
@@ -181,8 +181,8 @@ static uint64_t quic_sorter_read_cluster(quic_sorter_t *const sorter, bool consu
         if (len < cluster_len) {
             cluster_len = len;
         }
-        quic_sorter_cluster_t *cluster = quic_sorter_cluster_find(sorter->clusters, &cluster_key);
-        if (quic_rbt_is_nil(cluster)) {
+        quic_sorter_cluster_t *cluster = liteco_rbt_find(sorter->clusters, &cluster_key);
+        if (liteco_rbt_is_nil(cluster)) {
             return readed;
         }
         memcpy(data, cluster->data + cluster_off, cluster_len);
@@ -193,7 +193,7 @@ static uint64_t quic_sorter_read_cluster(quic_sorter_t *const sorter, bool consu
         readed += cluster_len;
 
         if (consume && cluster_key != off / QUIC_SORTER_CLUSTER_SIZE) {
-            quic_rbt_remove(&sorter->clusters, &cluster);
+            liteco_rbt_remove(&sorter->clusters, &cluster);
             free(cluster);
         }
     }

@@ -9,11 +9,13 @@
 #ifndef __OPENQUIC_TIME_H__
 #define __OPENQUIC_TIME_H__
 
+#include "platform/platform.h"
+#include <sys/cdefs.h>
 #include <sys/time.h>
 #include <stdint.h>
 #include <stddef.h>
 
-static inline uint64_t quic_now() {
+__header_always_inline uint64_t quic_now() {
     struct timeval now;
     gettimeofday(&now, NULL);
     return now.tv_sec * 1000 * 1000 + now.tv_usec;

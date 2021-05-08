@@ -11,20 +11,14 @@
 
 #include "session.h"
 #include "module.h"
-#include "utils/rbt.h"
+#include "liteco.h"
 
 typedef struct quic_connid_gened_s quic_connid_gened_t;
 struct quic_connid_gened_s {
-    QUIC_RBT_UINT64_FIELDS
+    LITECO_RBT_KEY_UINT64_FIELDS
 
     quic_buf_t connid;
 };
-
-#define quic_connid_gened_insert(connids, connid) \
-    quic_rbt_insert((connids), (connid), quic_rbt_uint64_comparer)
-
-#define quic_connid_gened_find(connids, key) \
-    ((quic_connid_gened_t *) quic_rbt_find((connids), (key), quic_rbt_uint64_key_comparer))
 
 typedef struct quic_connid_gen_module_s quic_connid_gen_module_t;
 struct quic_connid_gen_module_s {

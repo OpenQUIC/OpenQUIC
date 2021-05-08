@@ -9,19 +9,19 @@
 #ifndef __OPENQUIC_TRANSMISSION_H__
 #define __OPENQUIC_TRANSMISSION_H__
 
+#include "platform/platform.h"
 #include "recv_packet.h"
 #include "utils/addr.h"
-#include "utils/rbt.h"
-#include "lc_runtime.h"
-#include "lc_channel.h"
-#include "lc_udp.h"
+#include "utils/rbt_extend.h"
+#include "liteco.h"
 #include <netinet/in.h>
 
 typedef struct quic_transmission_socket_s quic_transmission_socket_t;
 struct quic_transmission_socket_s {
-    QUIC_RBT_ADDR_FIELDS
+    QUIC_RBT_KEY_ADDR_FIELDS
+
     uint32_t mtu;
-    liteco_udp_t udp;
+    liteco_udp_chan_t udp;
 };
 
 #define quic_transmission_socket_insert(sockets, socket) \
@@ -40,30 +40,30 @@ struct quic_transmission_s {
 };
 
 quic_err_t quic_transmission_init(quic_transmission_t *const trans, liteco_runtime_t *const rt);
-quic_err_t quic_transmission_listen(liteco_eloop_t *const eloop, quic_transmission_t *const trans, const quic_addr_t local_addr, const uint32_t mtu);
+quic_err_t quic_transmission_listen(liteco_eloop_t *const eloop, quic_transmission_t *const trans, const liteco_addr_t local_addr, const uint32_t mtu);
 
-static inline quic_err_t quic_transmission_recv(quic_transmission_t *const trans, quic_err_t (*cb) (quic_transmission_t *const, quic_recv_packet_t *const)) {
+__quic_header_inline quic_err_t quic_transmission_recv(quic_transmission_t *const trans, quic_err_t (*cb) (quic_transmission_t *const, quic_recv_packet_t *const)) {
     trans->cb = cb;
     return quic_err_success;
 }
-static inline bool quic_transmission_exist(quic_transmission_t *const trans, const quic_addr_t addr) {
-    return !quic_rbt_is_nil(quic_transmission_socket_find(trans->sockets, &addr));
+__quic_header_inline bool quic_transmission_exist(quic_transmission_t *const trans, const liteco_addr_t addr) {
+    return liteco_rbt_is_nil(liteco_rbt_find(trans->sockets, &addr));
 }
 
-static inline quic_err_t quic_transmission_send(quic_transmission_t *const trans, const quic_path_t path, const void *const data, const uint32_t len) {
-    quic_transmission_socket_t *const socket = quic_transmission_socket_find(trans->sockets, &path.local_addr);
-    if (quic_rbt_is_nil(socket)) {
+__quic_header_inline quic_err_t quic_transmission_send(quic_transmission_t *const trans, const quic_path_t path, const void *const data, const uint32_t len) {
+    quic_transmission_socket_t *const socket = liteco_rbt_find(trans->sockets, &path.loc_addr);
+    if (liteco_rbt_is_nil(socket)) {
         return quic_err_not_implemented;
     }
 
-    liteco_udp_sendto(&socket->udp, (struct sockaddr *) &path.remote_addr, quic_addr_size(path.remote_addr), data, len);
+    liteco_udp_chan_sendto(&socket->udp, (struct sockaddr *) &path.rmt_addr, data, len);
 
     return quic_err_success;
 }
 
-static inline quic_err_t quic_transmission_set_mtu(quic_transmission_t *const trans, const quic_addr_t local_addr, const uint32_t mtu) {
-    quic_transmission_socket_t *const socket = quic_transmission_socket_find(trans->sockets, &local_addr);
-    if (quic_rbt_is_nil(socket)) {
+__quic_header_inline quic_err_t quic_transmission_set_mtu(quic_transmission_t *const trans, const liteco_addr_t local_addr, const uint32_t mtu) {
+    quic_transmission_socket_t *const socket = liteco_rbt_find(trans->sockets, &local_addr);
+    if (liteco_rbt_is_nil(socket)) {
         return quic_err_not_implemented;
     }
     socket->mtu = mtu;
@@ -71,9 +71,9 @@ static inline quic_err_t quic_transmission_set_mtu(quic_transmission_t *const tr
     return quic_err_success;
 }
 
-static inline uint32_t quic_transmission_get_mtu(quic_transmission_t *const trans, const quic_addr_t local_addr) {
-    quic_transmission_socket_t *const socket = quic_transmission_socket_find(trans->sockets, &local_addr);
-    if (quic_rbt_is_nil(socket)) {
+__quic_header_inline uint32_t quic_transmission_get_mtu(quic_transmission_t *const trans, const liteco_addr_t local_addr) {
+    quic_transmission_socket_t *const socket = liteco_rbt_find(trans->sockets, &local_addr);
+    if (liteco_rbt_is_nil(socket)) {
         return 0;
     }
 

@@ -11,12 +11,12 @@
 #include "utils/buf.h"
 #include "utils/varint.h"
 
-#define quic_frame_alloc(frame, _first_byte, size) \
-    if ((*(frame) = malloc((size))) == NULL) {     \
-        return quic_err_internal_error;            \
-    }                                              \
-    (**(frame)).first_byte = (_first_byte);        \
-    (**(frame)).ref_count = 1;                     \
+#define quic_frame_alloc(frame, _first_byte, size)  \
+    if ((*(frame) = quic_malloc((size))) == NULL) { \
+        return quic_err_internal_error;             \
+    }                                               \
+    (**(frame)).first_byte = (_first_byte);         \
+    (**(frame)).ref_count = 1;                      \
     (**(frame)).next = NULL
 
 #define quic_first_byte(buf) \

@@ -9,10 +9,12 @@
 #ifndef __OPENQUIC_FRAME_H__
 #define __OPENQUIC_FRAME_H__
 
+#include "liteco/lc_link.h"
+#include "platform/platform.h"
 #include "utils/arr.h"
-#include "utils/link.h"
 #include "utils/errno.h"
 #include "utils/buf.h"
+#include "liteco.h"
 #include <stdint.h>
 
 #define quic_frame_padding_type               0x00
@@ -44,7 +46,7 @@
 #define quic_frame_handshake_done_type        0x1e
 
 #define QUIC_FRAME_FIELDS                                                            \
-    QUIC_LINK_FIELDS                                                                 \
+    LITECO_LINKNODE_BASE                                                             \
     uint8_t first_byte;                                                              \
     uint8_t ref_count;                                                               \
     void *acked_obj;                                                                 \
@@ -53,7 +55,7 @@
     quic_err_t (*on_lost) (void *const lost_obj, const quic_frame_t *const frame);   \
 
 #define quic_frame_init(frame, type) { \
-    quic_link_init((frame));           \
+    liteco_link_init((frame));           \
     (frame)->first_byte = (type);      \
     (frame)->acked_obj = NULL;         \
     (frame)->on_acked = NULL;          \
@@ -256,7 +258,7 @@ extern const quic_frame_sizer_t quic_frame_sizer[256];
 #define quic_frame_format(buf, frame) \
     quic_frame_format_inner((buf), (quic_frame_t *) (frame))
 
-static inline quic_err_t quic_frame_format_inner(quic_buf_t *const buf, quic_frame_t *const frame) {
+__quic_header_inline quic_err_t quic_frame_format_inner(quic_buf_t *const buf, quic_frame_t *const frame) {
     if (!quic_frame_formatter[frame->first_byte]) {
         return quic_err_not_implemented;
     }
@@ -267,7 +269,7 @@ static inline quic_err_t quic_frame_format_inner(quic_buf_t *const buf, quic_fra
 #define quic_frame_parse(frame, buf) \
     quic_frame_parse_inner((quic_frame_t **) &frame, (buf))
 
-static inline quic_err_t quic_frame_parse_inner(quic_frame_t **const frame, quic_buf_t *const buf) {
+__quic_header_inline quic_err_t quic_frame_parse_inner(quic_frame_t **const frame, quic_buf_t *const buf) {
     if (!quic_frame_parser[*(uint8_t *) buf->pos]) {
         return quic_err_not_implemented;
     }
@@ -278,7 +280,7 @@ static inline quic_err_t quic_frame_parse_inner(quic_frame_t **const frame, quic
 #define quic_frame_size(frame) \
     quic_frame_size_inner((const quic_frame_t *) (frame))
 
-static inline uint64_t quic_frame_size_inner(const quic_frame_t *const frame) {
+__quic_header_inline uint64_t quic_frame_size_inner(const quic_frame_t *const frame) {
     if (!quic_frame_sizer[frame->first_byte]) {
         return 0;
     }

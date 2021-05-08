@@ -12,7 +12,6 @@
 #include "module.h"
 #include "session.h"
 #include "modules/congestion.h"
-#include "utils/rbt.h"
 
 typedef struct quic_migrate_module_s quic_migrate_module_t;
 struct quic_migrate_module_s {
@@ -23,7 +22,7 @@ struct quic_migrate_module_s {
 
 extern quic_module_t quic_migrate_module;
 
-static inline quic_err_t quic_migrate_path_use(quic_migrate_module_t *const module, const quic_path_t path) {
+__quic_header_inline quic_err_t quic_migrate_path_use(quic_migrate_module_t *const module, const quic_path_t path) {
     quic_session_t *const session = quic_module_of_session(module);
     quic_congestion_module_t *c_module = quic_session_module(session, quic_congestion_module);
 

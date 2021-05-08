@@ -9,10 +9,11 @@
 #ifndef __OPENQUIC_CONN_FLOWCTRL_H__
 #define __OPENQUIC_CONN_FLOWCTRL_H__
 
-#include "module.h"
+#include "platform/platform.h"
 #include "modules/congestion.h"
-#include "session.h"
 #include "utils/time.h"
+#include "module.h"
+#include "session.h"
 
 typedef struct quic_conn_flowctrl_module_s quic_conn_flowctrl_module_t;
 struct quic_conn_flowctrl_module_s {
@@ -35,7 +36,7 @@ struct quic_conn_flowctrl_module_s {
 
 extern quic_module_t quic_conn_flowctrl_module;
 
-static inline quic_err_t quic_conn_flowctrl_increment_recv(quic_conn_flowctrl_module_t *const module, const uint64_t increment) {
+__quic_header_inline quic_err_t quic_conn_flowctrl_increment_recv(quic_conn_flowctrl_module_t *const module, const uint64_t increment) {
     module->recv_off += increment;
 
     if (module->recv_off > module->rwnd) {
@@ -46,14 +47,14 @@ static inline quic_err_t quic_conn_flowctrl_increment_recv(quic_conn_flowctrl_mo
     return quic_err_success;
 }
 
-static inline quic_err_t quic_conn_flowctrl_update_swnd(quic_conn_flowctrl_module_t *const module, const uint64_t off) {
+__quic_header_inline quic_err_t quic_conn_flowctrl_update_swnd(quic_conn_flowctrl_module_t *const module, const uint64_t off) {
     if (off > module->swnd) {
         module->swnd = off;
     }
     return quic_err_success;
 }
 
-static inline void quic_conn_flowctrl_adjust_rwnd(quic_conn_flowctrl_module_t *const module) {
+__quic_header_inline void quic_conn_flowctrl_adjust_rwnd(quic_conn_flowctrl_module_t *const module) {
     quic_session_t *const session = quic_module_of_session(module);
     quic_congestion_module_t *const c_module = quic_session_module(session, quic_congestion_module);
 
@@ -74,7 +75,7 @@ static inline void quic_conn_flowctrl_adjust_rwnd(quic_conn_flowctrl_module_t *c
     module->rwnd = module->read_off + module->rwnd_size;
 }
 
-static inline quic_err_t quic_conn_flowctrl_ensure_min_rwnd_size(quic_conn_flowctrl_module_t *const module, const uint64_t rwnd_size) {
+__quic_header_inline quic_err_t quic_conn_flowctrl_ensure_min_rwnd_size(quic_conn_flowctrl_module_t *const module, const uint64_t rwnd_size) {
     quic_session_t *const session = quic_module_of_session(module);
 
     if (rwnd_size > module->rwnd_size) {
@@ -85,7 +86,7 @@ static inline quic_err_t quic_conn_flowctrl_ensure_min_rwnd_size(quic_conn_flowc
     return quic_err_success;
 }
 
-static inline quic_err_t quic_conn_flowctrl_update_rwnd(quic_conn_flowctrl_module_t *const module) {
+__quic_header_inline quic_err_t quic_conn_flowctrl_update_rwnd(quic_conn_flowctrl_module_t *const module) {
     pthread_mutex_lock(&module->rwnd_updated_mtx);
     module->updated = true;
     pthread_mutex_unlock(&module->rwnd_updated_mtx);
@@ -93,7 +94,7 @@ static inline quic_err_t quic_conn_flowctrl_update_rwnd(quic_conn_flowctrl_modul
     return quic_err_success;
 }
 
-static inline quic_err_t quic_conn_flowctrl_read(quic_conn_flowctrl_module_t *const module, const uint64_t bytes) {
+__quic_header_inline quic_err_t quic_conn_flowctrl_read(quic_conn_flowctrl_module_t *const module, const uint64_t bytes) {
     if (!module->read_off) {
         module->epoch_off = 0;
         module->epoch_time = quic_now();
@@ -107,7 +108,7 @@ static inline quic_err_t quic_conn_flowctrl_read(quic_conn_flowctrl_module_t *co
     return quic_err_success;
 }
 
-static inline quic_err_t quic_conn_flowctrl_sent(quic_conn_flowctrl_module_t *const module, const uint64_t bytes) {
+__quic_header_inline quic_err_t quic_conn_flowctrl_sent(quic_conn_flowctrl_module_t *const module, const uint64_t bytes) {
     module->sent_bytes += bytes;
 
     return quic_err_success;

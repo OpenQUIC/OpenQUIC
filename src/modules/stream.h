@@ -10,6 +10,7 @@
 #define __OPENQUIC_STREAM_H__
 
 #include "def.h"
+#include "platform/platform.h"
 #include "sorter.h"
 #include "session.h"
 #include "module.h"
@@ -17,10 +18,8 @@
 #include "modules/framer.h"
 #include "format/frame.h"
 #include "utils/errno.h"
-#include "utils/rbt.h"
-#include "utils/link.h"
 #include "utils/time.h"
-#include "lc_channel.h"
+#include "liteco.h"
 #include <stdint.h>
 #include <pthread.h>
 
@@ -55,14 +54,14 @@ struct quic_send_stream_s {
     uint32_t unacked_frames_count;
 };
 
-static inline quic_err_t quic_send_stream_init(quic_send_stream_t *const str, liteco_runtime_t *const rt) {
+__quic_header_inline quic_err_t quic_send_stream_init(quic_send_stream_t *const str, liteco_runtime_t *const rt) {
     
     pthread_mutex_init(&str->mtx, NULL);
     str->reader_buf = NULL;
     str->reader_len = 0;
     str->off = 0;
 
-    liteco_chan_create(&str->sent_segment_chan, 0, liteco_runtime_readycb, rt);
+    liteco_chan_init(&str->sent_segment_chan, 0, rt);
     str->deadline = 0;
 
     str->sent_fin = false;
@@ -73,21 +72,21 @@ static inline quic_err_t quic_send_stream_init(quic_send_stream_t *const str, li
     return quic_err_success;
 }
 
-static inline quic_err_t quic_send_stream_destory(quic_send_stream_t *const str) {
+__quic_header_inline quic_err_t quic_send_stream_destory(quic_send_stream_t *const str) {
     liteco_chan_close(&str->sent_segment_chan);
     pthread_mutex_destroy(&str->mtx);
 
     return quic_err_success;
 }
 
-static inline bool quic_send_stream_empty(quic_send_stream_t *const str) {
+__quic_header_inline bool quic_send_stream_empty(quic_send_stream_t *const str) {
     pthread_mutex_lock(&str->mtx);
     bool result = str->reader_len == 0;
     pthread_mutex_unlock(&str->mtx);
     return result;
 }
 
-static inline quic_err_t quic_send_stream_set_deadline(quic_send_stream_t *const str, const uint64_t deadline) {
+__quic_header_inline quic_err_t quic_send_stream_set_deadline(quic_send_stream_t *const str, const uint64_t deadline) {
     pthread_mutex_lock(&str->mtx);
     str->deadline = deadline;
     pthread_mutex_unlock(&str->mtx);
@@ -113,10 +112,10 @@ struct quic_recv_stream_s {
     bool closed;
 };
 
-static inline quic_err_t quic_recv_stream_init(quic_recv_stream_t *const str, liteco_runtime_t *const rt) {
+__quic_header_inline quic_err_t quic_recv_stream_init(quic_recv_stream_t *const str, liteco_runtime_t *const rt) {
 
     pthread_mutex_init(&str->mtx, NULL);
-    liteco_chan_create(&str->handled_chan, 0, liteco_runtime_readycb, rt);
+    liteco_chan_init(&str->handled_chan, 0, rt);
     quic_sorter_init(&str->sorter);
     str->read_off = 0;
     str->final_off = QUIC_SORTER_MAX_SIZE;
@@ -127,7 +126,7 @@ static inline quic_err_t quic_recv_stream_init(quic_recv_stream_t *const str, li
     return quic_err_success;
 }
 
-static inline quic_err_t quic_recv_stream_destory(quic_recv_stream_t *const str) {
+__quic_header_inline quic_err_t quic_recv_stream_destory(quic_recv_stream_t *const str) {
     liteco_chan_close(&str->handled_chan);
     pthread_mutex_destroy(&str->mtx);
     quic_sorter_destory(&str->sorter);
@@ -137,7 +136,7 @@ static inline quic_err_t quic_recv_stream_destory(quic_recv_stream_t *const str)
 
 typedef struct quic_stream_s quic_stream_t;
 struct quic_stream_s {
-    QUIC_RBT_UINT64_FIELDS
+    LITECO_RBT_KEY_UINT64_FIELDS
 
     quic_send_stream_t send;
     quic_recv_stream_t recv;
@@ -184,9 +183,9 @@ struct quic_stream_set_s {
     uint64_t next_sid;
 };
 
-static inline quic_err_t quic_stream_set_init(quic_stream_set_t *const strset) {
+__quic_header_inline quic_err_t quic_stream_set_init(quic_stream_set_t *const strset) {
     pthread_mutex_init(&strset->mtx, NULL);
-    quic_rbt_tree_init(strset->streams);
+    liteco_rbt_init(strset->streams);
     strset->streams_count = 0;
     strset->next_sid = 1;
 
@@ -194,29 +193,15 @@ static inline quic_err_t quic_stream_set_init(quic_stream_set_t *const strset) {
 }
 
 typedef struct quic_stream_rwnd_updated_sid_s quic_stream_rwnd_updated_sid_t;
-struct quic_stream_rwnd_updated_sid_s {
-    QUIC_RBT_UINT64_FIELDS
-};
-
-#define quic_stream_rwnd_updated_sid_find(set, key) \
-    ((quic_stream_rwnd_updated_sid_t *) quic_rbt_find((set), (key), quic_rbt_uint64_key_comparer))
-
-#define quic_stream_rwnd_updated_sid_insert(set, sid) \
-    quic_rbt_insert((set), (sid), quic_rbt_uint64_comparer); 
+struct quic_stream_rwnd_updated_sid_s { LITECO_RBT_KEY_UINT64_FIELDS };
 
 typedef struct quic_stream_destory_sid_s quic_stream_destory_sid_t;
 struct quic_stream_destory_sid_s {
-    QUIC_RBT_UINT64_FIELDS
+    LITECO_RBT_KEY_UINT64_FIELDS
 
     uint64_t destory_time;
     quic_err_t (*closed_cb) (quic_stream_t *const);
 };
-
-#define quic_stream_destory_sid_find(set, key) \
-    ((quic_stream_destory_sid_t *) quic_rbt_find((set), (key), quic_rbt_uint64_key_comparer))
-
-#define quic_stream_destory_sid_insert(set, sid) \
-    quic_rbt_insert((set), (sid), quic_rbt_uint64_comparer); 
 
 typedef struct quic_stream_module_s quic_stream_module_t;
 struct quic_stream_module_s {
@@ -240,15 +225,15 @@ struct quic_stream_module_s {
     void (*destory) (quic_stream_t *const str);
 };
 
-static inline quic_err_t quic_stream_module_update_rwnd(quic_stream_module_t *const module, const uint64_t sid) {
+__quic_header_inline quic_err_t quic_stream_module_update_rwnd(quic_stream_module_t *const module, const uint64_t sid) {
     pthread_mutex_lock(&module->rwnd_updated_mtx);
-    if (quic_rbt_is_nil(quic_stream_rwnd_updated_sid_find(module->rwnd_updated, &sid))) {
+    if (liteco_rbt_is_nil(liteco_rbt_find(module->rwnd_updated, &sid))) {
         quic_stream_rwnd_updated_sid_t *updated_sid = malloc(sizeof(quic_stream_rwnd_updated_sid_t));
         if (updated_sid) {
-            quic_rbt_init(updated_sid);
+            liteco_rbt_node_init(updated_sid);
             updated_sid->key = sid;
 
-            quic_stream_rwnd_updated_sid_insert(&module->rwnd_updated, updated_sid);
+            liteco_rbt_insert(&module->rwnd_updated, updated_sid);
         }
     }
     pthread_mutex_unlock(&module->rwnd_updated_mtx);
@@ -269,7 +254,7 @@ __quic_extends quic_session_t *quic_stream_session(quic_stream_t *const str);
 
 quic_stream_t *quic_stream_module_send_relation_stream(quic_stream_module_t *const module, const uint64_t sid);
 
-static inline quic_err_t quic_stream_accept(quic_stream_module_t *const module, const size_t extends_size, quic_err_t (*accept_cb) (quic_stream_t *const)) {
+__quic_header_inline quic_err_t quic_stream_accept(quic_stream_module_t *const module, const size_t extends_size, quic_err_t (*accept_cb) (quic_stream_t *const)) {
     module->accepted_extends_size = extends_size;
     module->accept_cb = accept_cb;
     return quic_err_success;

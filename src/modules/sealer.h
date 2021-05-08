@@ -15,11 +15,10 @@
 #include "format/frame.h"
 #include "modules/framer.h"
 #include "modules/ack_generator.h"
+#include "liteco.h"
 #include <openssl/ssl.h>
 #include <openssl/aes.h>
 #include <openssl/chacha.h>
-#include <malloc.h>
-#include <byteswap.h>
 
 #define quic_ssl_session_id_context "OpenQUIC server"
 
@@ -31,7 +30,7 @@ struct quic_header_protector_s {
     uint8_t mask[32];
 };
 
-static inline quic_err_t quic_header_protector_init(quic_header_protector_t *const header_protector) {
+__quic_header_inline quic_err_t quic_header_protector_init(quic_header_protector_t *const header_protector) {
     quic_buf_init(&header_protector->key);
     header_protector->suite_id = 0;
 
@@ -58,7 +57,7 @@ struct quic_sealer_s {
 
 };
 
-static inline quic_err_t quic_sealer_init(quic_sealer_t *const sealer) {
+__quic_header_inline quic_err_t quic_sealer_init(quic_sealer_t *const sealer) {
     EVP_AEAD_CTX_zero(&sealer->w_ctx);
     sealer->w_aead = NULL;
     sealer->w_aead_tag_size = 0;
@@ -108,7 +107,7 @@ struct quic_sealer_module_s {
 
 extern quic_module_t quic_sealer_module;
 
-static inline quic_err_t quic_sealer_set_level(quic_sealer_module_t *const module, enum ssl_encryption_level_t level) {
+__quic_header_inline quic_err_t quic_sealer_set_level(quic_sealer_module_t *const module, enum ssl_encryption_level_t level) {
     quic_session_t *const session = quic_module_of_session(module);
     quic_ack_generator_module_t *ag_module = NULL;
     quic_retransmission_module_t *r_module = NULL;
@@ -143,7 +142,7 @@ static inline quic_err_t quic_sealer_set_level(quic_sealer_module_t *const modul
     return quic_err_success;
 }
 
-static inline quic_err_t quic_sealer_handshake_process(quic_sealer_module_t *const module) {
+__quic_header_inline quic_err_t quic_sealer_handshake_process(quic_sealer_module_t *const module) {
     int result = SSL_do_handshake(module->ssl);
     if (result >= 0) {
         quic_session_t *const session = quic_module_of_session(module);
@@ -176,7 +175,7 @@ static inline quic_err_t quic_sealer_handshake_process(quic_sealer_module_t *con
     return quic_err_success;
 }
 
-static inline uint64_t quic_sealer_append_crypto_frame(quic_link_t *const frames, uint64_t len, quic_sealer_module_t *const module, enum ssl_encryption_level_t level) {
+__quic_header_inline uint64_t quic_sealer_append_crypto_frame(liteco_linknode_t *const frames, uint64_t len, quic_sealer_module_t *const module, enum ssl_encryption_level_t level) {
     quic_sorter_t *sorter = NULL;
 
     switch (level) {
@@ -209,12 +208,12 @@ static inline uint64_t quic_sealer_append_crypto_frame(quic_link_t *const frames
 
     quic_sorter_read(sorter, len, frame->data);
     
-    quic_link_insert_before(frames, frame);
+    liteco_link_insert_before(frames, frame);
 
     return quic_frame_size(frame);
 }
 
-static inline bool quic_sealer_should_send(quic_sealer_module_t *const module, enum ssl_encryption_level_t level) {
+__quic_header_inline bool quic_sealer_should_send(quic_sealer_module_t *const module, enum ssl_encryption_level_t level) {
     switch (level) {
     case ssl_encryption_initial:
         return !quic_sorter_empty(&module->initial_w_sorter);
@@ -225,7 +224,7 @@ static inline bool quic_sealer_should_send(quic_sealer_module_t *const module, e
     }
 }
 
-static inline quic_err_t quic_sealer_handshake_done(quic_sealer_module_t *const module, quic_err_t (*handshake_done_cb) (quic_session_t *const)) {
+__quic_header_inline quic_err_t quic_sealer_handshake_done(quic_sealer_module_t *const module, quic_err_t (*handshake_done_cb) (quic_session_t *const)) {
     module->handshake_done_cb = handshake_done_cb;
     return quic_err_success;
 }

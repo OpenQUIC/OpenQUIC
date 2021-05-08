@@ -6,14 +6,15 @@
  *
  */
 
-#include "session.h"
-#include "module.h"
+#include "liteco.h"
+#include "platform/platform.h"
 #include "modules/stream.h"
 #include "modules/sealer.h"
 #include "modules/migrate.h"
 #include "modules/connid_gen.h"
 #include "utils/time.h"
-#include <malloc.h>
+#include "session.h"
+#include "module.h"
 
 static int quic_session_run_co(void *const session_);
 static int quic_session_destory(void *const session_);
@@ -48,13 +49,12 @@ quic_err_t quic_session_init(quic_session_t *const session, liteco_eloop_t *cons
     session->rt = rt;
     session->st = st;
 
-    liteco_chan_create(&session->mod_chan, 0, liteco_runtime_readycb, rt);
-    liteco_chan_create(&session->timer_chan, 0, liteco_runtime_readycb, rt);
+    liteco_chan_init(&session->mod_chan, 0, rt);
 
-    liteco_create(&session->co, quic_session_run_co, session, st, st_len);
-    liteco_finished(&session->co, quic_session_destory, session);
+    liteco_co_init(&session->co, quic_session_run_co, session, st, st_len);
+    liteco_co_finished(&session->co, quic_session_destory, session);
 
-    liteco_timer_init(eloop, &session->timer, &session->timer_chan);
+    liteco_timer_chan_init(session->eloop, rt, &session->tchan);
 
     uint32_t i;
     for (i = 0; quic_modules[i]; i++) {
@@ -70,8 +70,7 @@ quic_err_t quic_session_init(quic_session_t *const session, liteco_eloop_t *cons
 static int quic_session_destory(void *const session_) {
     quic_session_t *const session = session_;
 
-    liteco_timer_close(&session->timer);
-    liteco_chan_destory(&session->timer_chan);
+    liteco_timer_chan_close(&session->tchan);
     liteco_chan_destory(&session->mod_chan);
 
     free(session);
@@ -80,7 +79,7 @@ static int quic_session_destory(void *const session_) {
 }
 
 quic_err_t quic_session_finished(quic_session_t *const session, int (*finished_cb) (void *const args), void *const args) {
-    liteco_finished(&session->co, finished_cb, args);
+    liteco_co_finished(&session->co, finished_cb, args);
 
     return quic_err_success;
 }
@@ -112,11 +111,11 @@ static int quic_session_run_co(void *const session_) {
                 goto module_loop;
             }
 
-            liteco_timer_expire(&session->timer, timeout, 0);
+            liteco_timer_chan_start(&session->tchan, timeout, 0);
         }
         liteco_case_t cases[] = {
             { .chan = &session->mod_chan, .type = liteco_casetype_pop, .ele = NULL },
-            { .chan = &session->timer_chan, .type = liteco_casetype_pop, .ele = NULL }
+            { .chan = liteco_timer_chan(&session->tchan), .type = liteco_casetype_pop, .ele = NULL }
         };
         liteco_case_t *choosed_case = liteco_select(cases, 2, true);
         if (choosed_case->chan == &session->mod_chan) {
@@ -219,7 +218,7 @@ quic_stream_t *quic_session_open(quic_session_t *const session, const size_t ext
 }
 
 uint32_t quic_session_path_mtu(quic_session_t *const session) {
-    return quic_transmission_get_mtu(session->transmission, session->path.local_addr);
+    return quic_transmission_get_mtu(session->transmission, session->path.loc_addr);
 }
 
 quic_err_t quic_session_path_use(quic_session_t *const session, const quic_path_t path) {
@@ -234,13 +233,13 @@ quic_err_t quic_session_path_use(quic_session_t *const session, const quic_path_
     return quic_err_success;
 }
 
-quic_err_t quic_session_path_target_use(quic_session_t *const session, const quic_addr_t remote_addr) {
+quic_err_t quic_session_path_target_use(quic_session_t *const session, const liteco_addr_t remote_addr) {
     quic_migrate_module_t *const migrate = quic_session_module(session, quic_migrate_module);
     if (migrate->setup && session->cfg.disable_migrate) {
         return quic_err_success;
     }
 
-    session->path.remote_addr = remote_addr;
+    session->path.rmt_addr = remote_addr;
     quic_migrate_path_use(migrate, session->path);
 
     return quic_err_success;

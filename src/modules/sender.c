@@ -194,7 +194,7 @@ static quic_send_packet_t *quic_sender_pack_initial_packet(quic_sender_module_t 
         }
     }
 
-    if (quic_link_empty(&pkt->frames)) {
+    if (liteco_link_empty(&pkt->frames)) {
         free(pkt);
         return NULL;
     }
@@ -280,7 +280,7 @@ static quic_send_packet_t *quic_sender_pack_handshake_packet(quic_sender_module_
         }
     }
 
-    if (quic_link_empty(&pkt->frames)) {
+    if (liteco_link_empty(&pkt->frames)) {
         free(pkt);
         return NULL;
     }
@@ -372,7 +372,7 @@ static quic_send_packet_t *quic_sender_pack_app_packet(quic_sender_module_t *con
         }
     }
 
-    if (quic_link_empty(&pkt->frames)) {
+    if (liteco_link_empty(&pkt->frames)) {
         free(pkt);
         return NULL;
     }
@@ -464,7 +464,7 @@ static inline quic_err_t quic_sender_send_packet(quic_sender_module_t *const mod
 
     quic_sent_packet_rbt_t *sent_pkt = malloc(sizeof(quic_sent_packet_rbt_t));
     if (sent_pkt) {
-        quic_rbt_init(sent_pkt);
+        liteco_rbt_node_init(sent_pkt);
         sent_pkt->key = pkt->num;
 
         // note: linked lists have been transferred to 'mem', no need to release them
@@ -554,7 +554,7 @@ static quic_send_packet_t *quic_sender_pack_initial_connection_close(quic_sender
     quic_sender_generate_initial_header(session, pkt->num, payload_len, &hdr);
     quic_buf_write_complete(&hdr);
 
-    quic_link_insert_after(&pkt->frames, frame);
+    liteco_link_insert_after(&pkt->frames, frame);
     quic_sealer_seal(pkt, sealer, hdr, quic_buf_size(&session->dst));
 
     return pkt;
@@ -584,7 +584,7 @@ static quic_send_packet_t *quic_sender_pack_handshake_connection_close(quic_send
     quic_sender_generate_handshake_header(session, pkt->num, payload_len, &hdr);
     quic_buf_write_complete(&hdr);
 
-    quic_link_insert_after(&pkt->frames, frame);
+    liteco_link_insert_after(&pkt->frames, frame);
     quic_sealer_seal(pkt, sealer, hdr, quic_buf_size(&session->dst));
 
     return pkt;
@@ -611,7 +611,7 @@ static quic_send_packet_t *quic_sender_pack_app_connection_close(quic_sender_mod
     quic_sender_generate_short_header(session, pkt->num, &hdr);
     quic_buf_write_complete(&hdr);
 
-    quic_link_insert_after(&pkt->frames, frame);
+    liteco_link_insert_after(&pkt->frames, frame);
     quic_sealer_seal(pkt, sealer, hdr, quic_buf_size(&session->dst));
 
     return pkt;

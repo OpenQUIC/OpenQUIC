@@ -9,10 +9,10 @@
 #ifndef __OPENQUIC_BUF_H__
 #define __OPENQUIC_BUF_H__
 
+#include "platform/platform.h"
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
-#include <malloc.h>
 
 typedef struct quic_buf_s quic_buf_t;
 struct quic_buf_s {
@@ -57,7 +57,7 @@ struct quic_buf_s {
     }                                                  \
     (target)->ref = false;                             \
     (target)->capa = quic_buf_size(exp);               \
-    (target)->buf = malloc((target)->capa);            \
+    (target)->buf = quic_malloc((target)->capa);       \
     memcpy((target)->buf, (exp)->pos, (target)->capa); \
     quic_buf_setpl(target);                            \
 }

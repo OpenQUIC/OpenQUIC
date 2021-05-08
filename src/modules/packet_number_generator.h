@@ -9,7 +9,6 @@
 #ifndef __OPENQUIC_PACKET_NUMBER_GENERATOR_H__
 #define __OPENQUIC_PACKET_NUMBER_GENERATOR_H__
 
-#include "utils/link.h"
 #include "module.h"
 #include <stdint.h>
 
