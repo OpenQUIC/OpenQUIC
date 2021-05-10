@@ -13,6 +13,7 @@
 #include "recv_packet.h"
 #include "utils/addr.h"
 #include "utils/rbt_extend.h"
+#include "utils/errno.h"
 #include "liteco.h"
 #include <netinet/in.h>
 

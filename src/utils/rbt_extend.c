@@ -1,3 +1,11 @@
+/*
+ * Copyright (c) 2020-2021 Gscienty <gaoxiaochuan@hotmail.com>
+ *
+ * Distributed under the MIT software license, see the accompanying
+ * file LICENSE or https://www.opensource.org/licenses/mit-license.php .
+ *
+ */
+
 #include "utils/rbt_extend.h"
 
 liteco_rbt_cmp_result_t quic_rbt_string_cmp_cb(const void *const key, const liteco_rbt_t *const node) {
@@ -25,7 +33,7 @@ liteco_rbt_cmp_result_t quic_rbt_string_cmp_cb(const void *const key, const lite
 }
 
 liteco_rbt_cmp_result_t quic_rbt_addr_cmp_cb(const void *const key, const liteco_rbt_t *const node) {
-    const quic_addr_t *const spec_key = key;
+    const liteco_addr_t *const spec_key = key;
     const quic_addr_rbt_t *const spec_node = (quic_addr_rbt_t *) node;
 
     int cmpret = quic_addr_cmp(*spec_key, spec_node->key);

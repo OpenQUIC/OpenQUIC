@@ -1,3 +1,11 @@
+/*
+ * Copyright (c) 2020-2021 Gscienty <gaoxiaochuan@hotmail.com>
+ *
+ * Distributed under the MIT software license, see the accompanying
+ * file LICENSE or https://www.opensource.org/licenses/mit-license.php .
+ *
+ */
+
 #ifndef __OPENQUIC_RBT_EXTEND_H__
 #define __OPENQUIC_RBT_EXTEND_H__
 

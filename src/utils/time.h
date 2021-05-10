@@ -15,7 +15,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
-__header_always_inline uint64_t quic_now() {
+__quic_header_inline uint64_t quic_now() {
     struct timeval now;
     gettimeofday(&now, NULL);
     return now.tv_sec * 1000 * 1000 + now.tv_usec;
