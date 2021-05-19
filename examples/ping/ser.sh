@@ -1,12 +1,11 @@
 #!/bin/sh
 
 gcc -g \
-    -I deps/liteco/src/ \
+    -I deps/liteco/include/ \
     -I deps/boringssl/include/ \
     -I src/ \
     -I gen/ \
-    deps/liteco/src/arch/x86_64/*.s \
-    deps/liteco/src/*.c \
+    src/platform/linux/*.c \
     gen/modules.c \
     gen/frame_sizer.c \
     gen/frame_formatter.c \
@@ -35,4 +34,4 @@ gcc -g \
     src/transmission.c \
     examples/ping/server_demo.c \
     -o server.out \
-    -Wl,-dy -lpthread -lm -ldl -Wl,-dn -Ldeps/boringssl/ssl -lssl -Ldeps/boringssl/crypto -lcrypto -Wl,-dy && ./server.out
+    -Wl,-dy -lpthread -lm -ldl -Wl,-dn -Ldeps/boringssl/ssl -lssl -Ldeps/boringssl/crypto -lcrypto -Ldeps/liteco -lliteco -Wl,-dy && ./server.out

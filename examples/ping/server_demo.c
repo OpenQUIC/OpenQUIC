@@ -1,5 +1,6 @@
 #include "server.h"
 #include "modules/stream.h"
+#include "liteco.h"
 
 uint8_t buf[256];
 
@@ -58,7 +59,7 @@ int main() {
     quic_server_t server;
     quic_server_init(&server, 0, 8192);
 
-    quic_server_listen(&server, quic_ipv4("127.0.0.1", 11001));
+    quic_server_listen(&server, liteco_ipv4("127.0.0.1", 10011));
 
     quic_server_cert_file(&server, "./tests/crt.crt");
     quic_server_key_file(&server, "./tests/key.key");
