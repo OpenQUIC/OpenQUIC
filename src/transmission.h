@@ -25,12 +25,6 @@ struct quic_transmission_socket_s {
     liteco_udp_chan_t udp;
 };
 
-#define quic_transmission_socket_insert(sockets, socket) \
-    quic_rbt_insert((sockets), (socket), quic_rbt_addr_comparer)
-
-#define quic_transmission_socket_find(sockets, key) \
-    ((quic_transmission_socket_t *) quic_rbt_find((sockets), (key), quic_rbt_addr_key_comparer))
-
 typedef struct quic_transmission_s quic_transmission_t;
 struct quic_transmission_s {
     quic_transmission_socket_t *sockets;
@@ -48,7 +42,7 @@ __quic_header_inline quic_err_t quic_transmission_recv(quic_transmission_t *cons
     return quic_err_success;
 }
 __quic_header_inline bool quic_transmission_exist(quic_transmission_t *const trans, const liteco_addr_t addr) {
-    return liteco_rbt_is_nil(liteco_rbt_find(trans->sockets, &addr));
+    return liteco_rbt_is_not_nil(liteco_rbt_find(trans->sockets, &addr));
 }
 
 __quic_header_inline quic_err_t quic_transmission_send(quic_transmission_t *const trans, const quic_path_t path, const void *const data, const uint32_t len) {
