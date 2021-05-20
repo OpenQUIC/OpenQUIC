@@ -48,7 +48,7 @@ quic_err_t quic_client_init(quic_client_t *const client, const size_t extends_si
     uint8_t rand = 0;
     quic_buf_t src;
 
-    void *st = malloc(st_size);
+    void *st = quic_malloc(st_size);
     if (!st) {
         return quic_err_internal_error;
     }
@@ -80,7 +80,7 @@ quic_err_t quic_client_init(quic_client_t *const client, const size_t extends_si
 
     quic_buf_t *const dst = &client->session->dst;
     dst->capa = client->connid_len;
-    if (!(dst->buf = malloc(dst->capa))) {
+    if (!(dst->buf = quic_malloc(dst->capa))) {
         return quic_err_internal_error;
     }
     if (RAND_bytes(dst->buf, dst->capa) <= 0) {
