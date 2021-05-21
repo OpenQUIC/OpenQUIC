@@ -9,6 +9,7 @@
 #include "liteco.h"
 #include "utils/rbt_extend.h"
 #include "utils/time.h"
+#include "utils/container_of.h"
 #include "transmission.h"
 
 typedef struct quic_transmission_recver_s quic_treansmission_recver_t;
@@ -24,6 +25,7 @@ struct quic_transmission_recver_s {
 static int quic_transmission_recver_process_co(void *const args);
 static int quic_transmission_recver_process_finish(void *const args);
 static void quic_transmission_recv_alloc(liteco_udp_chan_t *const uchan, liteco_udp_chan_ele_t **const ele);
+static void quic_transmission_recv_recovery(liteco_udp_chan_t *const uchan, liteco_udp_chan_ele_t *const ele);
 
 quic_err_t quic_transmission_init(quic_transmission_t *const trans, liteco_runtime_t *const rt) {
 
@@ -86,7 +88,7 @@ quic_err_t quic_transmission_listen(liteco_eloop_t *const eloop, quic_transmissi
 
     liteco_udp_chan_init(eloop, &socket->udp);
     liteco_udp_chan_bind(&socket->udp, (struct sockaddr *) &local_addr, &trans->rchan);
-    liteco_udp_chan_recv(&socket->udp, quic_transmission_recv_alloc);
+    liteco_udp_chan_recv(&socket->udp, quic_transmission_recv_alloc, quic_transmission_recv_recovery);
     socket->key = local_addr;
     socket->mtu = mtu;
 
@@ -102,4 +104,11 @@ static void quic_transmission_recv_alloc(liteco_udp_chan_t *const uchan, liteco_
     *ele = &recvpkt->pkt;
     (*ele)->b_size = socket->mtu;
     (*ele)->ret = 0;
+}
+
+static void quic_transmission_recv_recovery(liteco_udp_chan_t *const uchan, liteco_udp_chan_ele_t *const ele) {
+    (void) uchan;
+    quic_recv_packet_t *const recvpkt = container_of(ele, quic_recv_packet_t, pkt);
+
+    quic_free(recvpkt);
 }

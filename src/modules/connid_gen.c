@@ -263,7 +263,7 @@ quic_err_t quic_session_handle_new_connection_id_frame(quic_session_t *const ses
         if (!dst_gened) {
             return quic_err_internal_error;
         }
-        liteco_rbt_init(dst_gened);
+        liteco_rbt_node_init(dst_gened);
 
         quic_buf_init(&dst_gened->connid);
         dst_gened->connid.capa = n_frame->len;

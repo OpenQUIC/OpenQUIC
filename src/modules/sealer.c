@@ -714,17 +714,6 @@ quic_err_t quic_sealer_seal(quic_send_packet_t *const pkt, quic_sealer_t *const 
 
     size_t hdr_size = quic_buf_size(&hdr);
 
-    // TEST BEGIN
-    memcpy(pkt->buf.pos, hdr.pos, hdr_size);
-    pkt->buf.pos += hdr_size;
-    quic_frame_t *test_frame = NULL;
-    liteco_link_foreach(test_frame, &pkt->frames) {
-        quic_frame_format(&pkt->buf, test_frame);
-    }
-    quic_buf_write_complete(&pkt->buf);
-    return quic_err_success;
-    // TEST END
-
     size_t payload_len = 0;
     quic_frame_t *frame = NULL;
     liteco_link_foreach(frame, &pkt->frames) {
@@ -765,9 +754,6 @@ quic_err_t quic_sealer_seal(quic_send_packet_t *const pkt, quic_sealer_t *const 
 }
 
 quic_err_t quic_sealer_open(quic_recv_packet_t *const pkt, quic_sealer_module_t *const module, const size_t src_len) {
-    // TEST BEGIN
-    return quic_err_success;
-    // TEST END
     quic_header_t *const hdr = (quic_header_t *) pkt->pkt.buf;
     quic_sealer_t *sealer = NULL;
 
