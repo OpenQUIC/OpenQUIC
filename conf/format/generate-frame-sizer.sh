@@ -16,7 +16,7 @@ BEGIN {
 {
     if ($1 == "sizer") {
         print "extern uint64_t " $3 "(const quic_frame_t *const);";
-        sizer[strtonum($2)] = $3;
+        sizer[$2+0] = $3;
     }
 }
 END {

@@ -16,7 +16,7 @@ BEGIN {
 {
     if ($1 == "parser") {
         print "extern quic_err_t " $3 "(quic_frame_t **const, quic_buf_t *const);";
-        parser[strtonum($2)] = $3;
+        parser[$2+0] = $3;
     }
 }
 END {
