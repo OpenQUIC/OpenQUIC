@@ -132,6 +132,7 @@ static void quic_stream_flowctrl_instance_read(void *const instance, const uint6
     flowctrl->read_off += readed_bytes;
     if (!flowctrl->fin_flag && (flowctrl->read_off >= flowctrl->rwnd || flowctrl->rwnd - flowctrl->read_off <= ((flowctrl->rwnd_size * 3) >> 2))) {
         quic_stream_flowctrl_adjust_rwnd(flowctrl);
+        flowctrl->rwnd = flowctrl->read_off + flowctrl->rwnd_size;
         quic_stream_module_update_rwnd(s_module, sid);
     }
 

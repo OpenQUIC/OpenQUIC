@@ -10,6 +10,7 @@
 #define __OPENQUIC_STREAM_H__
 
 #include "def.h"
+#include "modules/sender.h"
 #include "platform/platform.h"
 #include "sorter.h"
 #include "session.h"
@@ -23,7 +24,7 @@
 #include <stdint.h>
 #include <pthread.h>
 
-#define QUIC_STREAM_CO_STACK 1024
+#define QUIC_STREAM_CO_STACK 8192
 
 #define quic_stream_id_transfer(bidi, is_client, key) \
     ((bidi) ? 0 : 2) + ((is_client) ? 0 : 1) + (((key) - 1) << 2)
@@ -226,14 +227,19 @@ struct quic_stream_module_s {
 };
 
 __quic_header_inline quic_err_t quic_stream_module_update_rwnd(quic_stream_module_t *const module, const uint64_t sid) {
+    quic_session_t *const session = quic_module_of_session(module);
+    quic_sender_module_t *s_module = quic_session_module(session, quic_sender_module);
+
     pthread_mutex_lock(&module->rwnd_updated_mtx);
     if (liteco_rbt_is_nil(liteco_rbt_find(module->rwnd_updated, &sid))) {
-        quic_stream_rwnd_updated_sid_t *updated_sid = malloc(sizeof(quic_stream_rwnd_updated_sid_t));
+        quic_stream_rwnd_updated_sid_t *updated_sid = quic_malloc(sizeof(quic_stream_rwnd_updated_sid_t));
         if (updated_sid) {
             liteco_rbt_node_init(updated_sid);
             updated_sid->key = sid;
 
             liteco_rbt_insert(&module->rwnd_updated, updated_sid);
+
+            quic_module_activate(session, s_module);
         }
     }
     pthread_mutex_unlock(&module->rwnd_updated_mtx);

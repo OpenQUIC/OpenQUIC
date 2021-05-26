@@ -55,7 +55,7 @@
     quic_err_t (*on_lost) (void *const lost_obj, const quic_frame_t *const frame);   \
 
 #define quic_frame_init(frame, type) { \
-    liteco_link_init((frame));           \
+    liteco_link_init((frame));         \
     (frame)->first_byte = (type);      \
     (frame)->acked_obj = NULL;         \
     (frame)->on_acked = NULL;          \

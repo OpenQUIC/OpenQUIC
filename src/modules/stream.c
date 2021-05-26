@@ -166,7 +166,7 @@ quic_frame_stream_t *quic_send_stream_generate(quic_send_stream_t *const str, bo
         return NULL;
     }
 
-    quic_frame_stream_t *frame = malloc(sizeof(quic_frame_stream_t) + payload_size);
+    quic_frame_stream_t *frame = quic_malloc(sizeof(quic_frame_stream_t) + payload_size);
     if (frame == NULL) {
         pthread_mutex_unlock(&str->mtx);
         return NULL;
@@ -356,7 +356,7 @@ static int quic_stream_write_done(void *const args) {
         io->done_cb(io->str, io->data, io->len, io->pos);
     }
 
-    free(io);
+    /*free(io);*/
     return 0;
 }
 

@@ -719,7 +719,7 @@ quic_err_t quic_sealer_seal(quic_send_packet_t *const pkt, quic_sealer_t *const 
     liteco_link_foreach(frame, &pkt->frames) {
         payload_len += quic_frame_size(frame);
     }
-    uint8_t *const payload = malloc(payload_len);
+    uint8_t *const payload = quic_malloc(payload_len);
     if (!payload) {
         return quic_err_internal_error;
     }
@@ -788,7 +788,7 @@ quic_err_t quic_sealer_open(quic_recv_packet_t *const pkt, quic_sealer_module_t 
     const size_t hdr_size = payload_off - pkt->pkt.buf;
     const size_t payload_size = pkt->pkt.ret - hdr_size;
 
-    uint8_t *opened_payload = malloc(payload_size);
+    uint8_t *opened_payload = quic_malloc(payload_size);
     size_t opened_outlen = 0;
     if (!opened_payload) {
         return quic_err_internal_error;
