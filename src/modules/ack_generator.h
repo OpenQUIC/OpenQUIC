@@ -68,7 +68,7 @@ __quic_header_inline bool quic_ack_generator_should_send(quic_ack_generator_modu
     return module->should_send;
 }
 
-__quic_header_inline quic_err_t quic_ack_generator_module_received(quic_ack_generator_module_t *const module, const uint64_t num, const uint64_t recv_time) {
+__quic_header_inline quic_err_t quic_ack_generator_module_received(quic_ack_generator_module_t *const module, const uint64_t num, const uint64_t recv_time, const bool should_ack) {
     if (num < module->ignore_threhold || module->dropped) {
         return quic_err_success;
     }
@@ -80,10 +80,10 @@ __quic_header_inline quic_err_t quic_ack_generator_module_received(quic_ack_gene
         module->lg_obtime = recv_time;
     }
 
-    if (quic_ack_generator_insert_ranges(module, num)) {
+    if (quic_ack_generator_insert_ranges(module, num) && should_ack) {
         module->should_send = true;
     }
-    if (lost) {
+    if (lost && should_ack) {
         module->should_send = true;
     }
     return quic_err_success;

@@ -5,7 +5,7 @@ gcc -g \
     -I deps/boringssl/include/ \
     -I src/ \
     -I gen/ \
-    src/platform/linux/*.c \
+    src/platform/darwin/*.c \
     gen/modules.c \
     gen/frame_sizer.c \
     gen/frame_formatter.c \
@@ -34,4 +34,7 @@ gcc -g \
     src/transmission.c \
     examples/ping/server_demo.c \
     -o server.out \
-    -Wl,-dy -lpthread -lm -ldl -Wl,-dn -Ldeps/boringssl/ssl -lssl -Ldeps/boringssl/crypto -lcrypto -Ldeps/liteco -lliteco -Wl,-dy && ./server.out
+    -Wl,-search_paths_first  \
+    -lpthread -lm -ldl \
+    -Ldeps/boringssl/ssl -lssl -Ldeps/boringssl/crypto -lcrypto -Ldeps/liteco -lliteco \
+    && ./server.out

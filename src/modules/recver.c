@@ -7,6 +7,7 @@
  */
 
 #include "modules/recver.h"
+#include "format/frame.h"
 #include "modules/ack_generator.h"
 #include "modules/sealer.h"
 #include "format/header.h"
@@ -142,8 +143,8 @@ static quic_err_t quic_recver_process_packet_payload(quic_session_t *const sess,
         free(frame);
     }
 
-    if (a_module && should_ack) {
-        quic_ack_generator_module_received(a_module, payload->p_num, recv_time);
+    if (a_module) {
+        quic_ack_generator_module_received(a_module, payload->p_num, recv_time, should_ack);
     }
 
     return quic_err_success;

@@ -1,5 +1,6 @@
 #include "server.h"
 #include "modules/stream.h"
+#include <stdio.h>
 
 uint8_t buf[256];
 
@@ -13,7 +14,7 @@ quic_err_t closed_cb(quic_stream_t *const str) {
 
 quic_err_t read_done(quic_stream_t *const str, void *const buf, const size_t capa, const size_t len) {
     quic_stream_extends(int, str) += len;
-    printf("%dKB\n", quic_stream_extends(int, str) / 1024);
+    printf("%d\n", quic_stream_extends(int, str));
 
     if (len == 0 && quic_stream_fin(str)) {
         quic_stream_close(str, closed_cb);
@@ -53,7 +54,7 @@ int main() {
     quic_server_t server;
     quic_server_init(&server, 0, 8192);
 
-    quic_server_listen(&server, quic_ipv4("127.0.0.1", 11001));
+    quic_server_listen(&server, liteco_ipv4("127.0.0.1", 11001));
 
     quic_server_cert_file(&server, "./tests/crt.crt");
     quic_server_key_file(&server, "./tests/key.key");
